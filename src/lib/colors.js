@@ -33,6 +33,19 @@ export const HR_SCALE = ["#4dd9c0", "#c8e86a", "#f4b740", "#e8543a", "#c22b1c"];
 export const ELE_SCALE = ["#1c2a24", "#2f5c4b", "#7fae5e", "#f4b740", "#c96b3a"];
 
 /**
+ * Tokens dédiés à la lisibilité des tracés/marqueurs sur fond de carte
+ * (tuiles OpenStreetMap, non maîtrisées). Un halo sombre assorti au thème de
+ * l'app détache systématiquement les éléments d'analyse du fond de carte,
+ * quelle que soit la couleur du tracé (dégradés vitesse/pente/FC/altitude)
+ * ou la zone géographique (routes claires, forêts, eau...). Tout futur
+ * marqueur (FC, puissance, cadence...) doit réutiliser ces mêmes tokens pour
+ * rester visuellement cohérent avec le tracé et les marqueurs existants.
+ */
+export const MAP_HALO_COLOR = COLORS.bg;
+export const MAP_HALO_OPACITY = 0.6;
+export const MAP_MARKER_RING_COLOR = "#ffffff";
+
+/**
  * Interpole linéairement entre deux couleurs hexadécimales
  *
  * @param {string} hexA - Couleur de départ (ex: "#4dd9c0")

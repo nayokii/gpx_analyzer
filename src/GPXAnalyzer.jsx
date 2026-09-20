@@ -3,7 +3,7 @@ import {
   Upload, MapPin, TrendingUp, Activity, Heart, Zap, Mountain, Clock, Gauge,
   RefreshCw, ChevronUp, ChevronDown, X, Download, Info, Flame, Timer,
   Route, Thermometer, PauseCircle, Settings2, ArrowUpRight, Wind, Compass,
-  FileWarning, Sparkles,
+  FileWarning, Sparkles, History as HistoryIcon,
 } from "lucide-react";
 import {
   ResponsiveContainer, AreaChart, Area, LineChart, Line, XAxis, YAxis,
@@ -14,7 +14,7 @@ import {
 // Modules extraits
 import { parseGPXString } from "./lib/parsers/gpxParser.js";
 import { computeAnalysis, computeHRZones } from "./lib/analysis.js";
-import { computePowerZones } from "./lib/power.js";
+import { computePowerZones, computeBestPowerEfforts } from "./lib/power.js";
 import {
   avg,
   decimate,
@@ -31,6 +31,19 @@ import { generateDemoPoints } from "./lib/demoData.js";
 import { StatCard, SectionTitle, CustomTooltip } from "./components/UIPrimitives.jsx";
 import { MapView } from "./components/MapView.jsx";
 import { ProfileChart } from "./components/ProfileChart.jsx";
+import { StorageSettings } from "./components/StorageSettings.jsx";
+import { HistoryView } from "./components/HistoryView.jsx";
+
+// Stockage local durable (Phase 2)
+import { toActivity } from "./lib/normalize.js";
+import {
+  isFileSystemAccessSupported,
+  pickDataDirectory,
+  getStoredDirectoryHandle,
+  verifyPermission,
+  forgetDataDirectory,
+} from "./lib/storage/directoryAccess.js";
+import { saveActivity, loadActivityDetail, loadActivitySourceText } from "./lib/storage/activityStore.js";
 
 /* ============================================================================
    MAIN APP
@@ -45,14 +58,19 @@ const DEFAULT_HR_ZONES = [
 ];
 
 export default function GPXAnalyzer() {
-  const [mode, setMode] = useState("landing"); // landing | dashboard
+  const [mode, setMode] = useState("landing"); // landing | dashboard | historique
   const [isDemo, setIsDemo] = useState(false);
   const [fileName, setFileName] = useState(null);
   const [rideName, setRideName] = useState(null);
   const [points, setPoints] = useState(null);
+  const [activeActivityId, setActiveActivityId] = useState(null); // id de la sortie ouverte depuis l'historique, si applicable
 
   const [error, setError] = useState(null);
   const [dragOver, setDragOver] = useState(false);
+
+  // Stockage local durable (Phase 2) : status = "checking" | "unsupported" | "disconnected" | "needs-permission" | "connected"
+  const [storage, setStorage] = useState({ status: "checking", rootHandle: null, dirName: null });
+  const [saveStatus, setSaveStatus] = useState(null); // { ok: boolean, message: string } | null
 
   const [activeTab, setActiveTab] = useState("resume");
   const [mapColorMode, setMapColorMode] = useState("speed");
@@ -83,6 +101,49 @@ export default function GPXAnalyzer() {
   useEffect(() => {
     localStorage.setItem("gpx-user-settings", JSON.stringify(userSettings));
   }, [userSettings]);
+
+  // Reconnexion silencieuse au dossier de stockage local mémorisé (si permission déjà accordée).
+  useEffect(() => {
+    if (!isFileSystemAccessSupported()) {
+      setStorage({ status: "unsupported", rootHandle: null, dirName: null });
+      return;
+    }
+    let cancelled = false;
+    getStoredDirectoryHandle().then(async (handle) => {
+      if (cancelled) return;
+      if (!handle) {
+        setStorage({ status: "disconnected", rootHandle: null, dirName: null });
+        return;
+      }
+      const granted = await verifyPermission(handle, { request: false });
+      if (cancelled) return;
+      setStorage({ status: granted ? "connected" : "needs-permission", rootHandle: handle, dirName: handle.name });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  async function connectStorage() {
+    try {
+      const handle = await pickDataDirectory();
+      setStorage({ status: "connected", rootHandle: handle, dirName: handle.name });
+    } catch (err) {
+      if (err && err.name === "AbortError") return; // l'utilisateur a annulé le sélecteur
+      setError("Impossible de connecter le dossier de stockage : " + (err.message || err));
+    }
+  }
+
+  async function reconnectStorage() {
+    if (!storage.rootHandle) return connectStorage();
+    const granted = await verifyPermission(storage.rootHandle, { request: true });
+    setStorage((s) => ({ ...s, status: granted ? "connected" : "needs-permission" }));
+  }
+
+  async function disconnectStorage() {
+    await forgetDataDirectory();
+    setStorage({ status: "disconnected", rootHandle: null, dirName: null });
+  }
 
   const analysis = useMemo(() => (points ? computeAnalysis(points, userSettings) : null), [points, userSettings]);
   const powerZones = useMemo(
@@ -258,24 +319,67 @@ export default function GPXAnalyzer() {
   const loadFile = useCallback((file) => {
     if (!file) return;
     setError(null);
+    setSaveStatus(null);
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
+      const text = e.target.result;
+      let name, points;
       try {
-        const { name, points } = parseGPXString(e.target.result);
-        setPoints(points);
-        setRideName(name);
-        setFileName(file.name);
-        setIsDemo(false);
-        setMode("dashboard");
-        setActiveTab("resume");
-        setSelectedClimb(null);
+        ({ name, points } = parseGPXString(text));
       } catch (err) {
         setError(err.message || "Impossible de lire ce fichier GPX.");
+        return;
+      }
+      setPoints(points);
+      setRideName(name);
+      setFileName(file.name);
+      setIsDemo(false);
+      setActiveActivityId(null);
+      setMode("dashboard");
+      setActiveTab("resume");
+      setSelectedClimb(null);
+
+      // Sauvegarde automatique et durable (fichier original + version normalisée),
+      // uniquement si un dossier de stockage local est connecté.
+      if (storage.status === "connected" && storage.rootHandle) {
+        try {
+          const freshAnalysis = computeAnalysis(points, userSettings);
+          const activity = toActivity(freshAnalysis, points, { name, sourceType: "gpx", originalFilename: file.name });
+          const saved = await saveActivity(storage.rootHandle, activity, text, "gpx");
+          setActiveActivityId(saved.id);
+          setSaveStatus({ ok: true, message: "Sortie enregistrée dans l'historique." });
+        } catch (err) {
+          setSaveStatus({ ok: false, message: "Sortie analysée mais non enregistrée : " + (err.message || err) });
+        }
+      } else if (storage.status === "needs-permission") {
+        setSaveStatus({ ok: false, message: "Sortie analysée mais non enregistrée : reconnecte le dossier de stockage dans Paramètres." });
       }
     };
     reader.onerror = () => setError("Erreur de lecture du fichier.");
     reader.readAsText(file);
-  }, []);
+  }, [storage, userSettings]);
+
+  async function openActivityFromHistory(id) {
+    if (!storage.rootHandle) return;
+    setError(null);
+    setSaveStatus(null);
+    try {
+      const detail = await loadActivityDetail(storage.rootHandle, id);
+      const sourceText = await loadActivitySourceText(storage.rootHandle, id);
+      const { name, points } = parseGPXString(sourceText);
+      setPoints(points);
+      setRideName(detail.name || name);
+      setFileName(detail.source.originalFilename || detail.source.storedFilename);
+      setIsDemo(false);
+      setActiveActivityId(id);
+      setMode("dashboard");
+      setActiveTab("resume");
+      setSelectedClimb(null);
+    } catch (err) {
+      setError(err.message || "Impossible de rouvrir cette sortie depuis l'historique.");
+      setMode("landing");
+    }
+  }
 
   function handleInputChange(e) {
     const file = e.target.files && e.target.files[0];
@@ -308,6 +412,8 @@ export default function GPXAnalyzer() {
     setIsDemo(false);
     setFileName(null);
     setRideName(null);
+    setActiveActivityId(null);
+    setSaveStatus(null);
   }
   function exportPDF() {
     window.print();
@@ -439,6 +545,15 @@ export default function GPXAnalyzer() {
           background: rgba(244,183,64,0.12); border: 1px solid rgba(244,183,64,0.35);
           color: var(--climb); font-size: 12.5px; font-weight: 600;
           padding: 9px 14px; border-radius: 12px; margin-bottom: 14px;
+        }
+        .gpx-save-banner {
+          display: flex; align-items: center; gap: 8px;
+          background: rgba(77,217,192,0.12); border: 1px solid rgba(77,217,192,0.35);
+          color: var(--speed); font-size: 12.5px; font-weight: 600;
+          padding: 9px 14px; border-radius: 12px; margin-bottom: 14px;
+        }
+        .gpx-save-banner-error {
+          background: rgba(232,84,58,0.1); border-color: rgba(232,84,58,0.3); color: #ffb3a5;
         }
         .gpx-header-left { min-width: 0; }
         .gpx-ride-name { font-size: 22px; font-weight: 800; letter-spacing: -0.01em; margin: 0 0 4px 0; word-break: break-word; }
@@ -645,6 +760,37 @@ export default function GPXAnalyzer() {
 
         .gpx-empty-note { font-size: 12.5px; color: var(--faint); font-style: italic; }
 
+        /* ---------- Stockage local & historique ---------- */
+        .gpx-storage-box {
+          display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+          font-size: 13px; color: var(--muted);
+          background: var(--surface2); border: 1px solid var(--border); border-radius: 12px;
+          padding: 12px 14px;
+        }
+        .gpx-storage-box svg { flex-shrink: 0; color: var(--info); }
+        .gpx-storage-box.gpx-storage-ok svg { color: var(--speed); }
+        .gpx-storage-box.gpx-storage-warn { border-color: rgba(244,183,64,0.35); background: rgba(244,183,64,0.08); }
+        .gpx-storage-box.gpx-storage-warn svg { color: var(--climb); }
+        .gpx-storage-box .gpx-btn-ghost, .gpx-storage-box .gpx-link-btn { margin-left: auto; }
+
+        .gpx-history-toolbar { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 16px; align-items: center; }
+        .gpx-history-search {
+          display: flex; align-items: center; gap: 8px; flex: 1; min-width: 200px;
+          background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; padding: 8px 12px;
+          color: var(--faint);
+        }
+        .gpx-history-search input { background: none; border: none; color: var(--text); font-size: 13px; width: 100%; outline: none; }
+        .gpx-history-daterange { display: flex; align-items: center; gap: 8px; color: var(--faint); font-size: 12px; }
+        .gpx-history-daterange input {
+          background: var(--surface2); border: 1px solid var(--border); border-radius: 8px;
+          padding: 6px 8px; color: var(--text); font-size: 12.5px;
+        }
+        .gpx-history-selection-bar {
+          display: flex; align-items: center; gap: 14px; margin-top: 16px; padding: 10px 14px;
+          background: rgba(244,183,64,0.08); border: 1px solid rgba(244,183,64,0.3); border-radius: 10px;
+          font-size: 13px; color: var(--text); flex-wrap: wrap;
+        }
+
         @media (max-width: 860px) {
           .gpx-stats-grid { grid-template-columns: repeat(2, 1fr); }
           .gpx-two-col { grid-template-columns: 1fr; }
@@ -689,6 +835,11 @@ export default function GPXAnalyzer() {
             )}
             <div className="gpx-landing-demo">
               <button className="gpx-link-btn" onClick={loadDemo}>Voir un exemple avec des données de démonstration (fictives)</button>
+              {" · "}
+              <button className="gpx-link-btn" onClick={() => setMode("historique")}>Voir mon historique</button>
+            </div>
+            <div className="gpx-panel" style={{ marginTop: 24, textAlign: "left" }}>
+              <StorageSettings storage={storage} onConnect={connectStorage} onReconnect={reconnectStorage} compact />
             </div>
             <div className="gpx-landing-features">
               <div className="gpx-landing-feature"><b>100% local</b>Aucune donnée n'est envoyée à un serveur.</div>
@@ -721,10 +872,17 @@ export default function GPXAnalyzer() {
               {analysis.hasEle && <div className="gpx-qs"><div className="gpx-qs-label">D+</div><div className="gpx-qs-value">{fmtInt(analysis.elevGain)} m</div></div>}
             </div>
             <div className="gpx-header-actions">
+              <button className="gpx-icon-btn" title="Historique des sorties" onClick={() => setMode("historique")}><HistoryIcon size={15} /></button>
               <button className="gpx-icon-btn" title="Exporter (PDF)" onClick={exportPDF}><Download size={15} /></button>
               <button className="gpx-btn-ghost" onClick={resetAll}><RefreshCw size={14} /> Nouvelle sortie</button>
             </div>
           </div>
+
+          {saveStatus && (
+            <div className={"gpx-save-banner" + (saveStatus.ok ? "" : " gpx-save-banner-error")}>
+              <Info size={14} /> {saveStatus.message}
+            </div>
+          )}
 
           <div className="gpx-nav">
             {TABS.map((t) => (
@@ -1409,6 +1567,7 @@ export default function GPXAnalyzer() {
           )}
 
           {activeTab === "parametres" && (
+            <>
             <div className="gpx-panel">
               <SectionTitle icon={Settings2}>Paramètres utilisateur</SectionTitle>
               <div className="gpx-params-grid">
@@ -1465,8 +1624,29 @@ export default function GPXAnalyzer() {
                 <span className="gpx-params-hint">Valeurs sauvegardées automatiquement dans le navigateur.</span>
               </div>
             </div>
+
+            <div className="gpx-panel">
+              <SectionTitle icon={HistoryIcon}>Stockage local & historique</SectionTitle>
+              <StorageSettings storage={storage} onConnect={connectStorage} onReconnect={reconnectStorage} onDisconnect={disconnectStorage} />
+              {storage.status === "connected" && (
+                <p className="gpx-params-hint" style={{ marginTop: 10 }}>
+                  Le fichier GPX original et une version JSON normalisée sont conservés dans « {storage.dirName} / activities ».
+                </p>
+              )}
+            </div>
+            </>
           )}
         </div>
+      )}
+
+      {mode === "historique" && (
+        <HistoryView
+          storage={storage}
+          onConnect={connectStorage}
+          onReconnect={reconnectStorage}
+          onOpen={openActivityFromHistory}
+          onBack={() => setMode(points ? "dashboard" : "landing")}
+        />
       )}
     </div>
   );

@@ -10,8 +10,48 @@ import { RefreshCw } from "lucide-react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 
-import { COLORS, SPEED_SCALE, GRADE_SCALE, HR_SCALE, ELE_SCALE, scaleColor } from "../lib/colors.js";
+import {
+  COLORS,
+  SPEED_SCALE,
+  GRADE_SCALE,
+  HR_SCALE,
+  ELE_SCALE,
+  scaleColor,
+  MAP_HALO_COLOR,
+  MAP_HALO_OPACITY,
+  MAP_MARKER_RING_COLOR,
+} from "../lib/colors.js";
 import { decimate, fmt1, fmtInt } from "../lib/utils.js";
+
+/**
+ * Dessine une polyligne avec un halo sombre assorti au thème derrière elle,
+ * pour qu'elle se détache clairement du fond de carte (tuiles OSM, non
+ * maîtrisées) quelle que soit sa couleur ou la zone géographique affichée.
+ * Réutilisé pour le tracé principal et la montée sélectionnée ; tout futur
+ * élément linéaire (segment de comparaison, etc.) devrait faire de même.
+ */
+function drawHaloPolyline(group, latlngs, { color, weight = 5, opacity = 0.95, haloColor = MAP_HALO_COLOR, haloOpacity = MAP_HALO_OPACITY, haloExtraWeight = 4 }) {
+  L.polyline(latlngs, {
+    color: haloColor,
+    weight: weight + haloExtraWeight,
+    opacity: haloOpacity,
+    lineJoin: "round",
+    lineCap: "round",
+  }).addTo(group);
+  return L.polyline(latlngs, { color, weight, opacity, lineJoin: "round", lineCap: "round" }).addTo(group);
+}
+
+/**
+ * Dessine un marqueur ponctuel avec un anneau clair derrière lui, pour qu'il
+ * ne se confonde jamais avec les routes/chemins du fond de carte. Point
+ * d'extension pour les futurs marqueurs (FC, puissance, cadence, meilleurs
+ * efforts...) : il suffit d'appeler cette fonction avec une couleur de
+ * remplissage différente, sans toucher au reste de l'architecture.
+ */
+function drawHaloMarker(group, latlng, { radius = 7, fillColor, ringColor = MAP_MARKER_RING_COLOR, strokeColor = COLORS.bg, strokeWeight = 2 }) {
+  L.circleMarker(latlng, { radius: radius + 2, color: ringColor, weight: 0, fillColor: ringColor, fillOpacity: 0.9 }).addTo(group);
+  return L.circleMarker(latlng, { radius, color: strokeColor, weight: strokeWeight, fillColor, fillOpacity: 1 }).addTo(group);
+}
 
 function nearestIdxByLatLng(pts, lat, lon) {
   let best = 0,
@@ -131,12 +171,24 @@ export function MapView({
       hitLine.on("mouseout", () => onHoverIndex(null));
     }
 
+    // Halo sombre unique sous tout le tracé, quel que soit le mode de couleur :
+    // garantit un contraste robuste avec n'importe quel fond de carte (routes
+    // claires, forêts, eau...) sans dessiner un halo par segment (coûteux).
+    L.polyline(decimated.map((p) => [p.lat, p.lon]), {
+      color: MAP_HALO_COLOR,
+      weight: 9,
+      opacity: MAP_HALO_OPACITY,
+      lineJoin: "round",
+      lineCap: "round",
+    }).addTo(group);
+
     if (colorMode === "track") {
       L.polyline(decimated.map((p) => [p.lat, p.lon]), {
         color: COLORS.speed,
-        weight: 4,
-        opacity: 0.9,
+        weight: 5,
+        opacity: 0.95,
         lineJoin: "round",
+        lineCap: "round",
       }).addTo(group);
     } else {
       for (let i = 1; i < decimated.length; i++) {
@@ -145,44 +197,39 @@ export function MapView({
             [decimated[i - 1].lat, decimated[i - 1].lon],
             [decimated[i].lat, decimated[i].lon],
           ],
-          { color: segColor(decimated[i]), weight: 4, opacity: 0.9 }
+          { color: segColor(decimated[i]), weight: 5, opacity: 0.95, lineCap: "round" }
         ).addTo(group);
       }
     }
 
     if (selectedClimb) {
       const seg = analysis.series.slice(selectedClimb.startIdx, selectedClimb.endIdx + 1);
-      L.polyline(seg.map((p) => [p.lat, p.lon]), {
+      const segLatLngs = seg.map((p) => [p.lat, p.lon]);
+      // Halo clair (plutôt que le halo sombre standard) pour que la montée
+      // sélectionnée ressorte aussi bien au-dessus du tracé déjà haloé.
+      drawHaloPolyline(group, segLatLngs, {
         color: COLORS.climb,
         weight: 6,
-        opacity: 0.95,
-        lineJoin: "round",
-      }).addTo(group);
-      const bounds = L.latLngBounds(seg.map((p) => [p.lat, p.lon]));
+        opacity: 1,
+        haloColor: MAP_MARKER_RING_COLOR,
+        haloOpacity: 0.85,
+        haloExtraWeight: 3,
+      });
+      const bounds = L.latLngBounds(segLatLngs);
       map.flyToBounds(bounds, { padding: [40, 40], duration: 0.6 });
     }
 
     (analysis.climbs || []).forEach((c) => {
       const p = analysis.series[c.startIdx];
-      L.circleMarker([p.lat, p.lon], {
-        radius: 6,
-        color: "#0a0d0c",
-        weight: 2,
-        fillColor: COLORS.climb,
-        fillOpacity: 1,
-      })
-        .addTo(group)
-        .bindPopup(`<b>${c.name}</b><br/>${fmt1(c.lengthKm)} km · +${fmtInt(c.gain)} m · ${fmt1(c.avgGrade)} %`);
+      drawHaloMarker(group, [p.lat, p.lon], { radius: 6, fillColor: COLORS.climb }).bindPopup(
+        `<b>${c.name}</b><br/>${fmt1(c.lengthKm)} km · +${fmtInt(c.gain)} m · ${fmt1(c.avgGrade)} %`
+      );
     });
 
     const start = decimated[0],
       end = decimated[decimated.length - 1];
-    L.circleMarker([start.lat, start.lon], { radius: 7, color: "#0a0d0c", weight: 2, fillColor: "#4dd9c0", fillOpacity: 1 })
-      .addTo(group)
-      .bindPopup("Départ");
-    L.circleMarker([end.lat, end.lon], { radius: 7, color: "#0a0d0c", weight: 2, fillColor: "#e8543a", fillOpacity: 1 })
-      .addTo(group)
-      .bindPopup("Arrivée");
+    drawHaloMarker(group, [start.lat, start.lon], { radius: 7, fillColor: COLORS.speed }).bindPopup("Départ");
+    drawHaloMarker(group, [end.lat, end.lon], { radius: 7, fillColor: COLORS.effort }).bindPopup("Arrivée");
 
     if (!selectedClimb) {
       const bounds = L.latLngBounds(decimated.map((p) => [p.lat, p.lon]));
