@@ -25,7 +25,7 @@ import {
   fmtClock,
   fmtDateFull,
 } from "./lib/utils.js";
-import { COLORS } from "./lib/colors.js";
+import { COLORS, MAP_TILE_FILTER } from "./lib/colors.js";
 import { generateSummary, generateHighlights } from "./lib/narrative.js";
 import { generateDemoPoints } from "./lib/demoData.js";
 import { StatCard, SectionTitle, CustomTooltip } from "./components/UIPrimitives.jsx";
@@ -629,6 +629,7 @@ export default function GPXAnalyzer() {
           border: 1px solid var(--border);
         }
         .gpx-leaflet-container .leaflet-container { background: var(--bgAlt); font-family: inherit; }
+        .gpx-leaflet-container .leaflet-tile-pane { filter: ${MAP_TILE_FILTER}; }
         .gpx-leaflet-container .leaflet-popup-content-wrapper { background: #0e1211; color: var(--text); border-radius: 10px; }
         .gpx-leaflet-container .leaflet-popup-content { font-size: 12.5px; }
         .gpx-leaflet-container .leaflet-popup-tip { background: #0e1211; }

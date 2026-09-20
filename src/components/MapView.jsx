@@ -24,20 +24,30 @@ import {
 import { decimate, fmt1, fmtInt } from "../lib/utils.js";
 
 /**
- * Dessine une polyligne avec un halo sombre assorti au thème derrière elle,
- * pour qu'elle se détache clairement du fond de carte (tuiles OSM, non
- * maîtrisées) quelle que soit sa couleur ou la zone géographique affichée.
- * Réutilisé pour le tracé principal et la montée sélectionnée ; tout futur
- * élément linéaire (segment de comparaison, etc.) devrait faire de même.
+ * Dessine le halo/contour ("casing") sous un tracé : une plaque de séparation
+ * quasi opaque entre le tracé et le fond de carte. Ne dessine jamais le
+ * tracé lui-même — voir drawHaloPolyline pour un tracé complet (halo +
+ * couleur), ou appeler cette fonction seule quand plusieurs segments colorés
+ * doivent partager un unique halo continu (cas du tracé principal en mode
+ * analytique, pour éviter un halo par segment inutilement coûteux).
  */
-function drawHaloPolyline(group, latlngs, { color, weight = 5, opacity = 0.95, haloColor = MAP_HALO_COLOR, haloOpacity = MAP_HALO_OPACITY, haloExtraWeight = 4 }) {
-  L.polyline(latlngs, {
-    color: haloColor,
-    weight: weight + haloExtraWeight,
-    opacity: haloOpacity,
+function drawTrackHalo(group, latlngs, { weight = 5, extraWeight = 3, color = MAP_HALO_COLOR, opacity = MAP_HALO_OPACITY } = {}) {
+  return L.polyline(latlngs, {
+    color,
+    weight: weight + extraWeight,
+    opacity,
     lineJoin: "round",
     lineCap: "round",
   }).addTo(group);
+}
+
+/**
+ * Dessine une polyligne complète (halo + couleur) en une seule fois. Réutilisé
+ * pour tout élément linéaire ponctuel comme la montée sélectionnée ; tout
+ * futur tracé isolé (segment de comparaison, etc.) devrait faire de même.
+ */
+function drawHaloPolyline(group, latlngs, { color, weight = 5, opacity = 1, haloColor = MAP_HALO_COLOR, haloOpacity = MAP_HALO_OPACITY, haloExtraWeight = 3 } = {}) {
+  drawTrackHalo(group, latlngs, { weight, extraWeight: haloExtraWeight, color: haloColor, opacity: haloOpacity });
   return L.polyline(latlngs, { color, weight, opacity, lineJoin: "round", lineCap: "round" }).addTo(group);
 }
 
@@ -171,22 +181,21 @@ export function MapView({
       hitLine.on("mouseout", () => onHoverIndex(null));
     }
 
-    // Halo sombre unique sous tout le tracé, quel que soit le mode de couleur :
-    // garantit un contraste robuste avec n'importe quel fond de carte (routes
-    // claires, forêts, eau...) sans dessiner un halo par segment (coûteux).
-    L.polyline(decimated.map((p) => [p.lat, p.lon]), {
-      color: MAP_HALO_COLOR,
-      weight: 9,
-      opacity: MAP_HALO_OPACITY,
-      lineJoin: "round",
-      lineCap: "round",
-    }).addTo(group);
+    // Couche 1 — halo/contour quasi opaque sous tout le tracé, quel que soit
+    // le mode de couleur : c'est lui qui garantit la séparation nette avec le
+    // fond de carte (routes claires, forêts, eau...), jamais la couleur
+    // analytique seule. Un unique halo continu plutôt qu'un halo par segment
+    // (coûteux, et inutile puisqu'il est neutre).
+    drawTrackHalo(group, decimated.map((p) => [p.lat, p.lon]));
 
+    // Couche 2 — couleur du tracé, toujours pleinement opaque : en mode
+    // "Parcours" la couleur d'accent de l'app, sinon le dégradé analytique
+    // choisi (vitesse/pente/FC/altitude).
     if (colorMode === "track") {
       L.polyline(decimated.map((p) => [p.lat, p.lon]), {
         color: COLORS.speed,
         weight: 5,
-        opacity: 0.95,
+        opacity: 1,
         lineJoin: "round",
         lineCap: "round",
       }).addTo(group);
@@ -197,7 +206,7 @@ export function MapView({
             [decimated[i - 1].lat, decimated[i - 1].lon],
             [decimated[i].lat, decimated[i].lon],
           ],
-          { color: segColor(decimated[i]), weight: 5, opacity: 0.95, lineCap: "round" }
+          { color: segColor(decimated[i]), weight: 5, opacity: 1, lineCap: "round" }
         ).addTo(group);
       }
     }
@@ -212,8 +221,7 @@ export function MapView({
         weight: 6,
         opacity: 1,
         haloColor: MAP_MARKER_RING_COLOR,
-        haloOpacity: 0.85,
-        haloExtraWeight: 3,
+        haloOpacity: 0.95,
       });
       const bounds = L.latLngBounds(segLatLngs);
       map.flyToBounds(bounds, { padding: [40, 40], duration: 0.6 });

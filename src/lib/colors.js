@@ -27,23 +27,45 @@ export const COLORS = {
   info: "#6f9cf2",
 };
 
-export const SPEED_SCALE = ["#2e5eaa", "#4dd9c0", "#c8e86a", "#f4b740", "#e8543a"];
-export const GRADE_SCALE = ["#2e5eaa", "#4dd9c0", "#8b948e", "#f4b740", "#e8543a"];
+/**
+ * Échelles de couleur analytiques (mode carte : vitesse / pente / FC / altitude).
+ *
+ * Contrainte de conception : ces teintes ne doivent jamais recouper le
+ * vocabulaire chromatique des fonds de carte (vert forêt, bleu eau/rivière),
+ * sous peine de rendre le tracé illisible à l'endroit précis où il traverse
+ * une zone boisée ou longe un cours d'eau. Le violet/indigo est utilisé comme
+ * extrémité "froide" à la place du bleu classique — il ne correspond à aucune
+ * texture de carte usuelle — en conservant la même logique de dégradé
+ * froid → chaud (faible → élevé). HR_SCALE ne présente pas ce risque et n'a
+ * pas été modifiée.
+ */
+export const SPEED_SCALE = ["#4a3a8f", "#4dd9c0", "#c8e86a", "#f4b740", "#e8543a"];
+export const GRADE_SCALE = ["#4a3a8f", "#4dd9c0", "#8b948e", "#f4b740", "#e8543a"];
 export const HR_SCALE = ["#4dd9c0", "#c8e86a", "#f4b740", "#e8543a", "#c22b1c"];
-export const ELE_SCALE = ["#1c2a24", "#2f5c4b", "#7fae5e", "#f4b740", "#c96b3a"];
+export const ELE_SCALE = ["#1c1a2e", "#4a3a8f", "#9b5fc0", "#f4b740", "#c96b3a"];
 
 /**
  * Tokens dédiés à la lisibilité des tracés/marqueurs sur fond de carte
- * (tuiles OpenStreetMap, non maîtrisées). Un halo sombre assorti au thème de
- * l'app détache systématiquement les éléments d'analyse du fond de carte,
- * quelle que soit la couleur du tracé (dégradés vitesse/pente/FC/altitude)
- * ou la zone géographique (routes claires, forêts, eau...). Tout futur
- * marqueur (FC, puissance, cadence...) doit réutiliser ces mêmes tokens pour
- * rester visuellement cohérent avec le tracé et les marqueurs existants.
+ * (tuiles OpenStreetMap, non maîtrisées). Le halo est volontairement quasi
+ * opaque : son rôle est d'agir comme une "plaque" de séparation nette entre
+ * le tracé et le fond (à la manière du "casing" des traits GPS sur
+ * Strava/Komoot), pas comme un simple filtre translucide — un halo
+ * translucide laisse transparaître un fond chargé (labels, routes, forêts)
+ * et ne suffit pas à garantir le contraste à lui seul. Tout futur marqueur ou
+ * tracé (FC, puissance, cadence, comparaison...) doit réutiliser ces mêmes
+ * tokens pour rester visuellement cohérent.
  */
 export const MAP_HALO_COLOR = COLORS.bg;
-export const MAP_HALO_OPACITY = 0.6;
+export const MAP_HALO_OPACITY = 0.92;
 export const MAP_MARKER_RING_COLOR = "#ffffff";
+
+/**
+ * Filtre CSS appliqué uniquement au calque de tuiles Leaflet (jamais au
+ * tracé ni aux marqueurs, qui vivent dans d'autres calques) pour que le fond
+ * de carte reste identifiable pour se repérer sans jamais concurrencer
+ * visuellement le tracé et les données analytiques posées par-dessus.
+ */
+export const MAP_TILE_FILTER = "saturate(0.5) brightness(1.06) contrast(0.95)";
 
 /**
  * Interpole linéairement entre deux couleurs hexadécimales
