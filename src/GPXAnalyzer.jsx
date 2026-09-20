@@ -30,6 +30,7 @@ import { generateSummary, generateHighlights } from "./lib/narrative.js";
 import { generateDemoPoints } from "./lib/demoData.js";
 import { StatCard, SectionTitle, CustomTooltip } from "./components/UIPrimitives.jsx";
 import { MapView } from "./components/MapView.jsx";
+import { MapLibrePrototype } from "./components/MapLibrePrototype.jsx"; // POC expérimental, voir onglet Carte
 import { ProfileChart } from "./components/ProfileChart.jsx";
 import { StorageSettings } from "./components/StorageSettings.jsx";
 import { HistoryView } from "./components/HistoryView.jsx";
@@ -74,6 +75,7 @@ export default function GPXAnalyzer() {
 
   const [activeTab, setActiveTab] = useState("resume");
   const [mapColorMode, setMapColorMode] = useState("speed");
+  const [mapEngine, setMapEngine] = useState("leaflet"); // "leaflet" | "maplibre" — POC de comparaison, voir onglet Carte
   const [hoverIdx, setHoverIdx] = useState(null);
   const [profileMetric, setProfileMetric] = useState("altitude");
   const [selectedClimb, setSelectedClimb] = useState(null);
@@ -624,6 +626,7 @@ export default function GPXAnalyzer() {
           border-radius: 100px; padding: 6px 12px; font-size: 12px; font-weight: 600;
         }
         .gpx-chip-active { background: rgba(77,217,192,0.15); border-color: var(--speed); color: var(--speed); }
+        .gpx-map-engine-toggle { display: inline-flex; gap: 4px; }
         .gpx-leaflet-container {
           position: relative; border-radius: 16px; overflow: hidden; background: var(--bgAlt);
           border: 1px solid var(--border);
@@ -979,19 +982,34 @@ export default function GPXAnalyzer() {
           {/* ---------------- CARTE ---------------- */}
           {activeTab === "carte" && (
             <div className="gpx-panel">
-              <SectionTitle icon={MapPin} right={<span style={{ fontSize: 11, color: COLORS.textFaint, fontWeight: 500, textTransform: "none" }}>Survolez le profil ou le tracé — les deux restent synchronisés</span>}>
+              <SectionTitle
+                icon={MapPin}
+                right={
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 10, fontWeight: 500, textTransform: "none" }}>
+                    {mapEngine === "leaflet" && <span style={{ fontSize: 11, color: COLORS.textFaint }}>Survolez le profil ou le tracé — les deux restent synchronisés</span>}
+                    <span className="gpx-map-engine-toggle" title="Test expérimental : compare le rendu Leaflet (production) et MapLibre (prototype). N'affecte aucune autre fonctionnalité.">
+                      <button className={"gpx-chip" + (mapEngine === "leaflet" ? " gpx-chip-active" : "")} onClick={() => setMapEngine("leaflet")}>Leaflet</button>
+                      <button className={"gpx-chip" + (mapEngine === "maplibre" ? " gpx-chip-active" : "")} onClick={() => setMapEngine("maplibre")}>MapLibre (test)</button>
+                    </span>
+                  </span>
+                }
+              >
                 Carte & profil synchronisés
               </SectionTitle>
-              <MapView
-                analysis={analysis}
-                colorMode={mapColorMode}
-                setColorMode={setMapColorMode}
-                selectedClimb={selectedClimb}
-                height={480}
-                decimated={chartData}
-                hoverIdx={hoverIdx}
-                onHoverIndex={setHoverIdx}
-              />
+              {mapEngine === "maplibre" ? (
+                <MapLibrePrototype analysis={analysis} height={480} />
+              ) : (
+                <MapView
+                  analysis={analysis}
+                  colorMode={mapColorMode}
+                  setColorMode={setMapColorMode}
+                  selectedClimb={selectedClimb}
+                  height={480}
+                  decimated={chartData}
+                  hoverIdx={hoverIdx}
+                  onHoverIndex={setHoverIdx}
+                />
+              )}
               <div style={{ marginTop: 16 }}>
                 <ProfileChart
                   analysis={analysis}
