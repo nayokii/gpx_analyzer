@@ -1,15 +1,27 @@
 import { describe, it, expect, beforeEach } from "vitest";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { MemoryDirectoryHandle } from "./testFsHandle.js";
 import {
   saveActivity,
   listActivities,
   loadActivityDetail,
   loadActivitySourceText,
+  loadActivitySourceArrayBuffer,
   deleteActivity,
   rebuildIndex,
   readIndex,
 } from "./activityStore.js";
 import { createEmptyActivity } from "../types.js";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const FIT_FIXTURE_PATH = path.join(__dirname, "..", "parsers", "__fixtures__", "ride-2026-09-20.fit");
+
+function loadFitFixtureArrayBuffer() {
+  const buf = fs.readFileSync(FIT_FIXTURE_PATH);
+  return buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);
+}
 
 function makeActivity(overrides = {}) {
   const a = createEmptyActivity();
@@ -122,5 +134,38 @@ describe("activityStore", () => {
     const list = await listActivities(root);
     expect(list).toHaveLength(1);
     expect(list[0].distance).toBe(20);
+  });
+
+  describe("fichier source FIT (binaire)", () => {
+    it("conserve le fichier FIT original intact (round-trip binaire exact)", async () => {
+      const original = loadFitFixtureArrayBuffer();
+      const activity = makeActivity({ id: "fit1", source: { type: "fit", originalFilename: "ride.fit", storedFilename: null } });
+
+      const saved = await saveActivity(root, activity, original, "fit");
+      expect(saved.source.storedFilename).toBe("2026-09-20_fit1.fit");
+
+      const reloaded = await loadActivitySourceArrayBuffer(root, "fit1");
+      expect(reloaded.byteLength).toBe(original.byteLength);
+      expect(new Uint8Array(reloaded)).toEqual(new Uint8Array(original));
+    });
+
+    it("stocke le FIT en .fit et le JSON normalisé séparément, comme pour GPX", async () => {
+      const original = loadFitFixtureArrayBuffer();
+      const activity = makeActivity({ id: "fit2" });
+      await saveActivity(root, activity, original, "fit");
+
+      const activitiesDir = await root.getDirectoryHandle("activities");
+      expect(activitiesDir.files.has("2026-09-20_fit2.fit")).toBe(true);
+      expect(activitiesDir.files.has("2026-09-20_fit2.json")).toBe(true);
+    });
+
+    it("liste une activité FIT dans l'historique comme n'importe quelle activité", async () => {
+      const original = loadFitFixtureArrayBuffer();
+      await saveActivity(root, makeActivity({ id: "fit3", source: { type: "fit", originalFilename: "ride.fit", storedFilename: null } }), original, "fit");
+
+      const list = await listActivities(root);
+      expect(list.find((e) => e.id === "fit3")).toBeDefined();
+      expect(list.find((e) => e.id === "fit3").source.type).toBe("fit");
+    });
   });
 });

@@ -2,72 +2,88 @@
  * Interface unifiée pour l'import d'activités
  *
  * Ce module expose une API commune pour importer des activités depuis
- * différents formats (GPX, FIT, etc.) et les convertir en objets Activity normalisés.
+ * différents formats (GPX, FIT) et les convertir en points bruts exploitables
+ * par analysis.js/normalize.js, quel que soit le format source.
  */
 
 import { parseGPXString, isGPXFile, extractGPXMetadata } from './gpxParser.js';
+import { parseFITArrayBuffer, isFITFile } from './fitParser.js';
 
 /**
  * Formats de fichiers supportés
  */
 export const SUPPORTED_FORMATS = {
   GPX: 'gpx',
-  FIT: 'fit', // Préparé pour le futur, pas encore implémenté
+  FIT: 'fit',
 };
 
 /**
- * Détecte automatiquement le format d'un fichier
+ * Détecte le format d'un fichier par signature binaire/contenu réel plutôt
+ * que par la seule extension : vérifie d'abord la signature FIT (".FIT" aux
+ * octets 8-11 du header), puis retombe sur une lecture texte pour reconnaître
+ * un GPX (balises XML `<gpx>`). L'extension n'intervient qu'en dernier
+ * recours, si aucune signature n'a pu être vérifiée.
  *
- * @param {string} content - Contenu du fichier
- * @param {string} [filename] - Nom du fichier (optionnel, aide à la détection)
- * @returns {string|null} Format détecté ('gpx', 'fit') ou null si non reconnu
+ * @param {File|Blob} file
+ * @returns {Promise<string|null>} Format détecté ('gpx', 'fit') ou null
  */
-export function detectFormat(content, filename = null) {
-  // Détection par extension si disponible
-  if (filename) {
-    const ext = filename.split('.').pop()?.toLowerCase();
-    if (ext === 'gpx' && isGPXFile(content)) return SUPPORTED_FORMATS.GPX;
-    if (ext === 'fit') return SUPPORTED_FORMATS.FIT;
+export async function detectFileFormat(file) {
+  const buffer = await file.arrayBuffer();
+  if (isFITFile(buffer)) return SUPPORTED_FORMATS.FIT;
+
+  try {
+    const text = await file.text();
+    if (isGPXFile(text)) return SUPPORTED_FORMATS.GPX;
+  } catch {
+    // Fichier non lisible comme texte (probablement binaire mais pas FIT) :
+    // on retombe sur l'extension ci-dessous plutôt que d'échouer ici.
   }
 
-  // Détection par contenu
-  if (isGPXFile(content)) return SUPPORTED_FORMATS.GPX;
-
-  // FIT est un format binaire, vérification par signature (à implémenter)
-  // if (isFITFile(content)) return SUPPORTED_FORMATS.FIT;
-
+  const ext = file.name ? file.name.split('.').pop()?.toLowerCase() : null;
+  if (ext === 'fit') return SUPPORTED_FORMATS.FIT;
+  if (ext === 'gpx') return SUPPORTED_FORMATS.GPX;
   return null;
 }
 
 /**
- * Parse un fichier d'activité et retourne les points bruts
+ * Détecte puis parse un fichier d'activité, en utilisant la méthode de
+ * lecture adaptée à chaque format : `file.text()` pour GPX, `file.arrayBuffer()`
+ * pour FIT (jamais l'inverse — un FIT ne doit pas être traité comme du texte).
  *
- * @param {string} content - Contenu du fichier
- * @param {string} format - Format du fichier ('gpx', 'fit')
- * @returns {{name: string|null, points: Array}} Nom et points de l'activité
- * @throws {Error} Si le format n'est pas supporté ou si le parsing échoue
+ * @param {File|Blob} file
+ * @returns {Promise<{
+ *   format: string,
+ *   name: string|null,
+ *   points: Array,
+ *   measured: {distanceKm: number|null, avgSpeedKmh: number|null, maxSpeedKmh: number|null}|null,
+ *   sourceText: string|null,
+ *   sourceArrayBuffer: ArrayBuffer|null,
+ * }>}
+ * @throws {Error} Si le format n'est pas reconnu ou si le parsing échoue
  */
-export function parseActivityFile(content, format) {
-  switch (format) {
-    case SUPPORTED_FORMATS.GPX:
-      return parseGPXString(content);
+export async function parseActivityFileAuto(file) {
+  const format = await detectFileFormat(file);
 
-    case SUPPORTED_FORMATS.FIT:
-      throw new Error(
-        'Le format FIT n\'est pas encore supporté. ' +
-        'Veuillez fournir un fichier GPX ou attendre l\'implémentation du support FIT.'
-      );
-
-    default:
-      throw new Error(`Format non supporté : ${format}`);
+  if (format === SUPPORTED_FORMATS.FIT) {
+    const arrayBuffer = await file.arrayBuffer();
+    const { name, points, measured } = parseFITArrayBuffer(arrayBuffer);
+    return { format, name, points, measured, sourceText: null, sourceArrayBuffer: arrayBuffer };
   }
+
+  if (format === SUPPORTED_FORMATS.GPX) {
+    const text = await file.text();
+    const { name, points } = parseGPXString(text);
+    return { format, name, points, measured: null, sourceText: text, sourceArrayBuffer: null };
+  }
+
+  throw new Error('Format de fichier non reconnu. Formats supportés : .gpx, .fit');
 }
 
 /**
  * Extrait les métadonnées d'un fichier sans le parser complètement
  * Utile pour afficher un aperçu avant l'import complet
  *
- * @param {string} content - Contenu du fichier
+ * @param {string} content - Contenu du fichier (texte, GPX uniquement)
  * @param {string} format - Format du fichier
  * @returns {{name: string|null, pointCount: number, hasTime: boolean}}
  */
@@ -75,9 +91,6 @@ export function extractMetadata(content, format) {
   switch (format) {
     case SUPPORTED_FORMATS.GPX:
       return extractGPXMetadata(content);
-
-    case SUPPORTED_FORMATS.FIT:
-      return { name: null, pointCount: 0, hasTime: false };
 
     default:
       return { name: null, pointCount: 0, hasTime: false };

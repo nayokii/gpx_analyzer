@@ -102,6 +102,10 @@ export function computeAnalysis(points, userSettings = null) {
     cad: p.cad,
     power: p.power,
     temp: p.temp,
+    // Valeurs mesurées par le device source (ex. FIT), distinctes des valeurs
+    // calculées ci-dessus (`distance`, `speed`) — jamais fabriquées si absentes.
+    distanceMeasured: p.distanceMeasured != null ? p.distanceMeasured : null,
+    speedMeasured: p.speedMeasured != null ? p.speedMeasured : null,
   }));
 
   // ---- arrêts / temps en mouvement ----

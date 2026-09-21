@@ -13,6 +13,8 @@ import {
 
 // Modules extraits
 import { parseGPXString } from "./lib/parsers/gpxParser.js";
+import { parseFITArrayBuffer } from "./lib/parsers/fitParser.js";
+import { parseActivityFileAuto, getAcceptString } from "./lib/parsers/index.js";
 import { computeAnalysis, computeHRZones } from "./lib/analysis.js";
 import { computePowerZones, computeBestPowerEfforts } from "./lib/power.js";
 import {
@@ -44,7 +46,12 @@ import {
   verifyPermission,
   forgetDataDirectory,
 } from "./lib/storage/directoryAccess.js";
-import { saveActivity, loadActivityDetail, loadActivitySourceText } from "./lib/storage/activityStore.js";
+import {
+  saveActivity,
+  loadActivityDetail,
+  loadActivitySourceText,
+  loadActivitySourceArrayBuffer,
+} from "./lib/storage/activityStore.js";
 
 /* ============================================================================
    MAIN APP
@@ -318,47 +325,44 @@ export default function GPXAnalyzer() {
     return buckets;
   }, [analysis]);
 
-  const loadFile = useCallback((file) => {
+  const loadFile = useCallback(async (file) => {
     if (!file) return;
     setError(null);
     setSaveStatus(null);
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-      const text = e.target.result;
-      let name, points;
-      try {
-        ({ name, points } = parseGPXString(text));
-      } catch (err) {
-        setError(err.message || "Impossible de lire ce fichier GPX.");
-        return;
-      }
-      setPoints(points);
-      setRideName(name);
-      setFileName(file.name);
-      setIsDemo(false);
-      setActiveActivityId(null);
-      setMode("dashboard");
-      setActiveTab("resume");
-      setSelectedClimb(null);
 
-      // Sauvegarde automatique et durable (fichier original + version normalisée),
-      // uniquement si un dossier de stockage local est connecté.
-      if (storage.status === "connected" && storage.rootHandle) {
-        try {
-          const freshAnalysis = computeAnalysis(points, userSettings);
-          const activity = toActivity(freshAnalysis, points, { name, sourceType: "gpx", originalFilename: file.name });
-          const saved = await saveActivity(storage.rootHandle, activity, text, "gpx");
-          setActiveActivityId(saved.id);
-          setSaveStatus({ ok: true, message: "Sortie enregistrée dans l'historique." });
-        } catch (err) {
-          setSaveStatus({ ok: false, message: "Sortie analysée mais non enregistrée : " + (err.message || err) });
-        }
-      } else if (storage.status === "needs-permission") {
-        setSaveStatus({ ok: false, message: "Sortie analysée mais non enregistrée : reconnecte le dossier de stockage dans Paramètres." });
+    let format, name, points, measured, sourceText, sourceArrayBuffer;
+    try {
+      ({ format, name, points, measured, sourceText, sourceArrayBuffer } = await parseActivityFileAuto(file));
+    } catch (err) {
+      setError(err.message || "Impossible de lire ce fichier.");
+      return;
+    }
+
+    setPoints(points);
+    setRideName(name);
+    setFileName(file.name);
+    setIsDemo(false);
+    setActiveActivityId(null);
+    setMode("dashboard");
+    setActiveTab("resume");
+    setSelectedClimb(null);
+
+    // Sauvegarde automatique et durable (fichier original + version normalisée),
+    // uniquement si un dossier de stockage local est connecté.
+    if (storage.status === "connected" && storage.rootHandle) {
+      try {
+        const freshAnalysis = computeAnalysis(points, userSettings);
+        const activity = toActivity(freshAnalysis, points, { name, sourceType: format, originalFilename: file.name, measured });
+        const sourceContent = format === "fit" ? sourceArrayBuffer : sourceText;
+        const saved = await saveActivity(storage.rootHandle, activity, sourceContent, format);
+        setActiveActivityId(saved.id);
+        setSaveStatus({ ok: true, message: "Sortie enregistrée dans l'historique." });
+      } catch (err) {
+        setSaveStatus({ ok: false, message: "Sortie analysée mais non enregistrée : " + (err.message || err) });
       }
-    };
-    reader.onerror = () => setError("Erreur de lecture du fichier.");
-    reader.readAsText(file);
+    } else if (storage.status === "needs-permission") {
+      setSaveStatus({ ok: false, message: "Sortie analysée mais non enregistrée : reconnecte le dossier de stockage dans Paramètres." });
+    }
   }, [storage, userSettings]);
 
   async function openActivityFromHistory(id) {
@@ -367,8 +371,14 @@ export default function GPXAnalyzer() {
     setSaveStatus(null);
     try {
       const detail = await loadActivityDetail(storage.rootHandle, id);
-      const sourceText = await loadActivitySourceText(storage.rootHandle, id);
-      const { name, points } = parseGPXString(sourceText);
+      let name, points;
+      if (detail.source.type === "fit") {
+        const arrayBuffer = await loadActivitySourceArrayBuffer(storage.rootHandle, id);
+        ({ name, points } = parseFITArrayBuffer(arrayBuffer));
+      } else {
+        const sourceText = await loadActivitySourceText(storage.rootHandle, id);
+        ({ name, points } = parseGPXString(sourceText));
+      }
       setPoints(points);
       setRideName(detail.name || name);
       setFileName(detail.source.originalFilename || detail.source.storedFilename);
@@ -814,9 +824,9 @@ export default function GPXAnalyzer() {
         <div className="gpx-landing">
           <div className="gpx-landing-inner">
             <div className="gpx-landing-eyebrow"><Mountain size={13} /> Analyse de sortie vélo</div>
-            <h1 className="gpx-landing-title">Importez votre sortie<br /><span>GPX</span></h1>
+            <h1 className="gpx-landing-title">Importez votre sortie<br /><span>GPX ou FIT</span></h1>
             <p className="gpx-landing-sub">
-              Glissez un fichier GPX pour obtenir un tableau de bord complet — carte, montées, splits, effort —
+              Glissez un fichier GPX ou FIT pour obtenir un tableau de bord complet — carte, montées, splits, effort —
               calculé entièrement dans votre navigateur, sans compte ni serveur.
             </p>
             <div
@@ -827,12 +837,12 @@ export default function GPXAnalyzer() {
               onClick={() => fileInputRef.current && fileInputRef.current.click()}
             >
               <div className="gpx-upload-icon"><Upload size={24} /></div>
-              <div className="gpx-upload-title">Glissez-déposez votre fichier .gpx ici</div>
+              <div className="gpx-upload-title">Glissez-déposez votre fichier .gpx ou .fit ici</div>
               <div className="gpx-upload-sub">ou cliquez pour parcourir vos fichiers</div>
               <button className="gpx-btn-primary" onClick={(e) => { e.stopPropagation(); fileInputRef.current.click(); }}>
-                <Upload size={15} /> Importer un GPX
+                <Upload size={15} /> Importer une sortie
               </button>
-              <input ref={fileInputRef} type="file" accept=".gpx" style={{ display: "none" }} onChange={handleInputChange} />
+              <input ref={fileInputRef} type="file" accept={getAcceptString()} style={{ display: "none" }} onChange={handleInputChange} />
             </div>
             {error && (
               <div className="gpx-error-box"><FileWarning size={15} /> {error}</div>

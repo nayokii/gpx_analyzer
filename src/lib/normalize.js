@@ -19,6 +19,9 @@ import { createEmptyActivity } from "./types.js";
  * @param {'cycling'|'mtb'|'gravel'|'other'} [meta.sportType]
  * @param {'gpx'|'fit'|'demo'} [meta.sourceType]
  * @param {string|null} [meta.originalFilename]
+ * @param {{distanceKm: number|null, avgSpeedKmh: number|null, maxSpeedKmh: number|null}|null} [meta.measured] -
+ *   Totaux mesurés par le device source (ex. session FIT), quand disponibles. `null`/absent
+ *   pour une source qui ne les fournit pas (ex. GPX) — jamais recalculés ici.
  * @returns {import('./types.js').Activity}
  */
 export function toActivity(analysis, points, meta = {}) {
@@ -35,12 +38,15 @@ export function toActivity(analysis, points, meta = {}) {
   };
 
   activity.distance = analysis.totalDistanceKm;
+  activity.distanceMeasured = meta.measured && meta.measured.distanceKm != null ? meta.measured.distanceKm : null;
   activity.duration = analysis.totalTimeSec;
   activity.movingTime = analysis.movingTimeSec;
   activity.elevationGain = analysis.elevGain;
   activity.elevationLoss = analysis.elevLoss;
   activity.avgSpeed = analysis.avgSpeedKmh;
   activity.maxSpeed = analysis.maxSpeedKmh;
+  activity.avgSpeedMeasured = meta.measured && meta.measured.avgSpeedKmh != null ? meta.measured.avgSpeedKmh : null;
+  activity.maxSpeedMeasured = meta.measured && meta.measured.maxSpeedKmh != null ? meta.measured.maxSpeedKmh : null;
   activity.avgHeartRate = analysis.hrStats ? analysis.hrStats.avg : null;
   activity.maxHeartRate = analysis.hrStats ? analysis.hrStats.max : null;
   activity.avgCadence = analysis.cadStats ? analysis.cadStats.avg : null;
@@ -58,6 +64,8 @@ export function toActivity(analysis, points, meta = {}) {
     hasPower: analysis.hasPower,
     hasTemperature: analysis.hasTemp,
     powerEstimated: !!analysis.isEstimatedPower,
+    hasMeasuredDistance: activity.distanceMeasured != null,
+    hasMeasuredSpeed: activity.avgSpeedMeasured != null || activity.maxSpeedMeasured != null,
   };
 
   activity.gpsTrack = points.map((p) => ({ lat: p.lat, lon: p.lon }));
@@ -70,6 +78,9 @@ export function toActivity(analysis, points, meta = {}) {
     heartRate: p.hr,
     cadence: p.cad,
     power: p.power,
+    temperature: p.temp,
+    distanceMeasured: p.distanceMeasured,
+    speedMeasured: p.speedMeasured,
   }));
 
   return activity;

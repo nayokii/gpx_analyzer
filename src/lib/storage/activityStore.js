@@ -39,6 +39,19 @@ async function readTextFile(dirHandle, filename) {
   return file.text();
 }
 
+async function writeBinaryFile(dirHandle, filename, arrayBuffer) {
+  const fileHandle = await dirHandle.getFileHandle(filename, { create: true });
+  const writable = await fileHandle.createWritable();
+  await writable.write(arrayBuffer);
+  await writable.close();
+}
+
+async function readBinaryFile(dirHandle, filename) {
+  const fileHandle = await dirHandle.getFileHandle(filename);
+  const file = await fileHandle.getFile();
+  return file.arrayBuffer();
+}
+
 function baseFilename(activity) {
   // Le préfixe de date n'est utilisé que pour trier/organiser les fichiers :
   // si la sortie n'a pas d'horodatage source (activity.date === null), on
@@ -119,11 +132,12 @@ export async function listActivities(rootHandle) {
  * écrit la version JSON normalisée, puis met à jour l'index.
  * @param {FileSystemDirectoryHandle} rootHandle
  * @param {import('../types.js').Activity} activity
- * @param {string} sourceFileText - contenu brut du fichier original (GPX)
- * @param {string} [sourceExt] - extension du fichier source (sans le point)
+ * @param {string|ArrayBuffer} sourceFileContent - contenu brut du fichier original :
+ *   texte pour un GPX, ArrayBuffer pour un FIT (jamais l'inverse — un FIT reste binaire).
+ * @param {string} [sourceExt] - extension du fichier source (sans le point) : "gpx" ou "fit"
  * @returns {Promise<import('../types.js').Activity>} l'activité telle qu'enregistrée (avec source.storedFilename renseigné)
  */
-export async function saveActivity(rootHandle, activity, sourceFileText, sourceExt = "gpx") {
+export async function saveActivity(rootHandle, activity, sourceFileContent, sourceExt = "gpx") {
   const dirHandle = await getActivitiesDir(rootHandle);
   const base = baseFilename(activity);
   const originalFilename = `${base}.${sourceExt}`;
@@ -131,7 +145,11 @@ export async function saveActivity(rootHandle, activity, sourceFileText, sourceE
 
   const toSave = { ...activity, source: { ...activity.source, storedFilename: originalFilename } };
 
-  await writeTextFile(dirHandle, originalFilename, sourceFileText);
+  if (sourceExt === "fit") {
+    await writeBinaryFile(dirHandle, originalFilename, sourceFileContent);
+  } else {
+    await writeTextFile(dirHandle, originalFilename, sourceFileContent);
+  }
   await writeTextFile(dirHandle, jsonFilename, JSON.stringify(toSave, null, 2));
 
   const index = (await readIndex(dirHandle)) || (await rebuildIndex(rootHandle));
@@ -152,7 +170,7 @@ export async function loadActivityDetail(rootHandle, id) {
   return JSON.parse(text);
 }
 
-/** Charge le texte brut du fichier source original (GPX/FIT) d'une activité. */
+/** Charge le texte brut du fichier source original (GPX) d'une activité. */
 export async function loadActivitySourceText(rootHandle, id) {
   const activity = await loadActivityDetail(rootHandle, id);
   if (!activity.source.storedFilename) {
@@ -160,6 +178,16 @@ export async function loadActivitySourceText(rootHandle, id) {
   }
   const dirHandle = await getActivitiesDir(rootHandle);
   return readTextFile(dirHandle, activity.source.storedFilename);
+}
+
+/** Charge le contenu binaire brut du fichier source original (FIT) d'une activité. */
+export async function loadActivitySourceArrayBuffer(rootHandle, id) {
+  const activity = await loadActivityDetail(rootHandle, id);
+  if (!activity.source.storedFilename) {
+    throw new Error("Fichier source original introuvable pour cette sortie.");
+  }
+  const dirHandle = await getActivitiesDir(rootHandle);
+  return readBinaryFile(dirHandle, activity.source.storedFilename);
 }
 
 /** Supprime une activité (fichier source + JSON) et met à jour l'index. */

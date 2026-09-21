@@ -44,6 +44,10 @@ export const ANALYSIS_VERSION = 1;
  * @property {boolean} hasTemperature - Présence de données de température
  * @property {boolean} powerEstimated - true si avgPower/maxPower/normalizedPower proviennent
  *   du modèle physique d'estimation plutôt que d'un capteur de puissance réel
+ * @property {boolean} hasMeasuredDistance - true si une distance mesurée par le device
+ *   (ex. FIT) est disponible en plus de la distance recalculée par notre moteur
+ * @property {boolean} hasMeasuredSpeed - true si une vitesse mesurée par le device
+ *   (ex. FIT) est disponible en plus de la vitesse recalculée par notre moteur
  */
 
 /**
@@ -52,10 +56,17 @@ export const ANALYSIS_VERSION = 1;
  * @property {number} latitude - Latitude en degrés (mesuré)
  * @property {number} longitude - Longitude en degrés (mesuré)
  * @property {number|null} altitude - Altitude en mètres, lissée (mesuré)
- * @property {number|null} speed - Vitesse en km/h (calculé)
+ * @property {number|null} speed - Vitesse en km/h, recalculée par notre moteur à partir
+ *   des positions/horodatages (calculé — voir aussi `speedMeasured`)
  * @property {number|null} heartRate - Fréquence cardiaque en bpm (mesuré)
  * @property {number|null} cadence - Cadence en rpm (mesuré)
  * @property {number|null} power - Puissance en watts (mesuré ou estimé — voir flags.powerEstimated)
+ * @property {number|null} temperature - Température en °C (mesuré)
+ * @property {number|null} distanceMeasured - Distance cumulée en km telle que mesurée par
+ *   le device source (ex. FIT `record.distance`) ; `null` si la source ne la fournit pas
+ *   (ex. GPX). Ne remplace jamais la distance recalculée — voir `Activity.distance`.
+ * @property {number|null} speedMeasured - Vitesse instantanée en km/h telle que mesurée
+ *   par le device source (ex. FIT `record.speed`) ; `null` si la source ne la fournit pas.
  */
 
 /**
@@ -66,13 +77,21 @@ export const ANALYSIS_VERSION = 1;
  * @property {'cycling'|'mtb'|'gravel'|'other'} sportType - Type de pratique
  * @property {ActivitySource} source - Informations sur la source des données
  * @property {number} analysisVersion - Version du moteur d'analyse utilisée
- * @property {number} distance - Distance totale en km (calculé)
+ * @property {number} distance - Distance totale en km, recalculée par notre moteur (calculé ;
+ *   voir aussi `distanceMeasured` quand la source fournit sa propre mesure)
+ * @property {number|null} distanceMeasured - Distance totale en km telle que mesurée par le
+ *   device source (ex. total FIT `session.total_distance`) ; `null` si absente de la source
+ *   (ex. GPX). Ne remplace jamais `distance` : les deux coexistent pour comparaison.
  * @property {number|null} duration - Durée totale en secondes (calculé)
  * @property {number|null} movingTime - Temps en mouvement en secondes (calculé)
  * @property {number|null} elevationGain - Dénivelé positif en mètres (calculé)
  * @property {number|null} elevationLoss - Dénivelé négatif en mètres (calculé)
- * @property {number|null} avgSpeed - Vitesse moyenne en km/h (calculé)
- * @property {number|null} maxSpeed - Vitesse maximale en km/h (calculé)
+ * @property {number|null} avgSpeed - Vitesse moyenne en km/h, recalculée par notre moteur (calculé)
+ * @property {number|null} maxSpeed - Vitesse maximale en km/h, recalculée par notre moteur (calculé)
+ * @property {number|null} avgSpeedMeasured - Vitesse moyenne en km/h mesurée par le device
+ *   source (ex. FIT `session.avg_speed`) ; `null` si absente de la source
+ * @property {number|null} maxSpeedMeasured - Vitesse maximale en km/h mesurée par le device
+ *   source (ex. FIT `session.max_speed`) ; `null` si absente de la source
  * @property {number|null} avgHeartRate - FC moyenne en bpm (mesuré)
  * @property {number|null} maxHeartRate - FC maximale en bpm (mesuré)
  * @property {number|null} avgCadence - Cadence moyenne en rpm (mesuré)
@@ -104,12 +123,15 @@ export function createEmptyActivity() {
     analysisVersion: ANALYSIS_VERSION,
 
     distance: 0,
+    distanceMeasured: null,
     duration: null,
     movingTime: null,
     elevationGain: null,
     elevationLoss: null,
     avgSpeed: null,
     maxSpeed: null,
+    avgSpeedMeasured: null,
+    maxSpeedMeasured: null,
     avgHeartRate: null,
     maxHeartRate: null,
     avgCadence: null,
@@ -127,6 +149,8 @@ export function createEmptyActivity() {
       hasPower: false,
       hasTemperature: false,
       powerEstimated: false,
+      hasMeasuredDistance: false,
+      hasMeasuredSpeed: false,
     },
 
     gpsTrack: [],
