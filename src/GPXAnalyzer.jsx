@@ -374,7 +374,7 @@ export default function GPXAnalyzer() {
       let name, points;
       if (detail.source.type === "fit") {
         const arrayBuffer = await loadActivitySourceArrayBuffer(storage.rootHandle, id);
-        ({ name, points } = parseFITArrayBuffer(arrayBuffer));
+        ({ name, points } = await parseFITArrayBuffer(arrayBuffer));
       } else {
         const sourceText = await loadActivitySourceText(storage.rootHandle, id);
         ({ name, points } = parseGPXString(sourceText));

@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeAll } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -33,7 +33,12 @@ describe("isFITFile", () => {
 });
 
 describe("parseFITArrayBuffer (fixture réelle iGPSPORT BSC200C)", () => {
-  const { name, points, measured } = parseFITArrayBuffer(loadFixtureArrayBuffer());
+  // parseFITArrayBuffer est asynchrone (chargement différé de @garmin/fitsdk,
+  // voir fitParser.js) : on la résout une seule fois avant les assertions.
+  let name, points, measured;
+  beforeAll(async () => {
+    ({ name, points, measured } = await parseFITArrayBuffer(loadFixtureArrayBuffer()));
+  });
 
   it("extrait le nom d'activité depuis le message sport du FIT", () => {
     expect(name).toBe("Road Cycling");
@@ -102,8 +107,8 @@ describe("parseFITArrayBuffer (fixture réelle iGPSPORT BSC200C)", () => {
 });
 
 describe("parseFITArrayBuffer — cas limites", () => {
-  it("rejette un fichier sans signature FIT valide", () => {
+  it("rejette un fichier sans signature FIT valide", async () => {
     const notFit = new TextEncoder().encode("ceci n'est pas un fichier FIT").buffer;
-    expect(() => parseFITArrayBuffer(notFit)).toThrow(/signature/i);
+    await expect(parseFITArrayBuffer(notFit)).rejects.toThrow(/signature/i);
   });
 });

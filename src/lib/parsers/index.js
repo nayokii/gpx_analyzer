@@ -66,7 +66,7 @@ export async function parseActivityFileAuto(file) {
 
   if (format === SUPPORTED_FORMATS.FIT) {
     const arrayBuffer = await file.arrayBuffer();
-    const { name, points, measured } = parseFITArrayBuffer(arrayBuffer);
+    const { name, points, measured } = await parseFITArrayBuffer(arrayBuffer);
     return { format, name, points, measured, sourceText: null, sourceArrayBuffer: arrayBuffer };
   }
 

@@ -13,9 +13,18 @@
  *
  * Règle absolue (comme pour GPX) : un champ absent du fichier FIT reste
  * `null`, jamais déduit ou approximé ici.
+ *
+ * @garmin/fitsdk n'est jamais importé statiquement ici : il pèse plusieurs
+ * centaines de Ko (Decoder + Encoder + profil complet) et ne doit donc être
+ * chargé par le navigateur que si un fichier FIT est réellement importé,
+ * jamais pour un import GPX. `isFITFile` (utilisée par la détection de
+ * format, appelée sur CHAQUE fichier importé) réimplémente donc la
+ * vérification de signature ".FIT" en JS pur, sans dépendre du SDK — c'est
+ * exactement la vérification documentée par `Decoder.isFIT()` (octets 8-11
+ * du header == ".FIT"), donc un comportement strictement identique. Seul
+ * `parseFITArrayBuffer`, appelé uniquement une fois le format FIT confirmé,
+ * charge le SDK via un `import()` dynamique.
  */
-
-import { Decoder, Stream } from "@garmin/fitsdk";
 
 const SEMICIRCLE_TO_DEGREES = 180 / Math.pow(2, 31);
 const FIT_SIGNATURE_OFFSET = 8;
@@ -23,17 +32,18 @@ const FIT_SIGNATURE = ".FIT";
 
 /**
  * Vérifie la signature binaire FIT (octets 8-11 == ".FIT"), indépendamment de
- * l'extension du fichier.
+ * l'extension du fichier. Ne charge pas @garmin/fitsdk (voir note en tête de
+ * fichier) : c'est cette fonction qui permet à un import GPX de ne jamais
+ * déclencher le chargement du SDK FIT.
  * @param {ArrayBuffer} arrayBuffer
  * @returns {boolean}
  */
 export function isFITFile(arrayBuffer) {
   if (!arrayBuffer || arrayBuffer.byteLength < FIT_SIGNATURE_OFFSET + FIT_SIGNATURE.length) return false;
-  try {
-    return Decoder.isFIT(Stream.fromArrayBuffer(arrayBuffer));
-  } catch {
-    return false;
-  }
+  const bytes = new Uint8Array(arrayBuffer, FIT_SIGNATURE_OFFSET, FIT_SIGNATURE.length);
+  let signature = "";
+  for (let i = 0; i < bytes.length; i++) signature += String.fromCharCode(bytes[i]);
+  return signature === FIT_SIGNATURE;
 }
 
 /**
@@ -58,18 +68,22 @@ function mToKm(m) {
  * Parse un fichier FIT et extrait tous les points avec leurs données.
  *
  * @param {ArrayBuffer} arrayBuffer - Contenu binaire brut du fichier FIT
- * @returns {{
+ * @returns {Promise<{
  *   name: string|null,
  *   points: Array,
  *   measured: {distanceKm: number|null, avgSpeedKmh: number|null, maxSpeedKmh: number|null}
- * }}
+ * }>} Asynchrone : charge @garmin/fitsdk à la volée (voir note en tête de fichier)
  * @throws {Error} Si le fichier n'est pas un FIT valide ou ne contient pas de points exploitables
  */
-export function parseFITArrayBuffer(arrayBuffer) {
-  const stream = Stream.fromArrayBuffer(arrayBuffer);
-  if (!Decoder.isFIT(stream)) {
+export async function parseFITArrayBuffer(arrayBuffer) {
+  if (!isFITFile(arrayBuffer)) {
     throw new Error("Ce fichier n'est pas un FIT valide (signature .FIT absente du header).");
   }
+
+  // Chargement différé : @garmin/fitsdk n'atterrit dans le bundle initial ni
+  // dans le chemin d'import GPX, seulement ici, quand un FIT est confirmé.
+  const { Decoder, Stream } = await import("@garmin/fitsdk");
+  const stream = Stream.fromArrayBuffer(arrayBuffer);
 
   const decoder = new Decoder(stream);
   if (!decoder.checkIntegrity()) {
