@@ -32,6 +32,7 @@ import { COLORS, MAP_TILE_FILTER } from "./lib/colors.js";
 import { generateSummary, generateHighlights } from "./lib/narrative.js";
 import { generateDemoPoints } from "./lib/demoData.js";
 import { StatCard, SectionTitle, CustomTooltip } from "./components/UIPrimitives.jsx";
+import { AnalyticsView } from "./components/AnalyticsView.jsx";
 import { MapView } from "./components/MapView.jsx";
 import { MapLibrePrototype } from "./components/MapLibrePrototype.jsx"; // POC expérimental, voir onglet Carte
 import { ProfileChart } from "./components/ProfileChart.jsx";
@@ -456,6 +457,7 @@ export default function GPXAnalyzer() {
 
   const TABS = [
     { key: "resume", label: "Résumé" },
+    { key: "analytique", label: "Analytique" },
     { key: "carte", label: "Carte" },
     { key: "performance", label: "Performance" },
     { key: "montees", label: "Montées", disabled: analysis && analysis.climbs.length === 0 },
@@ -995,6 +997,21 @@ export default function GPXAnalyzer() {
                 </div>
               )}
             </>
+          )}
+
+          {/* ---------------- ANALYTIQUE ---------------- */}
+          {activeTab === "analytique" && (
+            <AnalyticsView
+              analytics={activityAnalytics}
+              analysis={analysis}
+              chartData={chartData}
+              hoverIdx={hoverIdx}
+              setHoverIdx={setHoverIdx}
+              profileMetric={profileMetric}
+              setProfileMetric={setProfileMetric}
+              selectedClimb={selectedClimb}
+              setSelectedClimb={setSelectedClimb}
+            />
           )}
 
           {/* ---------------- CARTE ---------------- */}
