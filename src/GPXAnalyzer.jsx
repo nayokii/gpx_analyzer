@@ -17,6 +17,7 @@ import { parseFITArrayBuffer } from "./lib/parsers/fitParser.js";
 import { parseActivityFileAuto, getAcceptString } from "./lib/parsers/index.js";
 import { computeAnalysis, computeHRZones } from "./lib/analysis.js";
 import { computePowerZones, computeBestPowerEfforts } from "./lib/power.js";
+import { computeActivityAnalytics } from "./lib/analytics/analytics.js";
 import {
   avg,
   decimate,
@@ -155,6 +156,13 @@ export default function GPXAnalyzer() {
   }
 
   const analysis = useMemo(() => (points ? computeAnalysis(points, userSettings) : null), [points, userSettings]);
+  // Moteur d'analyse avancée (Phase 4A) — indépendant de l'UI, calculé ici pour
+  // être disponible dans le flux de l'app ; pas encore branché sur le rendu
+  // (l'interface actuelle continue de lire `analysis` directement).
+  const activityAnalytics = useMemo(
+    () => (analysis ? computeActivityAnalytics(analysis, { ftp: userSettings.ftp, maxHR, hrZoneBounds: hrZones }) : null),
+    [analysis, userSettings.ftp, maxHR, hrZones]
+  );
   const powerZones = useMemo(
     () => (analysis && analysis.hasPower && userSettings.ftp ? computePowerZones(analysis.series, userSettings.ftp) : null),
     [analysis, userSettings.ftp]
