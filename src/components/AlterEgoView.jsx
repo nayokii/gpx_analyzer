@@ -22,7 +22,7 @@
  */
 import { useState, useEffect, useCallback, useMemo } from "react";
 import {
-  ArrowLeft, Info, Trophy, Target, Zap, Mountain, Flame, Gauge, Repeat, Bike, Timer, AlertTriangle, Lock,
+  ArrowLeft, Info, Trophy, Target, Zap, Mountain, Flame, Gauge, Repeat, Bike, Timer, AlertTriangle, Lock, Fingerprint,
 } from "lucide-react";
 
 import { StorageSettings } from "./StorageSettings.jsx";
@@ -32,6 +32,7 @@ import { computeCyclistProfile } from "../lib/profile/profile.js";
 import { computeProgression } from "../lib/progression/progression.js";
 import { loadProgressionState, saveProgressionState } from "../lib/progression/persistence.js";
 import { progressionToState } from "../lib/progression/state.js";
+import { matchArchetypes, matchReferenceRiders } from "../lib/archetypes/matching.js";
 
 // Même principe que MAX_PROFILE_ACTIVITIES (ProfileView.jsx) / MAX_ROUTE_ANALYSIS_ACTIVITIES (HistoryDashboard.jsx).
 const MAX_PROGRESSION_ACTIVITIES = 200;
@@ -100,6 +101,30 @@ function ProfileSummarySection({ profile }) {
         })}
       </div>
       <p className="gpx-empty-note" style={{ marginTop: 10 }}>Indices internes (voir l'onglet Profil) — pas un pourcentage de capacité humaine.</p>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Résumé archétype (Phase 8) — consomme archetypes.js, ne recalcule rien */
+/* ------------------------------------------------------------------ */
+
+function ArchetypeSummarySection({ profile, onViewArchetype }) {
+  const match = useMemo(() => matchArchetypes(profile), [profile]);
+  const topRider = useMemo(() => matchReferenceRiders(profile, { limit: 1 })[0] || null, [profile]);
+
+  return (
+    <div className="gpx-panel">
+      <SectionTitle
+        icon={Fingerprint}
+        right={onViewArchetype ? <button className="gpx-link-btn" onClick={onViewArchetype}>Voir le détail</button> : null}
+      >
+        Archétype actuel
+      </SectionTitle>
+      <div className="gpx-archetype-headline" style={{ fontSize: 20 }}>{match.combinedLabel}</div>
+      {topRider && (
+        <p className="gpx-profile-card-meta" style={{ marginTop: 6 }}>Profil similaire : {topRider.rider.name}</p>
+      )}
     </div>
   );
 }
@@ -221,9 +246,10 @@ function RecentXpSection({ events, onOpen }) {
  * @param {Function} props.onConnect
  * @param {Function} props.onReconnect
  * @param {Function} [props.onOpen] - Ouvre une activité par id (optionnel)
+ * @param {Function} [props.onViewArchetype] - Navigue vers la vue Archétype (optionnel)
  * @param {Function} props.onBack
  */
-export function AlterEgoView({ storage, onConnect, onReconnect, onOpen, onBack }) {
+export function AlterEgoView({ storage, onConnect, onReconnect, onOpen, onViewArchetype, onBack }) {
   const [summaries, setSummaries] = useState(null);
   const [summariesError, setSummariesError] = useState(null);
   const [fullActivities, setFullActivities] = useState(null);
@@ -329,6 +355,7 @@ export function AlterEgoView({ storage, onConnect, onReconnect, onOpen, onBack }
 
               <LevelHeader progression={progression} />
               <ProfileSummarySection profile={progression.profileSnapshot} />
+              <ArchetypeSummarySection profile={progression.profileSnapshot} onViewArchetype={onViewArchetype} />
               <ChallengesSection challenges={progression.challenges} completedMilestones={progression.completedMilestones} />
               <AchievementsSection achievements={progression.achievements} />
               <RecentXpSection events={progression.recentEvents} onOpen={onOpen} />

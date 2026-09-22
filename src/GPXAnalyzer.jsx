@@ -3,7 +3,7 @@ import {
   Upload, MapPin, TrendingUp, Activity, Heart, Zap, Mountain, Clock, Gauge,
   RefreshCw, ChevronUp, ChevronDown, X, Download, Info, Flame, Timer,
   Route, Thermometer, PauseCircle, Settings2, ArrowUpRight, Wind, Compass,
-  FileWarning, Sparkles, History as HistoryIcon, UserRound, Trophy,
+  FileWarning, Sparkles, History as HistoryIcon, UserRound, Trophy, Fingerprint,
 } from "lucide-react";
 import {
   ResponsiveContainer, AreaChart, Area, LineChart, Line, XAxis, YAxis,
@@ -40,6 +40,7 @@ import { StorageSettings } from "./components/StorageSettings.jsx";
 import { HistoryDashboard } from "./components/HistoryDashboard.jsx";
 import { ProfileView } from "./components/ProfileView.jsx";
 import { AlterEgoView } from "./components/AlterEgoView.jsx";
+import { ArchetypeView } from "./components/ArchetypeView.jsx";
 
 // Stockage local durable (Phase 2)
 import { toActivity } from "./lib/normalize.js";
@@ -70,7 +71,7 @@ const DEFAULT_HR_ZONES = [
 ];
 
 export default function GPXAnalyzer() {
-  const [mode, setMode] = useState("landing"); // landing | dashboard | historique | profil | alterego
+  const [mode, setMode] = useState("landing"); // landing | dashboard | historique | profil | alterego | archetype
   const [isDemo, setIsDemo] = useState(false);
   const [fileName, setFileName] = useState(null);
   const [rideName, setRideName] = useState(null);
@@ -893,6 +894,22 @@ export default function GPXAnalyzer() {
         .gpx-alterego-achievement-unlocked { color: var(--text); border-color: rgba(77,217,192,0.35); }
         .gpx-alterego-achievement-check { color: var(--speed); font-weight: 800; }
 
+        /* ---------- Archétype ---------- */
+        .gpx-archetype-headline { font-size: 26px; font-weight: 800; letter-spacing: -0.01em; margin-top: 4px; }
+        .gpx-archetype-bars { display: flex; flex-direction: column; gap: 8px; margin: 10px 0; }
+        .gpx-archetype-bar-row { display: grid; grid-template-columns: 90px 1fr 32px; align-items: center; gap: 10px; font-size: 12.5px; }
+        .gpx-archetype-bar-label { color: var(--muted); }
+        .gpx-archetype-bar-value { text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; }
+        .gpx-archetype-rider-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+        .gpx-archetype-rider-card { background: var(--surface2); border: 1px solid var(--border); border-radius: 16px; padding: 16px; }
+        .gpx-archetype-rider-head { display: flex; flex-direction: column; gap: 2px; margin-bottom: 4px; }
+        .gpx-archetype-rider-name { font-weight: 800; font-size: 14.5px; }
+        .gpx-archetype-rider-similarity { font-size: 12px; font-weight: 700; color: var(--speed); margin-bottom: 8px; }
+        .gpx-archetype-rider-detail { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 6px; }
+        .gpx-archetype-rider-sources { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 4px; }
+        .gpx-archetype-timeline { display: flex; flex-direction: column; gap: 8px; }
+        .gpx-archetype-timeline-row { display: flex; justify-content: space-between; align-items: center; font-size: 13px; padding: 8px 10px; background: var(--surface2); border-radius: 10px; }
+
         @media (max-width: 860px) {
           .gpx-stats-grid { grid-template-columns: repeat(2, 1fr); }
           .gpx-two-col { grid-template-columns: 1fr; }
@@ -943,6 +960,8 @@ export default function GPXAnalyzer() {
               <button className="gpx-link-btn" onClick={() => setMode("profil")}>Voir mon profil</button>
               {" · "}
               <button className="gpx-link-btn" onClick={() => setMode("alterego")}>Voir mon Alter Ego</button>
+              {" · "}
+              <button className="gpx-link-btn" onClick={() => setMode("archetype")}>Voir mon archétype</button>
             </div>
             <div className="gpx-panel" style={{ marginTop: 24, textAlign: "left" }}>
               <StorageSettings storage={storage} onConnect={connectStorage} onReconnect={reconnectStorage} compact />
@@ -981,6 +1000,7 @@ export default function GPXAnalyzer() {
               <button className="gpx-icon-btn" title="Historique des sorties" onClick={() => setMode("historique")}><HistoryIcon size={15} /></button>
               <button className="gpx-icon-btn" title="Mon profil cycliste" onClick={() => setMode("profil")}><UserRound size={15} /></button>
               <button className="gpx-icon-btn" title="Alter Ego" onClick={() => setMode("alterego")}><Trophy size={15} /></button>
+              <button className="gpx-icon-btn" title="Archétype" onClick={() => setMode("archetype")}><Fingerprint size={15} /></button>
               <button className="gpx-icon-btn" title="Exporter (PDF)" onClick={exportPDF}><Download size={15} /></button>
               <button className="gpx-btn-ghost" onClick={resetAll}><RefreshCw size={14} /> Nouvelle sortie</button>
             </div>
@@ -1805,6 +1825,16 @@ export default function GPXAnalyzer() {
           onConnect={connectStorage}
           onReconnect={reconnectStorage}
           onOpen={openActivityFromHistory}
+          onViewArchetype={() => setMode("archetype")}
+          onBack={() => setMode(points ? "dashboard" : "landing")}
+        />
+      )}
+
+      {mode === "archetype" && (
+        <ArchetypeView
+          storage={storage}
+          onConnect={connectStorage}
+          onReconnect={reconnectStorage}
           onBack={() => setMode(points ? "dashboard" : "landing")}
         />
       )}
