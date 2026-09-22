@@ -69,9 +69,19 @@ function summaryFromActivity(activity, files) {
     sportType: activity.sportType,
     distance: activity.distance,
     duration: activity.duration,
+    // movingTime/elevationLoss/avgPower : ajoutés en Phase 5B pour le dashboard
+    // historique (computeHistoryAnalytics/records — voir src/lib/history/),
+    // qui a besoin de ces agrégats sans recharger chaque activité complète.
+    // Ce sont trois nombres déjà calculés, pas de nouveau traitement ; un
+    // index.json antérieur à ce changement les aura simplement absents
+    // (traité comme donnée manquante, jamais comme 0) jusqu'à reconstruction.
+    movingTime: activity.movingTime,
     elevationGain: activity.elevationGain,
+    elevationLoss: activity.elevationLoss,
     avgSpeed: activity.avgSpeed,
+    avgPower: activity.avgPower,
     avgHeartRate: activity.avgHeartRate,
+    avgCadence: activity.avgCadence,
     flags: activity.flags,
     source: activity.source,
     files,

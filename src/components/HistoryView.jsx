@@ -2,9 +2,17 @@
  * Historique des sorties enregistrées localement.
  *
  * Liste, recherche/filtre par date, ouverture, suppression. La sélection
- * multiple est déjà câblée (checkbox par ligne + barre de sélection) pour ne
- * pas avoir à retoucher cette page quand la comparaison (Phase 8) sera
- * implémentée — mais aucune comparaison réelle n'est faite ici.
+ * multiple (checkbox par ligne + barre de sélection) alimente la comparaison
+ * (Phase 5B, voir HistoryDashboard.jsx) via `onCompare` : ce composant ne
+ * calcule ni ne charge rien lui-même pour la comparaison, il se contente de
+ * remonter les deux ids sélectionnés.
+ *
+ * Chargement des activités : par défaut ce composant lit lui-même
+ * `listActivities()` (usage autonome). Quand un parent a déjà besoin de la
+ * même liste pour ses propres agrégats (HistoryDashboard.jsx), il peut la
+ * fournir via les props `activities`/`error`/`onRefresh` : ce composant
+ * n'effectue alors plus sa propre lecture, pour éviter un double fetch et un
+ * double état de chargement/erreur affiché à l'écran.
  */
 import { useEffect, useState, useCallback } from "react";
 import { ArrowLeft, Search, Trash2, ExternalLink, History as HistoryIcon } from "lucide-react";
@@ -13,25 +21,37 @@ import { listActivities, deleteActivity } from "../lib/storage/activityStore.js"
 import { fmt1, fmtInt, fmtDuration, fmtDateFull } from "../lib/utils.js";
 import { StorageSettings } from "./StorageSettings.jsx";
 
-export function HistoryView({ storage, onConnect, onReconnect, onOpen, onBack }) {
-  const [activities, setActivities] = useState(null); // null = chargement
-  const [error, setError] = useState(null);
+export function HistoryView({
+  storage, onConnect, onReconnect, onOpen, onBack, onCompare, children,
+  activities: activitiesProp, error: errorProp, onRefresh,
+}) {
+  const controlled = activitiesProp !== undefined;
+
+  const [activitiesState, setActivitiesState] = useState(null); // null = chargement
+  const [errorState, setErrorState] = useState(null);
   const [search, setSearch] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [selectedIds, setSelectedIds] = useState(() => new Set());
 
+  const activities = controlled ? activitiesProp : activitiesState;
+  const error = controlled ? errorProp : errorState;
+
   const refresh = useCallback(() => {
+    if (controlled) {
+      onRefresh && onRefresh();
+      return;
+    }
     if (storage.status !== "connected" || !storage.rootHandle) return;
-    setError(null);
+    setErrorState(null);
     listActivities(storage.rootHandle)
-      .then((list) => setActivities(list))
-      .catch((err) => setError(err.message || "Impossible de lire l'historique."));
-  }, [storage.status, storage.rootHandle]);
+      .then((list) => setActivitiesState(list))
+      .catch((err) => setErrorState(err.message || "Impossible de lire l'historique."));
+  }, [controlled, onRefresh, storage.status, storage.rootHandle]);
 
   useEffect(() => {
-    refresh();
-  }, [refresh]);
+    if (!controlled) refresh();
+  }, [refresh, controlled]);
 
   async function handleDelete(id, name) {
     if (!window.confirm(`Supprimer définitivement « ${name || "cette sortie"} » (fichier original inclus) ?`)) return;
@@ -44,7 +64,8 @@ export function HistoryView({ storage, onConnect, onReconnect, onOpen, onBack })
       });
       refresh();
     } catch (err) {
-      setError(err.message || "Impossible de supprimer cette sortie.");
+      if (controlled) onRefresh && onRefresh();
+      else setErrorState(err.message || "Impossible de supprimer cette sortie.");
     }
   }
 
@@ -83,6 +104,8 @@ export function HistoryView({ storage, onConnect, onReconnect, onOpen, onBack })
         <StorageSettings storage={storage} onConnect={onConnect} onReconnect={onReconnect} />
       </div>
 
+      {storage.status === "connected" && children}
+
       {storage.status === "connected" && (
         <div className="gpx-panel">
           <div className="gpx-history-toolbar">
@@ -116,8 +139,10 @@ export function HistoryView({ storage, onConnect, onReconnect, onOpen, onBack })
                     <th>Distance</th>
                     <th>Durée</th>
                     <th>D+</th>
-                    <th>Vit. moy.</th>
-                    <th>FC moy.</th>
+                    <th>Vitesse</th>
+                    <th>Puissance</th>
+                    <th>HR</th>
+                    <th>Cadence</th>
                     <th></th>
                   </tr>
                 </thead>
@@ -125,7 +150,7 @@ export function HistoryView({ storage, onConnect, onReconnect, onOpen, onBack })
                   {filtered.map((a) => (
                     <tr key={a.id} className="gpx-row-clickable" onClick={() => onOpen(a.id)}>
                       <td onClick={(e) => e.stopPropagation()}>
-                        <input type="checkbox" checked={selectedIds.has(a.id)} onChange={() => toggleSelect(a.id)} title="Sélectionner pour une future comparaison" />
+                        <input type="checkbox" checked={selectedIds.has(a.id)} onChange={() => toggleSelect(a.id)} title="Sélectionner pour comparer (2 sorties max.)" />
                       </td>
                       <td>{a.date ? fmtDateFull(new Date(a.date)) : "Date inconnue"}</td>
                       <td>{a.name || "Sortie vélo"}</td>
@@ -133,7 +158,21 @@ export function HistoryView({ storage, onConnect, onReconnect, onOpen, onBack })
                       <td>{fmtDuration(a.duration)}</td>
                       <td>{a.elevationGain != null ? `+${fmtInt(a.elevationGain)} m` : "—"}</td>
                       <td>{a.avgSpeed != null ? `${fmt1(a.avgSpeed)} km/h` : "—"}</td>
+                      <td>
+                        {a.avgPower != null ? (
+                          <>
+                            {a.flags && a.flags.powerEstimated ? `≈ ${fmtInt(a.avgPower)} W` : `${fmtInt(a.avgPower)} W`}
+                            <span
+                              className={a.flags && a.flags.powerEstimated ? "gpx-power-source-estimated" : "gpx-power-source"}
+                              style={{ marginLeft: 6 }}
+                            >
+                              {a.flags && a.flags.powerEstimated ? "estimée" : "mesurée"}
+                            </span>
+                          </>
+                        ) : "—"}
+                      </td>
                       <td>{a.avgHeartRate != null ? `${fmtInt(a.avgHeartRate)} bpm` : "—"}</td>
+                      <td>{a.avgCadence != null ? `${fmtInt(a.avgCadence)} rpm` : "—"}</td>
                       <td onClick={(e) => e.stopPropagation()} style={{ display: "flex", gap: 6 }}>
                         <button className="gpx-icon-btn" title="Ouvrir" onClick={() => onOpen(a.id)}><ExternalLink size={14} /></button>
                         <button className="gpx-icon-btn" title="Supprimer" onClick={() => handleDelete(a.id, a.name)}><Trash2 size={14} /></button>
@@ -148,8 +187,13 @@ export function HistoryView({ storage, onConnect, onReconnect, onOpen, onBack })
           {selectedIds.size > 0 && (
             <div className="gpx-history-selection-bar">
               <span>{selectedIds.size} sortie{selectedIds.size > 1 ? "s" : ""} sélectionnée{selectedIds.size > 1 ? "s" : ""}</span>
-              <button className="gpx-btn-ghost" disabled title="La comparaison entre sorties arrivera dans une prochaine phase">
-                Comparer (bientôt disponible)
+              <button
+                className="gpx-btn-ghost"
+                disabled={selectedIds.size !== 2 || !onCompare}
+                title={selectedIds.size !== 2 ? "Sélectionne exactement 2 sorties pour les comparer" : "Comparer ces deux sorties"}
+                onClick={() => onCompare && onCompare([...selectedIds])}
+              >
+                Comparer
               </button>
               <button className="gpx-link-btn" onClick={() => setSelectedIds(new Set())}>Désélectionner</button>
             </div>

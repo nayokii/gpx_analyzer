@@ -37,7 +37,7 @@ import { MapView } from "./components/MapView.jsx";
 import { MapLibrePrototype } from "./components/MapLibrePrototype.jsx"; // POC expérimental, voir onglet Carte
 import { ProfileChart } from "./components/ProfileChart.jsx";
 import { StorageSettings } from "./components/StorageSettings.jsx";
-import { HistoryView } from "./components/HistoryView.jsx";
+import { HistoryDashboard } from "./components/HistoryDashboard.jsx";
 
 // Stockage local durable (Phase 2)
 import { toActivity } from "./lib/normalize.js";
@@ -1694,12 +1694,14 @@ export default function GPXAnalyzer() {
       )}
 
       {mode === "historique" && (
-        <HistoryView
+        <HistoryDashboard
           storage={storage}
           onConnect={connectStorage}
           onReconnect={reconnectStorage}
           onOpen={openActivityFromHistory}
           onBack={() => setMode(points ? "dashboard" : "landing")}
+          ftp={userSettings.ftp}
+          maxHR={maxHR}
         />
       )}
     </div>
