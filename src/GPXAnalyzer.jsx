@@ -580,6 +580,26 @@ export default function GPXAnalyzer() {
         .gpx-home-card-arrow { color: var(--faint); }
         .gpx-home-card:hover .gpx-home-card-arrow { color: var(--speed); }
         .gpx-home-card-headline { font-size: 17px; font-weight: 800; letter-spacing: -0.01em; margin-top: 2px; }
+        .gpx-home-card-link { font-size: 12px; font-weight: 700; color: var(--speed); margin-top: 8px; }
+        .gpx-home-grid-pair { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+        .gpx-home-import-compact { opacity: 0.9; }
+
+        /* Ton focus : bloc dominant de l'accueil — même recette de dégradé que .gpx-header, jamais un nouveau langage visuel. */
+        .gpx-focus-panel {
+          background: linear-gradient(135deg, var(--surface), var(--bgAlt));
+          border: 1px solid rgba(77,217,192,0.25);
+          padding: 22px 24px;
+        }
+        .gpx-focus-headline { font-size: 22px; font-weight: 800; letter-spacing: -0.01em; margin-top: 2px; }
+        .gpx-focus-desc { font-size: 13.5px; color: var(--muted); line-height: 1.5; margin: 6px 0 14px; max-width: 560px; }
+        .gpx-focus-bar { height: 10px; border-radius: 8px; background: var(--bg); overflow: hidden; }
+        .gpx-focus-bar-fill { height: 100%; border-radius: 8px; background: linear-gradient(90deg, var(--speed), var(--climb)); }
+        .gpx-focus-meta { display: flex; justify-content: space-between; align-items: center; font-size: 12.5px; color: var(--muted); margin-top: 8px; }
+        .gpx-focus-footer {
+          display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;
+          margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border);
+        }
+        .gpx-lastride-stats { display: flex; gap: 14px; flex-wrap: wrap; font-size: 13px; color: var(--text); font-weight: 600; margin-top: 8px; font-variant-numeric: tabular-nums; }
 
         /* ---------- Landing ---------- */
         .gpx-landing {

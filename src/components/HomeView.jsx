@@ -1,15 +1,29 @@
 /**
- * ACCUEIL — vue de synthèse, pas un fourre-tout. Donne un aperçu de chaque
- * grand espace (Alter Ego, Profil, Archétype, dernière sortie) et donne
- * envie d'y aller — chaque carte ouvre la page correspondante, mais CHAQUE
- * page reste par ailleurs directement accessible depuis la navigation
- * principale (voir AppNav.jsx) : l'accueil n'est plus le seul chemin vers
- * ces sections.
+ * ACCUEIL — Focus Dashboard : le centre de gravité de l'application, pas une
+ * galerie de copies miniatures des autres pages. Répond à quatre questions
+ * en quelques secondes : où j'en suis (Alter Ego), sur quoi je progresse
+ * (Focus), qu'est-ce qui compte maintenant (Focus), quelle est ma dernière
+ * activité. Chaque aperçu est cliquable (voir consigne §11) mais reste un
+ * RACCOURCI — la navigation principale (AppNav.jsx) reste l'unique manière
+ * canonique d'atteindre chaque section.
  *
- * Ne recalcule rien de neuf : réutilise exactement les mêmes moteurs que
- * ProfileView.jsx/AlterEgoView.jsx/ArchetypeView.jsx
- * (computeCyclistProfile/computeProgression/matchArchetypes), avec le même
- * pattern de chargement (listActivities → loadActivityDetail, plafonné).
+ * AUCUN nouveau calcul métier ici (voir consigne §1/§4) : "Ton focus" ne
+ * fait QUE sélectionner et reformuler un objet déjà produit par
+ * `computeProgression()` (un `challenge` de `progression.challenges`, déjà
+ * calculé par src/lib/progression/challenges.js) — jamais un nouveau score
+ * de motivation/discipline/potentiel. La sélection ("le challenge le plus
+ * proche d'être atteint") est un simple tri sur des champs déjà réels
+ * (`current`/`target`), pas une métrique inventée. Voir `pickFocusChallenge`.
+ *
+ * Chargement : même pattern que ProfileView.jsx/AlterEgoView.jsx/
+ * ArchetypeView.jsx (listActivities → loadActivityDetail, plafonné,
+ * Promise.allSettled). Volontairement PAS mutualisé avec GPXAnalyzer.jsx :
+ * un seul de ces panneaux est monté à la fois (changement de `mode`, pas de
+ * rendu simultané), donc il n'y a pas de double-fetch concurrent à éviter —
+ * lifter cet état demanderait de faire transiter `activities` en props à
+ * travers 4 composants pour un gain nul à ce volume de données (voir
+ * consigne §15 : "ne fais pas de refactor massif si ce n'est pas
+ * nécessaire").
  *
  * État vide (pas de dossier connecté OU aucune sortie) : reprend l'écran
  * d'import existant tel quel (mêmes classes `.gpx-upload-zone`/
@@ -18,30 +32,61 @@
  */
 import { useState, useEffect, useCallback, useMemo } from "react";
 import {
-  Mountain, Upload, FileWarning, Sparkles, ArrowRight, Timer, Zap, Flame, Gauge, Bike, Trophy, UserRound, Fingerprint,
+  Mountain, Upload, FileWarning, Sparkles, ArrowRight, Timer, Zap, Flame, Trophy, UserRound, Fingerprint, Target, AlertTriangle,
 } from "lucide-react";
 
 import { StorageSettings } from "./StorageSettings.jsx";
 import { SectionTitle } from "./UIPrimitives.jsx";
 import { listActivities, loadActivityDetail } from "../lib/storage/activityStore.js";
 import { computeCyclistProfile } from "../lib/profile/profile.js";
+import { confidenceLabel } from "../lib/profile/confidence.js";
 import { computeProgression } from "../lib/progression/progression.js";
 import { getXpProgress } from "../lib/progression/levels.js";
 import { matchArchetypes } from "../lib/archetypes/matching.js";
-import { fmt1, fmtDuration, fmtDateFull } from "../lib/utils.js";
+import { fmt1, fmtInt, fmtDuration, fmtDateFull } from "../lib/utils.js";
 
 const MAX_HOME_ACTIVITIES = 200; // même principe que MAX_PROFILE_ACTIVITIES (ProfileView.jsx)
-const XP_RECENT_WINDOW_DAYS = 7;
+
+const CONFIDENCE_LABELS = { low: "faible", medium: "moyenne", high: "élevée" };
 
 const DIMENSION_META = {
   endurance: { label: "Endurance", icon: Timer },
   climbing: { label: "Grimpe", icon: Mountain },
   punch: { label: "Punch", icon: Zap },
   sprint: { label: "Sprint", icon: Flame },
-  timeTrial: { label: "CLM", icon: Gauge },
-  technical: { label: "Technique", icon: Bike },
 };
 const HOME_DIMENSION_ORDER = ["endurance", "climbing", "punch", "sprint"];
+
+// Reformulation générique par catégorie de challenge (voir progression/challenges.js
+// pour la liste des catégories réelles) — jamais un texte par utilisateur, un simple
+// gabarit tenu par catégorie, comme explanations.js le fait déjà pour les archétypes.
+const FOCUS_TITLES = {
+  distance: "Allonger tes sorties",
+  elevation: "Grimper plus haut",
+  endurance: "Construire ton endurance",
+  consistency: "Ancrer ta régularité",
+  climbing: "Développer ta grimpe",
+  punch: "Entretenir ton punch",
+};
+const FOCUS_DESCRIPTIONS = {
+  distance: "Continue à augmenter la distance de tes sorties pour repousser ce palier.",
+  elevation: "Continue à accumuler du dénivelé sur une sortie pour repousser ce palier.",
+  endurance: "Continue à accumuler du temps de selle pour développer cette dimension.",
+  climbing: "Continue à accumuler du dénivelé sur cette période pour développer ta grimpe.",
+  punch: "Continue à enchaîner des efforts courts et intenses pour entretenir ton punch.",
+};
+
+/**
+ * Sélectionne le challenge actif le plus proche d'être atteint — PAS une
+ * nouvelle métrique de performance, juste un tri sur `current`/`target`,
+ * deux champs déjà produits par challenges.js. Déterministe, pur.
+ * @param {Array} challenges - progression.challenges
+ * @returns {Object|null}
+ */
+export function pickFocusChallenge(challenges) {
+  if (!challenges || challenges.length === 0) return null;
+  return challenges.slice().sort((a, b) => b.current / b.target - a.current / a.target)[0];
+}
 
 function xpInLastDays(events, days, now) {
   const cutoff = new Date(now.getTime() - days * 24 * 3600 * 1000);
@@ -49,7 +94,50 @@ function xpInLastDays(events, days, now) {
 }
 
 /* ------------------------------------------------------------------ */
-/* Carte de synthèse générique                                         */
+/* Ton focus — bloc dominant                                           */
+/* ------------------------------------------------------------------ */
+
+function FocusSection({ profile, progression, onViewChallenges }) {
+  const coldStart = profile.activityCount < 2;
+  const confLabel = confidenceLabel(profile.overallConfidence);
+  const focus = coldStart ? null : pickFocusChallenge(progression.challenges);
+
+  return (
+    <div className="gpx-panel gpx-focus-panel">
+      <SectionTitle icon={Target}>Ton focus</SectionTitle>
+      {coldStart ? (
+        <>
+          <div className="gpx-focus-headline">Profil en construction</div>
+          <p className="gpx-focus-desc">Continue à enregistrer des sorties pour obtenir suffisamment de données.</p>
+        </>
+      ) : !focus ? (
+        <>
+          <div className="gpx-focus-headline">Tous tes objectifs actuels sont atteints</div>
+          <p className="gpx-focus-desc">De nouveaux challenges apparaîtront à mesure que ton historique grandit.</p>
+        </>
+      ) : (
+        <>
+          <div className="gpx-focus-headline">{FOCUS_TITLES[focus.category] || focus.label}</div>
+          <p className="gpx-focus-desc">{focus.category === "consistency" ? focus.reason : FOCUS_DESCRIPTIONS[focus.category]}</p>
+          <div className="gpx-focus-bar"><div className="gpx-focus-bar-fill" style={{ width: `${Math.max(0, Math.min(100, (focus.current / focus.target) * 100))}%` }} /></div>
+          <div className="gpx-focus-meta">
+            <span>{focus.current} / {focus.target} {focus.unit}</span>
+            <span className="gpx-alterego-xp-badge">+{focus.xpReward} XP</span>
+          </div>
+        </>
+      )}
+      <div className="gpx-focus-footer">
+        <span className="gpx-profile-card-meta">
+          Confiance du profil : <b className={`gpx-confidence-${confLabel}`}>{CONFIDENCE_LABELS[confLabel] || "insuffisante"}</b>
+        </span>
+        {!coldStart && <button className="gpx-link-btn" onClick={onViewChallenges}>Voir tous mes challenges</button>}
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Carte de synthèse générique (Alter Ego / Archétype)                  */
 /* ------------------------------------------------------------------ */
 
 function HomeCard({ icon: Icon, title, onOpen, children }) {
@@ -61,6 +149,102 @@ function HomeCard({ icon: Icon, title, onOpen, children }) {
       </div>
       <div className="gpx-home-card-body">{children}</div>
     </button>
+  );
+}
+
+function AlterEgoPreview({ progression, onOpen }) {
+  const xp = getXpProgress(progression.xp);
+  const pct = Math.round(xp.progress * 100);
+  return (
+    <HomeCard icon={Trophy} title="Alter Ego" onOpen={onOpen}>
+      <div className="gpx-home-card-headline">Niveau {progression.level}</div>
+      <div className="gpx-profile-card-meta">{progression.title} · {progression.xp} XP</div>
+      <div className="gpx-profile-card-bar" style={{ margin: "8px 0" }}>
+        <div className="gpx-profile-card-bar-fill" style={{ width: `${pct}%` }} />
+      </div>
+      <div className="gpx-profile-card-meta">{pct}% vers le niveau {progression.level + 1}</div>
+      <span className="gpx-home-card-link">+ Voir Alter Ego</span>
+    </HomeCard>
+  );
+}
+
+function ArchetypePreview({ archetypeMatch, onOpen }) {
+  return (
+    <HomeCard icon={Fingerprint} title="Ton archétype" onOpen={onOpen}>
+      <div className="gpx-home-card-headline">{archetypeMatch.combinedLabel}</div>
+      {archetypeMatch.primary?.description && <p className="gpx-focus-desc" style={{ marginTop: 6 }}>{archetypeMatch.primary.description}</p>}
+      <span className="gpx-home-card-link">Voir mon archétype</span>
+    </HomeCard>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Ton profil (aperçu)                                                  */
+/* ------------------------------------------------------------------ */
+
+function ProfilePreviewSection({ profile, onOpen }) {
+  return (
+    <div className="gpx-panel">
+      <SectionTitle icon={UserRound} right={<button className="gpx-link-btn" onClick={onOpen}>Voir le profil complet</button>}>
+        Ton profil
+      </SectionTitle>
+      <div className="gpx-archetype-bars">
+        {HOME_DIMENSION_ORDER.map((key) => {
+          const dim = profile.dimensions[key];
+          const meta = DIMENSION_META[key];
+          return (
+            <div className="gpx-archetype-bar-row" key={key}>
+              <span className="gpx-archetype-bar-label"><meta.icon size={12} style={{ verticalAlign: -2, marginRight: 4 }} />{meta.label}</span>
+              {dim.value == null ? (
+                <span className="gpx-profile-card-meta" style={{ gridColumn: "2 / span 2" }}>Données insuffisantes</span>
+              ) : (
+                <>
+                  <div className="gpx-profile-card-bar"><div className="gpx-profile-card-bar-fill" style={{ width: `${Math.max(0, Math.min(100, dim.value))}%` }} /></div>
+                  <span className="gpx-archetype-bar-value">{dim.value}</span>
+                </>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Dernière sortie                                                      */
+/* ------------------------------------------------------------------ */
+
+function LastRideSection({ lastActivity, onOpen }) {
+  return (
+    <div className="gpx-panel">
+      <SectionTitle icon={Sparkles}>Dernière sortie</SectionTitle>
+      {!lastActivity ? (
+        <>
+          <p className="gpx-summary-text">Aucune sortie enregistrée.</p>
+          <p className="gpx-empty-note">Importe ta première activité pour commencer à construire ton profil.</p>
+        </>
+      ) : (
+        <>
+          <div className="gpx-home-card-headline">{lastActivity.name || "Sortie vélo"}</div>
+          <div className="gpx-profile-card-meta" style={{ marginTop: 4 }}>
+            {lastActivity.date ? fmtDateFull(new Date(lastActivity.date)) : "Date inconnue"}
+          </div>
+          <div className="gpx-lastride-stats">
+            <span>{fmt1(lastActivity.distance)} km</span>
+            {lastActivity.avgSpeed != null && <span>{fmt1(lastActivity.avgSpeed)} km/h</span>}
+            <span>{fmtDuration(lastActivity.movingTime ?? lastActivity.duration)}</span>
+            {lastActivity.elevationGain != null && <span>+{fmtInt(lastActivity.elevationGain)} m</span>}
+            {lastActivity.avgPower != null && (
+              <span className={lastActivity.flags && lastActivity.flags.powerEstimated ? "gpx-power-source-estimated" : "gpx-power-source"}>
+                {fmtInt(lastActivity.avgPower)} W {lastActivity.flags && lastActivity.flags.powerEstimated ? "estimée" : "mesurée"}
+              </span>
+            )}
+          </div>
+          <button className="gpx-btn-ghost" style={{ marginTop: 12 }} onClick={onOpen}>Voir l'analyse</button>
+        </>
+      )}
+    </div>
   );
 }
 
@@ -125,13 +309,19 @@ function EmptyStateImport({ storage, onConnect, onReconnect, upload, onLoadDemo 
  */
 export function HomeView({ storage, onConnect, onReconnect, onNavigate, onOpenActivity, onLoadDemo, upload }) {
   const [summaries, setSummaries] = useState(null);
+  const [summariesError, setSummariesError] = useState(null);
   const [fullActivities, setFullActivities] = useState(null);
+  const [failedCount, setFailedCount] = useState(0);
 
   const refresh = useCallback(() => {
     if (storage.status !== "connected" || !storage.rootHandle) return;
+    setSummariesError(null);
     setSummaries(null);
     setFullActivities(null);
-    listActivities(storage.rootHandle).then(setSummaries).catch(() => setSummaries([]));
+    setFailedCount(0);
+    listActivities(storage.rootHandle)
+      .then(setSummaries)
+      .catch((err) => setSummariesError(err.message || "Impossible de lire l'historique."));
   }, [storage.status, storage.rootHandle]);
 
   useEffect(() => { refresh(); }, [refresh]);
@@ -143,6 +333,7 @@ export function HomeView({ storage, onConnect, onReconnect, onNavigate, onOpenAc
     Promise.allSettled(toLoad.map((a) => loadActivityDetail(storage.rootHandle, a.id))).then((results) => {
       if (cancelled) return;
       setFullActivities(results.filter((r) => r.status === "fulfilled").map((r) => r.value));
+      setFailedCount(results.filter((r) => r.status === "rejected").length);
     });
     return () => { cancelled = true; };
   }, [summaries, storage.rootHandle]);
@@ -151,20 +342,24 @@ export function HomeView({ storage, onConnect, onReconnect, onNavigate, onOpenAc
   const progression = useMemo(() => (fullActivities ? computeProgression(fullActivities, profile) : null), [fullActivities, profile]);
   const archetypeMatch = useMemo(() => (profile ? matchArchetypes(profile) : null), [profile]);
   const lastActivity = fullActivities && fullActivities.length > 0 ? fullActivities[0] : null;
-  const xpThisWeek = useMemo(
-    () => (progression ? xpInLastDays(progression.recentEvents, XP_RECENT_WINDOW_DAYS, new Date()) : 0),
-    [progression]
-  );
 
-  const hasData = storage.status === "connected" && summaries != null && summaries.length > 0 && fullActivities != null;
+  const isLoading = storage.status === "connected" && (summaries === null || (summaries.length > 0 && fullActivities === null));
+  const isEmpty = storage.status !== "connected" || (summaries != null && summaries.length === 0);
+  const hasData = storage.status === "connected" && !isLoading && !isEmpty && profile != null;
 
   return (
     <div className="gpx-dashboard">
-      {!hasData ? (
+      {summariesError ? (
+        <div className="gpx-panel">
+          <div className="gpx-error-box">{summariesError}</div>
+        </div>
+      ) : isLoading ? (
+        <div className="gpx-panel"><p className="gpx-empty-note">Analyse de ton historique…</p></div>
+      ) : isEmpty ? (
         <div className="gpx-landing" style={{ minHeight: "auto", padding: "40px 20px" }}>
           <EmptyStateImport storage={storage} onConnect={onConnect} onReconnect={onReconnect} upload={upload} onLoadDemo={onLoadDemo} />
         </div>
-      ) : (
+      ) : hasData ? (
         <>
           <div className="gpx-header">
             <div className="gpx-header-left">
@@ -173,58 +368,24 @@ export function HomeView({ storage, onConnect, onReconnect, onNavigate, onOpenAc
             </div>
           </div>
 
-          <div className="gpx-home-grid">
-            <HomeCard icon={Trophy} title="Alter Ego" onOpen={() => onNavigate("alterego")}>
-              <div className="gpx-home-card-headline">Niveau {progression.level} — {progression.title}</div>
-              <div className="gpx-profile-card-bar" style={{ margin: "8px 0" }}>
-                <div className="gpx-profile-card-bar-fill" style={{ width: `${Math.round(getXpProgress(progression.xp).progress * 100)}%` }} />
-              </div>
-              <div className="gpx-profile-card-meta">{xpThisWeek > 0 ? `+${xpThisWeek} XP cette semaine` : "Pas d'XP cette semaine"}</div>
-            </HomeCard>
+          {failedCount > 0 && (
+            <div className="gpx-profile-banner">
+              <AlertTriangle size={14} />
+              {failedCount} sortie{failedCount > 1 ? "s n'ont" : " n'a"} pas pu être chargée{failedCount > 1 ? "s" : ""}. Cet aperçu est calculé à partir des sorties disponibles.
+            </div>
+          )}
 
-            <HomeCard icon={UserRound} title="Profil" onOpen={() => onNavigate("profil")}>
-              <div className="gpx-alterego-profile-list">
-                {HOME_DIMENSION_ORDER.map((key) => {
-                  const dim = profile.dimensions[key];
-                  const meta = DIMENSION_META[key];
-                  return (
-                    <div className="gpx-alterego-profile-row" key={key}>
-                      <span className="gpx-alterego-profile-row-label"><meta.icon size={12} /> {meta.label}</span>
-                      <span className={dim.value == null ? "gpx-profile-card-value-empty" : ""}>{dim.value ?? "—"}</span>
-                    </div>
-                  );
-                })}
-              </div>
-            </HomeCard>
+          <FocusSection profile={profile} progression={progression} onViewChallenges={() => onNavigate("alterego")} />
 
-            <HomeCard icon={Fingerprint} title="Archétype" onOpen={() => onNavigate("archetype")}>
-              <div className="gpx-home-card-headline">{archetypeMatch.combinedLabel}</div>
-              {archetypeMatch.explanation[0] && <p className="gpx-empty-note" style={{ fontStyle: "normal", marginTop: 6 }}>{archetypeMatch.explanation[0]}</p>}
-            </HomeCard>
-
-            <HomeCard
-              icon={Sparkles}
-              title="Dernière sortie"
-              onOpen={lastActivity ? () => onOpenActivity(lastActivity.id) : () => onNavigate("rides")}
-            >
-              {lastActivity ? (
-                <>
-                  <div className="gpx-home-card-headline">{lastActivity.name || "Sortie vélo"}</div>
-                  <div className="gpx-profile-card-meta">
-                    {lastActivity.date ? fmtDateFull(new Date(lastActivity.date)) : "Date inconnue"}
-                  </div>
-                  <div className="gpx-profile-card-meta" style={{ marginTop: 4 }}>
-                    {fmt1(lastActivity.distance)} km · {fmtDuration(lastActivity.movingTime ?? lastActivity.duration)}
-                    {lastActivity.avgSpeed != null ? ` · ${fmt1(lastActivity.avgSpeed)} km/h` : ""}
-                  </div>
-                </>
-              ) : (
-                <p className="gpx-empty-note">Aucune sortie récente.</p>
-              )}
-            </HomeCard>
+          <div className="gpx-home-grid gpx-home-grid-pair">
+            <AlterEgoPreview progression={progression} onOpen={() => onNavigate("alterego")} />
+            <ArchetypePreview archetypeMatch={archetypeMatch} onOpen={() => onNavigate("archetype")} />
           </div>
 
-          <div className="gpx-panel" style={{ marginTop: 4 }}>
+          <ProfilePreviewSection profile={profile} onOpen={() => onNavigate("profil")} />
+          <LastRideSection lastActivity={lastActivity} onOpen={lastActivity ? () => onOpenActivity(lastActivity.id) : undefined} />
+
+          <div className="gpx-panel gpx-home-import-compact">
             <SectionTitle icon={Upload}>Importer une nouvelle sortie</SectionTitle>
             <div
               className={"gpx-upload-zone" + (upload.dragOver ? " drag" : "")}
@@ -232,7 +393,7 @@ export function HomeView({ storage, onConnect, onReconnect, onNavigate, onOpenAc
               onDragLeave={upload.onDragLeave}
               onDrop={upload.onDrop}
               onClick={upload.onBrowseClick}
-              style={{ padding: "24px 20px" }}
+              style={{ padding: "18px 20px" }}
             >
               <div className="gpx-upload-title">Glissez-déposez un fichier .gpx ou .fit ici</div>
               <div className="gpx-upload-sub">ou cliquez pour parcourir vos fichiers</div>
@@ -240,7 +401,7 @@ export function HomeView({ storage, onConnect, onReconnect, onNavigate, onOpenAc
             {upload.error && <div className="gpx-error-box" style={{ marginTop: 10 }}><FileWarning size={15} /> {upload.error}</div>}
           </div>
         </>
-      )}
+      ) : null}
     </div>
   );
 }
