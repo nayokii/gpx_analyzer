@@ -3,7 +3,7 @@ import {
   Upload, MapPin, TrendingUp, Activity, Heart, Zap, Mountain, Clock, Gauge,
   RefreshCw, ChevronUp, ChevronDown, X, Download, Info, Flame, Timer,
   Route, Thermometer, PauseCircle, Settings2, ArrowUpRight, Wind, Compass,
-  FileWarning, Sparkles, History as HistoryIcon,
+  FileWarning, Sparkles, History as HistoryIcon, UserRound,
 } from "lucide-react";
 import {
   ResponsiveContainer, AreaChart, Area, LineChart, Line, XAxis, YAxis,
@@ -38,6 +38,7 @@ import { MapLibrePrototype } from "./components/MapLibrePrototype.jsx"; // POC e
 import { ProfileChart } from "./components/ProfileChart.jsx";
 import { StorageSettings } from "./components/StorageSettings.jsx";
 import { HistoryDashboard } from "./components/HistoryDashboard.jsx";
+import { ProfileView } from "./components/ProfileView.jsx";
 
 // Stockage local durable (Phase 2)
 import { toActivity } from "./lib/normalize.js";
@@ -68,7 +69,7 @@ const DEFAULT_HR_ZONES = [
 ];
 
 export default function GPXAnalyzer() {
-  const [mode, setMode] = useState("landing"); // landing | dashboard | historique
+  const [mode, setMode] = useState("landing"); // landing | dashboard | historique | profil
   const [isDemo, setIsDemo] = useState(false);
   const [fileName, setFileName] = useState(null);
   const [rideName, setRideName] = useState(null);
@@ -815,6 +816,53 @@ export default function GPXAnalyzer() {
           font-size: 13px; color: var(--text); flex-wrap: wrap;
         }
 
+        /* ---------- Profil cycliste ---------- */
+        .gpx-profile-banner {
+          display: flex; align-items: center; gap: 8px;
+          background: rgba(111,156,242,0.12); border: 1px solid rgba(111,156,242,0.3);
+          color: var(--info); font-size: 12.5px; font-weight: 600;
+          padding: 9px 14px; border-radius: 12px; margin-bottom: 14px;
+        }
+        .gpx-profile-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+        .gpx-profile-card {
+          background: var(--surface2); border: 1px solid var(--border); border-radius: 16px; padding: 16px;
+          display: flex; flex-direction: column; gap: 6px;
+        }
+        .gpx-profile-card-head {
+          display: flex; align-items: center; gap: 7px; color: var(--muted);
+          font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em;
+        }
+        .gpx-profile-card-value { font-size: 32px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1; margin-top: 2px; }
+        .gpx-profile-card-value-empty { color: var(--faint); }
+        .gpx-profile-card-value-scale { font-size: 13px; font-weight: 600; color: var(--faint); margin-left: 2px; }
+        .gpx-profile-card-bar { height: 8px; border-radius: 6px; background: var(--bg); overflow: hidden; margin-top: 2px; }
+        .gpx-profile-card-bar-fill { height: 100%; border-radius: 6px; background: var(--speed); }
+        .gpx-profile-card-status { font-size: 12.5px; color: var(--muted); font-weight: 600; }
+        .gpx-profile-card-hint { font-size: 11px; color: var(--faint); font-style: italic; }
+        .gpx-profile-card-confidence { font-size: 12px; color: var(--muted); }
+        .gpx-profile-card-confidence b.gpx-confidence-low { color: var(--climb); }
+        .gpx-profile-card-confidence b.gpx-confidence-medium { color: var(--info); }
+        .gpx-profile-card-confidence b.gpx-confidence-high { color: var(--speed); }
+        .gpx-profile-card-meta { font-size: 11.5px; color: var(--faint); }
+        .gpx-profile-evidence-toggle { margin-top: 2px; text-align: left; }
+        .gpx-profile-evidence-list { list-style: none; padding: 0; margin: 8px 0 0 0; display: flex; flex-direction: column; gap: 6px; }
+        .gpx-profile-evidence-list li { font-size: 12px; color: var(--muted); padding-left: 14px; position: relative; line-height: 1.5; }
+        .gpx-profile-evidence-list li::before { content: "•"; position: absolute; left: 0; color: var(--faint); }
+        .gpx-profile-evidence-list li.gpx-row-clickable:hover { color: var(--text); cursor: pointer; }
+        .gpx-profile-dataquality-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; }
+        .gpx-profile-dataquality-row {
+          display: flex; justify-content: space-between; align-items: center; font-size: 13px;
+          background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; padding: 9px 12px;
+        }
+        .gpx-profile-dq-ok { color: var(--speed); font-weight: 700; }
+        .gpx-profile-dq-missing { color: var(--faint); }
+        .gpx-profile-dq-note { color: var(--climb); font-weight: 600; }
+        .gpx-profile-dimension-select {
+          background: var(--surface2); border: 1px solid var(--border); border-radius: 8px;
+          color: var(--text); font-size: 12.5px; padding: 6px 10px;
+        }
+        .gpx-profile-about { font-size: 13px; color: var(--muted); line-height: 1.7; }
+
         @media (max-width: 860px) {
           .gpx-stats-grid { grid-template-columns: repeat(2, 1fr); }
           .gpx-two-col { grid-template-columns: 1fr; }
@@ -861,6 +909,8 @@ export default function GPXAnalyzer() {
               <button className="gpx-link-btn" onClick={loadDemo}>Voir un exemple avec des données de démonstration (fictives)</button>
               {" · "}
               <button className="gpx-link-btn" onClick={() => setMode("historique")}>Voir mon historique</button>
+              {" · "}
+              <button className="gpx-link-btn" onClick={() => setMode("profil")}>Voir mon profil</button>
             </div>
             <div className="gpx-panel" style={{ marginTop: 24, textAlign: "left" }}>
               <StorageSettings storage={storage} onConnect={connectStorage} onReconnect={reconnectStorage} compact />
@@ -897,6 +947,7 @@ export default function GPXAnalyzer() {
             </div>
             <div className="gpx-header-actions">
               <button className="gpx-icon-btn" title="Historique des sorties" onClick={() => setMode("historique")}><HistoryIcon size={15} /></button>
+              <button className="gpx-icon-btn" title="Mon profil cycliste" onClick={() => setMode("profil")}><UserRound size={15} /></button>
               <button className="gpx-icon-btn" title="Exporter (PDF)" onClick={exportPDF}><Download size={15} /></button>
               <button className="gpx-btn-ghost" onClick={resetAll}><RefreshCw size={14} /> Nouvelle sortie</button>
             </div>
@@ -1702,6 +1753,16 @@ export default function GPXAnalyzer() {
           onBack={() => setMode(points ? "dashboard" : "landing")}
           ftp={userSettings.ftp}
           maxHR={maxHR}
+        />
+      )}
+
+      {mode === "profil" && (
+        <ProfileView
+          storage={storage}
+          onConnect={connectStorage}
+          onReconnect={reconnectStorage}
+          onOpen={openActivityFromHistory}
+          onBack={() => setMode(points ? "dashboard" : "landing")}
         />
       )}
     </div>
