@@ -86,6 +86,7 @@ function DimensionBars({ dims, vectorValues }) {
 
 function DominantArchetypeSection({ match, userValues }) {
   const hasResult = !!match.primary;
+  const usedDimCount = ARCHETYPE_DIMENSIONS.length - match.insufficientDimensions.length;
   return (
     <div className="gpx-panel">
       <SectionTitle icon={Fingerprint}>Ton profil cycliste</SectionTitle>
@@ -98,6 +99,10 @@ function DominantArchetypeSection({ match, userValues }) {
         </p>
       ) : (
         <>
+          <div className="gpx-archetype-roles">
+            <span>Dominant : <b>{match.primary.name}</b></span>
+            <span>{match.secondary ? <>Secondaire : <b>{match.secondary.name}</b></> : "Pas de second archétype suffisamment proche pour l'instant"}</span>
+          </div>
           <div className="gpx-profile-card-confidence" style={{ marginTop: 6 }}>
             Confiance : <b className={`gpx-confidence-${match.confidence.label}`}>{CONFIDENCE_LABELS[match.confidence.label] || match.confidence.label}</b>
           </div>
@@ -106,6 +111,10 @@ function DominantArchetypeSection({ match, userValues }) {
           {match.explanation.map((s, i) => (
             <p className="gpx-empty-note" key={i} style={{ fontStyle: "normal", marginTop: i === 0 ? 10 : 4 }}>{s}</p>
           ))}
+          <p className="gpx-profile-card-meta" style={{ marginTop: 8 }}>
+            Limites : ce rapprochement ne compare que {usedDimCount} / {ARCHETYPE_DIMENSIONS.length} dimensions de style,
+            uniquement celles disponibles dans ton profil actuel — jamais un niveau de performance.
+          </p>
         </>
       )}
       {match.insufficientDimensions.length > 0 && (

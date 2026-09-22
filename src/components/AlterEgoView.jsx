@@ -84,10 +84,15 @@ function LevelHeader({ progression }) {
 /* Profil (réutilisé tel quel, jamais recalculé)                       */
 /* ------------------------------------------------------------------ */
 
-function ProfileSummarySection({ profile }) {
+function ProfileSummarySection({ profile, onViewProfile }) {
   return (
     <div className="gpx-panel">
-      <SectionTitle icon={Target}>Profil actuel</SectionTitle>
+      <SectionTitle
+        icon={Target}
+        right={onViewProfile ? <button className="gpx-link-btn" onClick={onViewProfile}>Voir le profil complet</button> : null}
+      >
+        Profil actuel
+      </SectionTitle>
       <div className="gpx-alterego-profile-list">
         {DIMENSION_ORDER.map((key) => {
           const dim = profile.dimensions[key];
@@ -247,9 +252,10 @@ function RecentXpSection({ events, onOpen }) {
  * @param {Function} props.onReconnect
  * @param {Function} [props.onOpen] - Ouvre une activité par id (optionnel)
  * @param {Function} [props.onViewArchetype] - Navigue vers la vue Archétype (optionnel)
+ * @param {Function} [props.onViewProfile] - Navigue vers la vue Profil (optionnel)
  * @param {Function} props.onBack
  */
-export function AlterEgoView({ storage, onConnect, onReconnect, onOpen, onViewArchetype, onBack }) {
+export function AlterEgoView({ storage, onConnect, onReconnect, onOpen, onViewArchetype, onViewProfile, onBack }) {
   const [summaries, setSummaries] = useState(null);
   const [summariesError, setSummariesError] = useState(null);
   const [fullActivities, setFullActivities] = useState(null);
@@ -354,7 +360,7 @@ export function AlterEgoView({ storage, onConnect, onReconnect, onOpen, onViewAr
               )}
 
               <LevelHeader progression={progression} />
-              <ProfileSummarySection profile={progression.profileSnapshot} />
+              <ProfileSummarySection profile={progression.profileSnapshot} onViewProfile={onViewProfile} />
               <ArchetypeSummarySection profile={progression.profileSnapshot} onViewArchetype={onViewArchetype} />
               <ChallengesSection challenges={progression.challenges} completedMilestones={progression.completedMilestones} />
               <AchievementsSection achievements={progression.achievements} />

@@ -3,7 +3,7 @@ import {
   Upload, MapPin, TrendingUp, Activity, Heart, Zap, Mountain, Clock, Gauge,
   RefreshCw, ChevronUp, ChevronDown, X, Download, Info, Flame, Timer,
   Route, Thermometer, PauseCircle, Settings2, ArrowUpRight, Wind, Compass,
-  FileWarning, Sparkles, History as HistoryIcon, UserRound, Trophy, Fingerprint,
+  FileWarning, Sparkles, History as HistoryIcon, ChevronRight,
 } from "lucide-react";
 import {
   ResponsiveContainer, AreaChart, Area, LineChart, Line, XAxis, YAxis,
@@ -41,6 +41,8 @@ import { HistoryDashboard } from "./components/HistoryDashboard.jsx";
 import { ProfileView } from "./components/ProfileView.jsx";
 import { AlterEgoView } from "./components/AlterEgoView.jsx";
 import { ArchetypeView } from "./components/ArchetypeView.jsx";
+import { AppNav } from "./components/AppNav.jsx";
+import { HomeView } from "./components/HomeView.jsx";
 
 // Stockage local durable (Phase 2)
 import { toActivity } from "./lib/normalize.js";
@@ -71,7 +73,7 @@ const DEFAULT_HR_ZONES = [
 ];
 
 export default function GPXAnalyzer() {
-  const [mode, setMode] = useState("landing"); // landing | dashboard | historique | profil | alterego | archetype
+  const [mode, setMode] = useState("home"); // home | dashboard | historique | profil | alterego | archetype
   const [isDemo, setIsDemo] = useState(false);
   const [fileName, setFileName] = useState(null);
   const [rideName, setRideName] = useState(null);
@@ -401,7 +403,7 @@ export default function GPXAnalyzer() {
       setSelectedClimb(null);
     } catch (err) {
       setError(err.message || "Impossible de rouvrir cette sortie depuis l'historique.");
-      setMode("landing");
+      setMode("home");
     }
   }
 
@@ -431,7 +433,7 @@ export default function GPXAnalyzer() {
     setPoints(null);
     setSelectedClimb(null);
     setActiveTab("resume");
-    setMode("landing");
+    setMode("home");
     setError(null);
     setIsDemo(false);
     setFileName(null);
@@ -442,6 +444,32 @@ export default function GPXAnalyzer() {
   function exportPDF() {
     window.print();
   }
+
+  // Regroupe les handlers d'import pour les transmettre tels quels à HomeView
+  // (état/logique d'import restent possédés ici, comme pour le reste de l'app —
+  // HomeView ne fait qu'afficher, voir HomeView.jsx).
+  const uploadProps = {
+    dragOver,
+    onDragOver: (e) => { e.preventDefault(); setDragOver(true); },
+    onDragLeave: () => setDragOver(false),
+    onDrop: handleDrop,
+    onBrowseClick: () => fileInputRef.current && fileInputRef.current.click(),
+    fileInputRef,
+    onFileInputChange: handleInputChange,
+    acceptString: getAcceptString(),
+    error,
+  };
+
+  // Navigation principale (voir AppNav.jsx) : "rides" est l'entrée globale
+  // vers Sorties (toujours l'historique) — le contexte "une sortie est
+  // ouverte" reste distinct, affiché par la bande contextuelle en mode
+  // "dashboard" (voir plus bas), jamais confondu avec cette navigation.
+  function navigateToSection(key) {
+    if (key === "rides") setMode("historique");
+    else setMode(key);
+  }
+
+  const activeNavSection = mode === "dashboard" || mode === "historique" ? "rides" : mode;
 
   function sortRows(rows, sortState) {
     const { key, dir } = sortState;
@@ -488,6 +516,70 @@ export default function GPXAnalyzer() {
         .gpx-app * { box-sizing: border-box; }
         .gpx-app button { font-family: inherit; cursor: pointer; }
         .gpx-app ::selection { background: var(--speed); color: #06110e; }
+
+        /* ---------- Navigation principale (persistante) ---------- */
+        .gpx-topbar {
+          position: sticky; top: 0; z-index: 40;
+          display: flex; align-items: center; gap: 18px;
+          padding: 10px 22px; background: var(--bgAlt); border-bottom: 1px solid var(--border);
+        }
+        .gpx-topbar-brand {
+          display: flex; align-items: center; gap: 8px; flex-shrink: 0;
+          background: none; border: none; color: var(--text); font-weight: 800; font-size: 14px; letter-spacing: -0.01em;
+        }
+        .gpx-topbar-brand-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--speed); box-shadow: 0 0 10px var(--speed); }
+        .gpx-appnav { display: flex; gap: 4px; min-width: 0; }
+        .gpx-appnav-top { flex: 1; min-width: 0; }
+        .gpx-appnav-item {
+          display: flex; align-items: center; gap: 7px; padding: 8px 14px; border-radius: 10px;
+          border: none; background: none; color: var(--muted); font-size: 13px; font-weight: 700;
+          white-space: nowrap; transition: color 0.15s ease, background 0.15s ease;
+        }
+        .gpx-appnav-item:hover { color: var(--text); background: rgba(255,255,255,0.03); }
+        .gpx-appnav-item.active { color: var(--speed); background: rgba(77,217,192,0.12); }
+        .gpx-appnav-import { flex-shrink: 0; padding: 9px 16px; white-space: nowrap; }
+        .gpx-appnav-bottom { display: none; }
+        .gpx-context-strip {
+          display: flex; align-items: center; gap: 6px; padding: 10px 22px;
+          font-size: 12.5px; color: var(--faint); background: var(--bg); border-bottom: 1px solid var(--border);
+        }
+        .gpx-context-strip-active { color: var(--text); font-weight: 600; }
+        /* Tablette : resserre la nav pour que les 5 destinations + Importer tiennent sans passer à la nav basse (réservée au mobile, voir plus bas). */
+        @media (max-width: 900px) {
+          .gpx-topbar { gap: 10px; padding: 10px 16px; }
+          .gpx-topbar-brand-text { display: none; }
+          .gpx-appnav-item { padding: 8px 10px; font-size: 12.5px; }
+          .gpx-appnav-item span { display: none; }
+        }
+        @media (max-width: 680px) {
+          .gpx-appnav-top { display: none; }
+          .gpx-appnav-import span { display: none; }
+          .gpx-topbar { padding: 10px 14px; }
+          .gpx-appnav-bottom {
+            display: flex; position: fixed; left: 0; right: 0; bottom: 0; z-index: 50;
+            background: var(--bgAlt); border-top: 1px solid var(--border);
+            padding: 6px 4px calc(6px + env(safe-area-inset-bottom, 0px)); justify-content: space-around;
+          }
+          .gpx-appnav-bottom .gpx-appnav-item {
+            flex: 1; flex-direction: column; gap: 2px; padding: 6px 2px; font-size: 10px; border-radius: 10px; white-space: normal;
+          }
+          .gpx-appnav-bottom .gpx-appnav-item span { display: block; }
+          .gpx-app { padding-bottom: 66px; }
+        }
+
+        /* ---------- Accueil (synthèse) ---------- */
+        .gpx-home-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; margin-bottom: 16px; }
+        .gpx-home-card {
+          text-align: left; background: var(--surface); border: 1px solid var(--border); border-radius: 18px;
+          padding: 16px; display: flex; flex-direction: column; gap: 6px; color: var(--text);
+          transition: border-color 0.15s ease, transform 0.15s ease;
+        }
+        .gpx-home-card:hover { border-color: var(--borderStrong); transform: translateY(-1px); }
+        .gpx-home-card-head { display: flex; align-items: center; justify-content: space-between; }
+        .gpx-home-card-title { display: flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
+        .gpx-home-card-arrow { color: var(--faint); }
+        .gpx-home-card:hover .gpx-home-card-arrow { color: var(--speed); }
+        .gpx-home-card-headline { font-size: 17px; font-weight: 800; letter-spacing: -0.01em; margin-top: 2px; }
 
         /* ---------- Landing ---------- */
         .gpx-landing {
@@ -896,6 +988,8 @@ export default function GPXAnalyzer() {
 
         /* ---------- Archétype ---------- */
         .gpx-archetype-headline { font-size: 26px; font-weight: 800; letter-spacing: -0.01em; margin-top: 4px; }
+        .gpx-archetype-roles { display: flex; gap: 18px; flex-wrap: wrap; font-size: 12.5px; color: var(--muted); margin-top: 8px; }
+        .gpx-archetype-roles b { color: var(--text); }
         .gpx-archetype-bars { display: flex; flex-direction: column; gap: 8px; margin: 10px 0; }
         .gpx-archetype-bar-row { display: grid; grid-template-columns: 90px 1fr 32px; align-items: center; gap: 10px; font-size: 12.5px; }
         .gpx-archetype-bar-label { color: var(--muted); }
@@ -921,58 +1015,31 @@ export default function GPXAnalyzer() {
           .gpx-landing-features { grid-template-columns: 1fr; }
         }
         @media print {
-          .gpx-nav, .gpx-header-actions { display: none !important; }
+          .gpx-nav, .gpx-header-actions, .gpx-topbar, .gpx-appnav-bottom, .gpx-context-strip { display: none !important; }
         }
       `}</style>
 
-      {mode === "landing" && (
-        <div className="gpx-landing">
-          <div className="gpx-landing-inner">
-            <div className="gpx-landing-eyebrow"><Mountain size={13} /> Analyse de sortie vélo</div>
-            <h1 className="gpx-landing-title">Importez votre sortie<br /><span>GPX ou FIT</span></h1>
-            <p className="gpx-landing-sub">
-              Glissez un fichier GPX ou FIT pour obtenir un tableau de bord complet — carte, montées, splits, effort —
-              calculé entièrement dans votre navigateur, sans compte ni serveur.
-            </p>
-            <div
-              className={"gpx-upload-zone" + (dragOver ? " drag" : "")}
-              onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
-              onDragLeave={() => setDragOver(false)}
-              onDrop={handleDrop}
-              onClick={() => fileInputRef.current && fileInputRef.current.click()}
-            >
-              <div className="gpx-upload-icon"><Upload size={24} /></div>
-              <div className="gpx-upload-title">Glissez-déposez votre fichier .gpx ou .fit ici</div>
-              <div className="gpx-upload-sub">ou cliquez pour parcourir vos fichiers</div>
-              <button className="gpx-btn-primary" onClick={(e) => { e.stopPropagation(); fileInputRef.current.click(); }}>
-                <Upload size={15} /> Importer une sortie
-              </button>
-              <input ref={fileInputRef} type="file" accept={getAcceptString()} style={{ display: "none" }} onChange={handleInputChange} />
-            </div>
-            {error && (
-              <div className="gpx-error-box"><FileWarning size={15} /> {error}</div>
-            )}
-            <div className="gpx-landing-demo">
-              <button className="gpx-link-btn" onClick={loadDemo}>Voir un exemple avec des données de démonstration (fictives)</button>
-              {" · "}
-              <button className="gpx-link-btn" onClick={() => setMode("historique")}>Voir mon historique</button>
-              {" · "}
-              <button className="gpx-link-btn" onClick={() => setMode("profil")}>Voir mon profil</button>
-              {" · "}
-              <button className="gpx-link-btn" onClick={() => setMode("alterego")}>Voir mon Alter Ego</button>
-              {" · "}
-              <button className="gpx-link-btn" onClick={() => setMode("archetype")}>Voir mon archétype</button>
-            </div>
-            <div className="gpx-panel" style={{ marginTop: 24, textAlign: "left" }}>
-              <StorageSettings storage={storage} onConnect={connectStorage} onReconnect={reconnectStorage} compact />
-            </div>
-            <div className="gpx-landing-features">
-              <div className="gpx-landing-feature"><b>100% local</b>Aucune donnée n'est envoyée à un serveur.</div>
-              <div className="gpx-landing-feature"><b>Détection auto</b>Montées, arrêts et meilleurs efforts calculés automatiquement.</div>
-              <div className="gpx-landing-feature"><b>Adapté aux données dispo</b>FC, cadence, puissance affichées seulement si présentes.</div>
-            </div>
-          </div>
+      <AppNav active={activeNavSection} onNavigate={navigateToSection} onImport={() => fileInputRef.current && fileInputRef.current.click()} />
+      <input ref={fileInputRef} type="file" accept={getAcceptString()} style={{ display: "none" }} onChange={handleInputChange} />
+
+      {mode === "dashboard" && (
+        <div className="gpx-context-strip">
+          <button className="gpx-link-btn" onClick={() => setMode("historique")}>Sorties</button>
+          <ChevronRight size={13} />
+          <span className="gpx-context-strip-active">Analyse — {rideName || "Sortie vélo"}</span>
         </div>
+      )}
+
+      {mode === "home" && (
+        <HomeView
+          storage={storage}
+          onConnect={connectStorage}
+          onReconnect={reconnectStorage}
+          onNavigate={navigateToSection}
+          onOpenActivity={openActivityFromHistory}
+          onLoadDemo={loadDemo}
+          upload={uploadProps}
+        />
       )}
 
       {mode === "dashboard" && analysis && (
@@ -997,10 +1064,6 @@ export default function GPXAnalyzer() {
               {analysis.hasEle && <div className="gpx-qs"><div className="gpx-qs-label">D+</div><div className="gpx-qs-value">{fmtInt(analysis.elevGain)} m</div></div>}
             </div>
             <div className="gpx-header-actions">
-              <button className="gpx-icon-btn" title="Historique des sorties" onClick={() => setMode("historique")}><HistoryIcon size={15} /></button>
-              <button className="gpx-icon-btn" title="Mon profil cycliste" onClick={() => setMode("profil")}><UserRound size={15} /></button>
-              <button className="gpx-icon-btn" title="Alter Ego" onClick={() => setMode("alterego")}><Trophy size={15} /></button>
-              <button className="gpx-icon-btn" title="Archétype" onClick={() => setMode("archetype")}><Fingerprint size={15} /></button>
               <button className="gpx-icon-btn" title="Exporter (PDF)" onClick={exportPDF}><Download size={15} /></button>
               <button className="gpx-btn-ghost" onClick={resetAll}><RefreshCw size={14} /> Nouvelle sortie</button>
             </div>
@@ -1803,7 +1866,7 @@ export default function GPXAnalyzer() {
           onConnect={connectStorage}
           onReconnect={reconnectStorage}
           onOpen={openActivityFromHistory}
-          onBack={() => setMode(points ? "dashboard" : "landing")}
+          onBack={() => setMode(points ? "dashboard" : "home")}
           ftp={userSettings.ftp}
           maxHR={maxHR}
         />
@@ -1815,7 +1878,7 @@ export default function GPXAnalyzer() {
           onConnect={connectStorage}
           onReconnect={reconnectStorage}
           onOpen={openActivityFromHistory}
-          onBack={() => setMode(points ? "dashboard" : "landing")}
+          onBack={() => setMode(points ? "dashboard" : "home")}
         />
       )}
 
@@ -1826,7 +1889,8 @@ export default function GPXAnalyzer() {
           onReconnect={reconnectStorage}
           onOpen={openActivityFromHistory}
           onViewArchetype={() => setMode("archetype")}
-          onBack={() => setMode(points ? "dashboard" : "landing")}
+          onViewProfile={() => setMode("profil")}
+          onBack={() => setMode(points ? "dashboard" : "home")}
         />
       )}
 
@@ -1835,7 +1899,7 @@ export default function GPXAnalyzer() {
           storage={storage}
           onConnect={connectStorage}
           onReconnect={reconnectStorage}
-          onBack={() => setMode(points ? "dashboard" : "landing")}
+          onBack={() => setMode(points ? "dashboard" : "home")}
         />
       )}
     </div>

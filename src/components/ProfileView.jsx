@@ -38,6 +38,7 @@ import { StorageSettings } from "./StorageSettings.jsx";
 import { SectionTitle } from "./UIPrimitives.jsx";
 import { listActivities, loadActivityDetail } from "../lib/storage/activityStore.js";
 import { computeCyclistProfile, buildProfileTimeline } from "../lib/profile/profile.js";
+import { confidenceLabel } from "../lib/profile/confidence.js";
 import { COLORS } from "../lib/colors.js";
 import { fmtDateFull } from "../lib/utils.js";
 
@@ -327,6 +328,10 @@ export function ProfileView({ storage, onConnect, onReconnect, onOpen, onBack })
 
   const profile = useMemo(() => (fullActivities ? computeCyclistProfile(fullActivities) : null), [fullActivities]);
   const timeline = useMemo(() => (fullActivities ? buildProfileTimeline(fullActivities) : []), [fullActivities]);
+  const availableDimCount = useMemo(
+    () => (profile ? DIMENSION_ORDER.filter((k) => profile.dimensions[k].value != null).length : 0),
+    [profile]
+  );
 
   return (
     <div className="gpx-dashboard">
@@ -337,6 +342,13 @@ export function ProfileView({ storage, onConnect, onReconnect, onOpen, onBack })
             {profile ? (
               <>
                 <span>Analyse basée sur {profile.activityCount} sortie{profile.activityCount > 1 ? "s" : ""}</span>
+                <span>{availableDimCount} / {DIMENSION_ORDER.length} dimensions exploitables</span>
+                <span>
+                  Confiance globale :{" "}
+                  <b className={`gpx-confidence-${confidenceLabel(profile.overallConfidence)}`}>
+                    {CONFIDENCE_LABELS[confidenceLabel(profile.overallConfidence)] || "insuffisante"}
+                  </b>
+                </span>
                 <span>Dernière mise à jour : {fmtDateFull(new Date(profile.generatedAt))}</span>
               </>
             ) : storage.status === "connected" ? (
