@@ -26,14 +26,18 @@ async function getActivitiesDir(rootHandle, { create = true } = {}) {
   return rootHandle.getDirectoryHandle(ACTIVITIES_DIR, { create });
 }
 
-async function writeTextFile(dirHandle, filename, content) {
+// Exportées : réutilisées telles quelles par src/lib/progression/persistence.js
+// pour lire/écrire athlete.json à la racine du dossier choisi (voir le
+// commentaire "athlete.json (Phase 7)" en tête de fichier) — même API
+// FileSystemDirectoryHandle, pas de deuxième mécanisme de fichiers.
+export async function writeTextFile(dirHandle, filename, content) {
   const fileHandle = await dirHandle.getFileHandle(filename, { create: true });
   const writable = await fileHandle.createWritable();
   await writable.write(content);
   await writable.close();
 }
 
-async function readTextFile(dirHandle, filename) {
+export async function readTextFile(dirHandle, filename) {
   const fileHandle = await dirHandle.getFileHandle(filename);
   const file = await fileHandle.getFile();
   return file.text();

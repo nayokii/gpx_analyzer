@@ -3,7 +3,7 @@ import {
   Upload, MapPin, TrendingUp, Activity, Heart, Zap, Mountain, Clock, Gauge,
   RefreshCw, ChevronUp, ChevronDown, X, Download, Info, Flame, Timer,
   Route, Thermometer, PauseCircle, Settings2, ArrowUpRight, Wind, Compass,
-  FileWarning, Sparkles, History as HistoryIcon, UserRound,
+  FileWarning, Sparkles, History as HistoryIcon, UserRound, Trophy,
 } from "lucide-react";
 import {
   ResponsiveContainer, AreaChart, Area, LineChart, Line, XAxis, YAxis,
@@ -39,6 +39,7 @@ import { ProfileChart } from "./components/ProfileChart.jsx";
 import { StorageSettings } from "./components/StorageSettings.jsx";
 import { HistoryDashboard } from "./components/HistoryDashboard.jsx";
 import { ProfileView } from "./components/ProfileView.jsx";
+import { AlterEgoView } from "./components/AlterEgoView.jsx";
 
 // Stockage local durable (Phase 2)
 import { toActivity } from "./lib/normalize.js";
@@ -69,7 +70,7 @@ const DEFAULT_HR_ZONES = [
 ];
 
 export default function GPXAnalyzer() {
-  const [mode, setMode] = useState("landing"); // landing | dashboard | historique | profil
+  const [mode, setMode] = useState("landing"); // landing | dashboard | historique | profil | alterego
   const [isDemo, setIsDemo] = useState(false);
   const [fileName, setFileName] = useState(null);
   const [rideName, setRideName] = useState(null);
@@ -863,6 +864,35 @@ export default function GPXAnalyzer() {
         }
         .gpx-profile-about { font-size: 13px; color: var(--muted); line-height: 1.7; }
 
+        /* ---------- Alter Ego ---------- */
+        .gpx-alterego-level { display: flex; flex-direction: column; gap: 8px; }
+        .gpx-alterego-level-head { display: flex; align-items: flex-start; justify-content: space-between; }
+        .gpx-alterego-level-title { font-size: 20px; font-weight: 800; letter-spacing: -0.01em; }
+        .gpx-alterego-level-xp { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; margin-top: 2px; }
+        .gpx-alterego-trophy { color: var(--climb); flex-shrink: 0; }
+        .gpx-alterego-level-bar { height: 12px; border-radius: 8px; background: var(--bg); overflow: hidden; }
+        .gpx-alterego-level-bar-fill { height: 100%; border-radius: 8px; background: linear-gradient(90deg, var(--speed), var(--climb)); }
+        .gpx-alterego-profile-list { display: flex; flex-direction: column; gap: 6px; }
+        .gpx-alterego-profile-row {
+          display: flex; align-items: center; justify-content: space-between; font-size: 13px;
+          padding: 8px 10px; background: var(--surface2); border: 1px solid var(--border); border-radius: 10px;
+          font-variant-numeric: tabular-nums; font-weight: 700;
+        }
+        .gpx-alterego-profile-row-label { display: flex; align-items: center; gap: 7px; color: var(--muted); font-weight: 600; }
+        .gpx-alterego-challenge { padding: 10px 0; border-bottom: 1px solid var(--border); }
+        .gpx-alterego-challenge:last-child { border-bottom: none; }
+        .gpx-alterego-challenge-head { display: flex; justify-content: space-between; align-items: center; font-size: 13px; font-weight: 600; margin-bottom: 6px; }
+        .gpx-alterego-challenge-done .gpx-alterego-challenge-head { color: var(--speed); }
+        .gpx-alterego-xp-badge { font-size: 11px; font-weight: 700; color: var(--climb); background: rgba(244,183,64,0.12); border-radius: 6px; padding: 2px 7px; white-space: nowrap; }
+        .gpx-alterego-subheading { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--faint); margin: 12px 0 4px; }
+        .gpx-alterego-achievement-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px; }
+        .gpx-alterego-achievement {
+          display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--faint);
+          background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; padding: 9px 12px;
+        }
+        .gpx-alterego-achievement-unlocked { color: var(--text); border-color: rgba(77,217,192,0.35); }
+        .gpx-alterego-achievement-check { color: var(--speed); font-weight: 800; }
+
         @media (max-width: 860px) {
           .gpx-stats-grid { grid-template-columns: repeat(2, 1fr); }
           .gpx-two-col { grid-template-columns: 1fr; }
@@ -911,6 +941,8 @@ export default function GPXAnalyzer() {
               <button className="gpx-link-btn" onClick={() => setMode("historique")}>Voir mon historique</button>
               {" · "}
               <button className="gpx-link-btn" onClick={() => setMode("profil")}>Voir mon profil</button>
+              {" · "}
+              <button className="gpx-link-btn" onClick={() => setMode("alterego")}>Voir mon Alter Ego</button>
             </div>
             <div className="gpx-panel" style={{ marginTop: 24, textAlign: "left" }}>
               <StorageSettings storage={storage} onConnect={connectStorage} onReconnect={reconnectStorage} compact />
@@ -948,6 +980,7 @@ export default function GPXAnalyzer() {
             <div className="gpx-header-actions">
               <button className="gpx-icon-btn" title="Historique des sorties" onClick={() => setMode("historique")}><HistoryIcon size={15} /></button>
               <button className="gpx-icon-btn" title="Mon profil cycliste" onClick={() => setMode("profil")}><UserRound size={15} /></button>
+              <button className="gpx-icon-btn" title="Alter Ego" onClick={() => setMode("alterego")}><Trophy size={15} /></button>
               <button className="gpx-icon-btn" title="Exporter (PDF)" onClick={exportPDF}><Download size={15} /></button>
               <button className="gpx-btn-ghost" onClick={resetAll}><RefreshCw size={14} /> Nouvelle sortie</button>
             </div>
@@ -1758,6 +1791,16 @@ export default function GPXAnalyzer() {
 
       {mode === "profil" && (
         <ProfileView
+          storage={storage}
+          onConnect={connectStorage}
+          onReconnect={reconnectStorage}
+          onOpen={openActivityFromHistory}
+          onBack={() => setMode(points ? "dashboard" : "landing")}
+        />
+      )}
+
+      {mode === "alterego" && (
+        <AlterEgoView
           storage={storage}
           onConnect={connectStorage}
           onReconnect={reconnectStorage}
