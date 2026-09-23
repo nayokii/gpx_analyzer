@@ -18,6 +18,7 @@ import { useEffect, useState, useCallback } from "react";
 import { ArrowLeft, Search, Trash2, ExternalLink, History as HistoryIcon } from "lucide-react";
 
 import { listActivities, deleteActivity } from "../lib/storage/activityStore.js";
+import { invalidateActivityCache } from "../lib/storage/activityCache.js";
 import { fmt1, fmtInt, fmtDuration, fmtDateFull } from "../lib/utils.js";
 import { StorageSettings } from "./StorageSettings.jsx";
 
@@ -57,6 +58,7 @@ export function HistoryView({
     if (!window.confirm(`Supprimer définitivement « ${name || "cette sortie"} » (fichier original inclus) ?`)) return;
     try {
       await deleteActivity(storage.rootHandle, id);
+      invalidateActivityCache(storage.rootHandle, id);
       setSelectedIds((s) => {
         const next = new Set(s);
         next.delete(id);

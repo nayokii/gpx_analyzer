@@ -32,7 +32,8 @@ import {
 
 import { HistoryView } from "./HistoryView.jsx";
 import { SectionTitle, StatCard } from "./UIPrimitives.jsx";
-import { listActivities, loadActivityDetail } from "../lib/storage/activityStore.js";
+import { listActivities } from "../lib/storage/activityStore.js";
+import { getCachedActivityDetail } from "../lib/storage/activityCache.js";
 import { computeHistoryAnalytics, filterActivitiesByPeriod } from "../lib/history/historyAnalytics.js";
 import { buildTimeSeries, computeTrend } from "../lib/history/trends.js";
 import { compareActivities } from "../lib/history/comparisons.js";
@@ -260,7 +261,7 @@ function SimilarRoutesSection({ activities, rootHandle }) {
     setLoading(true);
     setError(null);
     try {
-      const full = await Promise.all(activities.map((a) => loadActivityDetail(rootHandle, a.id)));
+      const full = await Promise.all(activities.map((a) => getCachedActivityDetail(rootHandle, a.id)));
       setGroups(groupActivitiesByRoute(full));
     } catch (err) {
       setError(err.message || "Impossible de charger le détail de ces sorties.");
@@ -526,7 +527,7 @@ export function HistoryDashboard({ storage, onConnect, onReconnect, onOpen, onBa
     setCompareError(null);
     setCompareLoading(true);
     try {
-      const [a, b] = await Promise.all(ids.map((id) => loadActivityDetail(storage.rootHandle, id)));
+      const [a, b] = await Promise.all(ids.map((id) => getCachedActivityDetail(storage.rootHandle, id)));
       const cmp = compareActivities(a, b, { ftp, maxHR });
       setCompareResult({ a, b, cmp });
     } catch (err) {

@@ -27,12 +27,11 @@ import {
 
 import { StorageSettings } from "./StorageSettings.jsx";
 import { SectionTitle } from "./UIPrimitives.jsx";
-import { listActivities, loadActivityDetail } from "../lib/storage/activityStore.js";
-import { computeCyclistProfile } from "../lib/profile/profile.js";
-import { computeProgression } from "../lib/progression/progression.js";
+import { listActivities } from "../lib/storage/activityStore.js";
+import { loadCachedActivityDetails } from "../lib/storage/activityCache.js";
 import { loadProgressionState, saveProgressionState } from "../lib/progression/persistence.js";
 import { progressionToState } from "../lib/progression/state.js";
-import { matchArchetypes, matchReferenceRiders } from "../lib/archetypes/matching.js";
+import { getCachedProfile, getCachedProgression, getCachedArchetypeMatch, getCachedReferenceRiders } from "../lib/derivedCache.js";
 
 // Même principe que MAX_PROFILE_ACTIVITIES (ProfileView.jsx) / MAX_ROUTE_ANALYSIS_ACTIVITIES (HistoryDashboard.jsx).
 const MAX_PROGRESSION_ACTIVITIES = 200;
@@ -115,8 +114,8 @@ function ProfileSummarySection({ profile, onViewProfile }) {
 /* ------------------------------------------------------------------ */
 
 function ArchetypeSummarySection({ profile, onViewArchetype }) {
-  const match = useMemo(() => matchArchetypes(profile), [profile]);
-  const topRider = useMemo(() => matchReferenceRiders(profile, { limit: 1 })[0] || null, [profile]);
+  const match = useMemo(() => getCachedArchetypeMatch(profile), [profile]);
+  const topRider = useMemo(() => getCachedReferenceRiders(profile, { limit: 1 })[0] || null, [profile]);
 
   return (
     <div className="gpx-panel">
@@ -278,7 +277,7 @@ export function AlterEgoView({ storage, onConnect, onReconnect, onOpen, onViewAr
     if (!summaries || summaries.length === 0 || !storage.rootHandle) return;
     let cancelled = false;
     const toLoad = summaries.slice(0, MAX_PROGRESSION_ACTIVITIES);
-    Promise.allSettled(toLoad.map((a) => loadActivityDetail(storage.rootHandle, a.id))).then((results) => {
+    loadCachedActivityDetails(storage.rootHandle, toLoad).then((results) => {
       if (cancelled) return;
       setFullActivities(results.filter((r) => r.status === "fulfilled").map((r) => r.value));
       setFailedCount(results.filter((r) => r.status === "rejected").length);
@@ -286,8 +285,8 @@ export function AlterEgoView({ storage, onConnect, onReconnect, onOpen, onViewAr
     return () => { cancelled = true; };
   }, [summaries, storage.rootHandle]);
 
-  const profile = useMemo(() => (fullActivities ? computeCyclistProfile(fullActivities) : null), [fullActivities]);
-  const progression = useMemo(() => (fullActivities ? computeProgression(fullActivities, profile) : null), [fullActivities, profile]);
+  const profile = useMemo(() => (fullActivities ? getCachedProfile(fullActivities) : null), [fullActivities]);
+  const progression = useMemo(() => (fullActivities ? getCachedProgression(fullActivities, profile) : null), [fullActivities, profile]);
 
   // Cache best-effort dans athlete.json — jamais bloquant, jamais relu pour
   // l'affichage (qui utilise toujours `progression` fraîchement recalculé

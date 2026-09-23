@@ -104,24 +104,32 @@ describe("ArchetypeView — erreur", () => {
 });
 
 describe("ArchetypeView — profil partiel / cold start avec le vrai FIT", () => {
-  it("affiche le libellé réellement produit par le moteur, jamais codé en dur, avec ses dimensions manquantes", async () => {
+  it("affiche 'Profil en construction' (pas 'Profil indéterminé') quand la cause est un manque de preuves, avec les vraies dimensions dispo/manquantes (Phase 9E)", async () => {
     const root = new MemoryDirectoryHandle();
     const { activity, arrayBuffer } = await loadRealFitActivity();
     await saveActivity(root, activity, arrayBuffer, "fit");
 
     const profile = computeCyclistProfile([activity]);
     const expected = matchArchetypes(profile);
+    // Avec une seule vraie sortie, la cause de l'absence de primaire est toujours
+    // un manque de preuves (jamais "no_match" : pas assez de dimensions dispo
+    // pour même évaluer une forme de profil) -> l'UI doit dire "Profil en
+    // construction", pas le combinedLabel technique "Profil indéterminé".
+    expect(expected.primary).toBeNull();
+    expect(expected.reason).not.toBe("no_match");
 
     render(<ArchetypeView storage={connectedStorage(root)} onConnect={noop} onReconnect={noop} onBack={noop} />);
 
     await waitFor(() => expect(screen.getByText(/Basé sur 1 sortie/)).toBeTruthy());
     expect(screen.getByText(/Archétype en construction/)).toBeTruthy();
-    expect(screen.getByText(expected.combinedLabel)).toBeTruthy();
+    expect(screen.getByText("Profil en construction")).toBeTruthy();
+    expect(screen.getAllByText(/1 sortie analysée/).length).toBeGreaterThan(0);
 
     // Sprint et Technique sont insuffisants sur cette vraie sortie -> forcément listés comme manquants.
     expect(profile.dimensions.sprint.value).toBeNull();
     expect(profile.dimensions.technical.value).toBeNull();
-    const missingText = screen.getByText(/Dimensions manquantes/).textContent;
+    const missingHeading = screen.getByText("Dimensions encore insuffisantes :");
+    const missingText = missingHeading.parentElement.textContent;
     expect(missingText).toMatch(/Sprint/);
     expect(missingText).toMatch(/Technique/);
   });

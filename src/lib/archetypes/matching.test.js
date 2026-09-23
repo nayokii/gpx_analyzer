@@ -340,3 +340,35 @@ describe("matchArchetypes — Phase 9D, garde-fou de confiance globale", () => {
     expect(matchArchetypes(profile)).toEqual(matchArchetypes(profile));
   });
 });
+
+describe("matchArchetypes — Phase 9E, champ `reason` (pour l'UI \"Profil en construction\")", () => {
+  it("reason='no_data' quand aucune dimension n'est disponible (profil null ou vide)", () => {
+    expect(matchArchetypes(null).reason).toBe("no_data");
+    expect(matchArchetypes(makeProfile({})).reason).toBe("no_data");
+  });
+
+  it("reason='low_confidence' quand des dimensions existent mais la confiance globale est trop faible", () => {
+    const profile = makeProfile({ endurance: 61, climbing: 43, punch: 82, timeTrial: 40 }, 0.2);
+    const result = matchArchetypes(profile);
+    expect(result.primary).toBeNull();
+    expect(result.reason).toBe("low_confidence");
+  });
+
+  it("reason='no_match' quand les dimensions sont bien documentées mais la forme ne ressemble à aucun archétype", () => {
+    // 6 dimensions à confidence élevée (couverture totale, confiance globale
+    // forcément haute) mais un vecteur qui ne colle à aucun archétype
+    // théorique (voir archetypes.js) d'assez près.
+    const profile = makeProfile({ endurance: 50, climbing: 50, punch: 50, sprint: 50, timeTrial: 50, technical: 50 }, 0.9);
+    const result = matchArchetypes(profile);
+    if (result.primary == null) {
+      expect(result.reason).toBe("no_match");
+      expect(result.confidence.label).not.toBe("low");
+    }
+  });
+
+  it("reason='matched' quand un primaire est affirmé", () => {
+    const result = matchArchetypes(makeProfile({ endurance: 80, climbing: 92, punch: 50, sprint: 20, timeTrial: 50, technical: 35 }, 0.8));
+    expect(result.primary).not.toBeNull();
+    expect(result.reason).toBe("matched");
+  });
+});

@@ -53,6 +53,93 @@ describe("computeBestPowerEfforts", () => {
   });
 });
 
+describe("computeBestPowerEfforts — Phase 9E (fenêtre glissante O(n), équivalence avec l'ancienne implémentation naïve)", () => {
+  // Ancienne implémentation (avant Phase 9E), conservée UNIQUEMENT ici comme
+  // référence de non-régression : `j` repart de `i` à chaque itération, donc
+  // O(n × durée) — volontairement gardée "bête" pour servir d'oracle simple,
+  // jamais utilisée ailleurs dans le code applicatif.
+  function naiveReference(series, durations) {
+    const results = {};
+    for (const dur of durations) {
+      let best = -Infinity;
+      let bestStart = null;
+      for (let i = 0; i < series.length; i++) {
+        if (series[i].elapsed == null || series[i].power == null) continue;
+        let j = i;
+        while (j < series.length && series[j].elapsed - series[i].elapsed < dur) j++;
+        if (j >= series.length) break;
+        const slice = series.slice(i, j).filter((p) => p.power != null && !Number.isNaN(p.power));
+        if (slice.length === 0) continue;
+        const avgPower = slice.reduce((a, p) => a + p.power, 0) / slice.length;
+        if (avgPower > best) { best = avgPower; bestStart = i; }
+      }
+      if (isFinite(best) && best > 0) results[`s${dur}`] = { duration: dur, power: best, startIdx: bestStart };
+    }
+    return results;
+  }
+
+  function expectEquivalent(series, durations) {
+    const expected = naiveReference(series, durations);
+    const actual = computeBestPowerEfforts(series, durations);
+    expect(Object.keys(actual).sort()).toEqual(Object.keys(expected).sort());
+    for (const key of Object.keys(expected)) {
+      expect(actual[key].duration).toBe(expected[key].duration);
+      expect(actual[key].startIdx).toBe(expected[key].startIdx);
+      expect(actual[key].power).toBeCloseTo(expected[key].power, 6);
+    }
+  }
+
+  it("série régulière 1Hz, pas de trou", () => {
+    expectEquivalent(Array.from({ length: 200 }, (_, i) => ({ elapsed: i, power: 100 + 50 * Math.sin(i / 10) })), [5, 30, 60]);
+  });
+
+  it("puissance null par endroits", () => {
+    expectEquivalent(
+      Array.from({ length: 300 }, (_, i) => ({ elapsed: i, power: i % 7 === 0 ? null : 100 + (i % 50) })),
+      [5, 30, 60, 120]
+    );
+  });
+
+  it("échantillonnage irrégulier (1-2 s entre points)", () => {
+    let t = 0;
+    const series = Array.from({ length: 250 }, (_, i) => {
+      t += i % 3 === 0 ? 2 : 1;
+      return { elapsed: t, power: 80 + (i % 40) };
+    });
+    expectEquivalent(series, [5, 30, 60, 300]);
+  });
+
+  it("elapsed null par endroits", () => {
+    expectEquivalent(Array.from({ length: 150 }, (_, i) => ({ elapsed: i % 11 === 0 ? null : i, power: 100 })), [5, 30]);
+  });
+
+  it("puissance NaN par endroits (départ valide, mais exclu de la moyenne — même règle que avg())", () => {
+    expectEquivalent(Array.from({ length: 100 }, (_, i) => ({ elapsed: i, power: i % 13 === 0 ? NaN : 100 })), [5, 30, 60]);
+  });
+
+  it("série vide ou toute puissance null : aucun résultat, jamais une exception", () => {
+    expectEquivalent([], [5, 30]);
+    expectEquivalent(Array.from({ length: 50 }, (_, i) => ({ elapsed: i, power: null })), [5, 30]);
+  });
+
+  it("série courte face à des durées longues : aucune fenêtre ne se ferme, aucun résultat", () => {
+    expectEquivalent(Array.from({ length: 20 }, (_, i) => ({ elapsed: i, power: 100 + i })), [5, 30, 3600]);
+  });
+
+  it("reste rapide (O(n), pas O(n×durée)) sur une longue série avec de grandes durées — non-régression Phase 9E", () => {
+    // ~4h à 1 Hz avec des durées jusqu'à 1h : l'ancienne implémentation
+    // (O(n×durée)) prenait plusieurs secondes ici ; la nouvelle doit rester
+    // sous une fraction de seconde (voir docs/PERFORMANCE.md pour la mesure
+    // complète sur une vraie activité de 15 000+ points : 12,4 s -> 38 ms).
+    const series = Array.from({ length: 15000 }, (_, i) => ({ elapsed: i, power: 100 + (i % 200) }));
+    const start = performance.now();
+    const result = computeBestPowerEfforts(series, [5, 30, 60, 300, 600, 1200, 1800, 3600]);
+    const elapsed = performance.now() - start;
+    expect(Object.keys(result).length).toBeGreaterThan(0);
+    expect(elapsed).toBeLessThan(1000);
+  });
+});
+
 describe("computePowerZones", () => {
   it("retourne null sans FTP valide", () => {
     expect(computePowerZones([{ elapsed: 0, power: 100 }], 0)).toBeNull();

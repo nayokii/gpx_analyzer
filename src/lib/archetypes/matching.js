@@ -89,7 +89,7 @@ export function similarityLabel(closeness) {
  * @returns {{
  *   primary: Object|null, secondary: Object|null, combinedLabel: string,
  *   confidence: Object, explanation: string[], insufficientDimensions: string[],
- *   allScores: Array<{id: string, closeness: number}>
+ *   allScores: Array<{id: string, closeness: number}>, reason: string|null
  * }}
  */
 export function matchArchetypes(profile) {
@@ -99,7 +99,12 @@ export function matchArchetypes(profile) {
   const confidence = computeMatchConfidence(vector);
 
   if (available.length === 0) {
-    return { primary: null, secondary: null, combinedLabel: "Profil en construction", confidence, explanation: [], insufficientDimensions: missing, allScores: [], vector };
+    // Phase 9E : `reason` distingue explicitement POURQUOI aucun archétype
+    // n'est proposé — l'UI (ArchetypeView.jsx) s'en sert pour choisir un
+    // message honnête plutôt qu'un "Profil indéterminé" opaque à chaque fois
+    // (voir consigne : ne jamais inventer de seuil, seulement expliquer avec
+    // les vraies données déjà calculées).
+    return { primary: null, secondary: null, combinedLabel: "Profil en construction", confidence, explanation: [], insufficientDimensions: missing, allScores: [], vector, reason: "no_data" };
   }
 
   const scored = ARCHETYPES.map((archetype) => ({ archetype, ...computeCloseness(vector, archetype.dimensions) }))
@@ -117,6 +122,15 @@ export function matchArchetypes(profile) {
   // exactement le cas que cette phase corrige (voir consigne, exemple Punch=82/low).
   const overallConfidenceTooLow = confidence.label === "low";
   if (!top || top.closeness < MIN_CLOSENESS_FOR_PRIMARY || overallConfidenceTooLow) {
+    // Phase 9E : deux causes bien distinctes derrière le même "pas de primaire" —
+    // l'UI en a besoin pour ne pas dire "Profil indéterminé" quand la vraie
+    // cause est "pas encore assez de preuves" (voir ArchetypeView.jsx).
+    //  - "low_confidence" : peu/pas assez fiable (couverture et/ou confidence
+    //    moyenne trop faibles) — plus de sorties/capteurs changeront ce résultat.
+    //  - "no_match" : les dimensions dispo sont bien documentées, mais la FORME
+    //    du profil ne ressemble nettement à aucun style connu — pas un manque
+    //    de données, un vrai résultat (rare, mais honnête).
+    const reason = overallConfidenceTooLow ? "low_confidence" : "no_match";
     return {
       primary: null,
       secondary: null,
@@ -126,6 +140,7 @@ export function matchArchetypes(profile) {
       insufficientDimensions: missing,
       allScores: scored.map((s) => ({ id: s.archetype.id, closeness: s.closeness })),
       vector,
+      reason,
     };
   }
 
@@ -145,6 +160,7 @@ export function matchArchetypes(profile) {
     insufficientDimensions: missing,
     allScores: scored.map((s) => ({ id: s.archetype.id, closeness: s.closeness })),
     vector,
+    reason: "matched",
   };
 }
 

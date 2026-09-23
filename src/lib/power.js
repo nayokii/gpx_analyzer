@@ -66,36 +66,67 @@ export function estimatePower(speed, grade, weight, bikeWeight, windSpeed = 0, a
 /**
  * Calcule les meilleurs efforts de puissance pour différentes durées
  *
+ * Fenêtre glissante à deux pointeurs (`j` ne recule jamais, cumul
+ * incrémental de la somme/nombre de points valides) — Phase 9E : la version
+ * précédente recalculait `series.slice(i, j)` (allocation + filter + map)
+ * pour CHAQUE `i`, avec `j` repartant de `i` à chaque itération, soit un
+ * coût proche de O(n × durée) par durée demandée. Sur une sortie de 4h+
+ * échantillonnée à ~1 Hz, la fenêtre de 3600 s à elle seule provoquait des
+ * dizaines de millions d'itérations (mesuré : plus de 14 s pour une seule
+ * activité de ~15 000 points — voir docs/PERFORMANCE.md). Ici, `j` avance de
+ * façon monotone sur l'ensemble de la boucle externe (les `elapsed` sont
+ * croissants) : chaque point n'est ajouté puis retiré de la somme courante
+ * qu'une seule fois, donc O(n) par durée — RÉSULTAT STRICTEMENT IDENTIQUE à
+ * l'ancienne version (même moyenne, même point de départ), voir power.test.js
+ * pour la comparaison directe contre l'implémentation naïve d'origine.
+ *
  * @param {Array} series - Série temporelle avec {elapsed, power}
  * @param {number[]} durations - Durées en secondes (ex: [5, 30, 60, 300, 600, 1200, 3600])
  * @returns {Object} Objet avec clés "s{duration}" contenant {duration, power, startIdx}
  */
 export function computeBestPowerEfforts(series, durations) {
   const results = {};
+  const n = series.length;
+  const validPower = (p) => p != null && !Number.isNaN(p); // même filtre que avg()
 
   for (const dur of durations) {
     let best = -Infinity;
     let bestStart = null;
 
-    for (let i = 0; i < series.length; i++) {
-      if (series[i].elapsed == null || series[i].power == null) continue;
+    let j = 0;
+    let sum = 0;
+    let count = 0; // nombre de points à puissance valide actuellement dans la fenêtre [i, j)
 
-      // Trouver l'index de fin pour cette durée
-      let j = i;
-      while (j < series.length && series[j].elapsed - series[i].elapsed < dur) {
-        j++;
+    for (let i = 0; i < n; i++) {
+      if (j < i) j = i; // garde-fou : la fenêtre ne part jamais avant i
+
+      // Éligibilité d'un DÉPART : même test (lâche, `!= null`, pas de NaN) que
+      // l'ancienne version — une puissance NaN reste un départ valide, elle
+      // est seulement exclue de la moyenne (voir `validPower` ci-dessous et
+      // `avg()` dans utils.js, dont c'est le même comportement).
+      const iValid = series[i].elapsed != null && series[i].power != null;
+
+      if (iValid) {
+        while (j < n && series[j].elapsed - series[i].elapsed < dur) {
+          if (validPower(series[j].power)) { sum += series[j].power; count++; }
+          j++;
+        }
+        if (j >= n) break; // fenêtre tronquée en fin de série : comportement identique à l'original (break)
+
+        if (count > 0) {
+          const avgPower = sum / count;
+          if (avgPower > best) {
+            best = avgPower;
+            bestStart = i;
+          }
+        }
       }
 
-      if (j >= series.length) break;
-
-      // Calculer la puissance moyenne sur cet intervalle
-      const slice = series.slice(i, j).filter(p => p.power != null);
-      if (slice.length === 0) continue;
-
-      const avgPower = avg(slice.map(p => p.power));
-      if (avgPower > best) {
-        best = avgPower;
-        bestStart = i;
+      // La fenêtre glisse d'un cran : retire series[i] s'il en faisait partie
+      // (il en fait partie dès que i < j, que ce point ait servi de départ ou non).
+      if (i < j && validPower(series[i].power)) {
+        sum -= series[i].power;
+        count--;
       }
     }
 

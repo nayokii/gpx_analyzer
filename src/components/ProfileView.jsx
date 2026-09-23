@@ -13,18 +13,22 @@
  * - Le profil a besoin des activités COMPLÈTES (samples) pour les dimensions
  *   qui dépendent de montées/efforts détectés (voir activitySignals.js) :
  *   une fois l'index connu, on charge le détail des sorties les plus
- *   récentes via `loadActivityDetail()`, plafonné à
- *   `MAX_PROFILE_ACTIVITIES` (même principe que
+ *   récentes via `loadCachedActivityDetails()` (voir
+ *   ../lib/storage/activityCache.js — Phase 9E : mémoïse `loadActivityDetail`
+ *   par id, partagé avec AlterEgoView.jsx/ArchetypeView.jsx qui chargent le
+ *   même historique), plafonné à `MAX_PROFILE_ACTIVITIES` (même principe que
  *   `MAX_ROUTE_ANALYSIS_ACTIVITIES` dans HistoryDashboard.jsx) pour ne
  *   jamais charger silencieusement un historique énorme.
  * - `Promise.allSettled` (pas `Promise.all`) : si une sortie ne peut pas être
  *   chargée, le profil se calcule quand même avec les autres (voir consigne
  *   §16), avec un bandeau explicite plutôt qu'un plantage.
- * - Ni `computeCyclistProfile` ni `buildProfileTimeline` ne sont appelés
- *   avant que `fullActivities` soit stabilisé (`useMemo` sur cette seule
+ * - Ni `getCachedProfile` ni `getCachedProfileTimeline` ne sont appelés avant
+ *   que `fullActivities` soit stabilisé (`useMemo` sur cette seule
  *   dépendance) : pas de recalcul à chaque render, jamais de reparsing de
  *   fichier source (ces fonctions ne prennent que des `Activity` déjà
- *   normalisées).
+ *   normalisées) — et Phase 9E : mémoïsés (voir ../lib/derivedCache.js) pour
+ *   que AlterEgoView.jsx/ArchetypeView.jsx, qui recalculent le même profil
+ *   sur le même historique, réutilisent ce résultat plutôt que de le refaire.
  */
 import { useState, useEffect, useCallback, useMemo } from "react";
 import {
@@ -36,8 +40,9 @@ import {
 
 import { StorageSettings } from "./StorageSettings.jsx";
 import { SectionTitle } from "./UIPrimitives.jsx";
-import { listActivities, loadActivityDetail } from "../lib/storage/activityStore.js";
-import { computeCyclistProfile, buildProfileTimeline } from "../lib/profile/profile.js";
+import { listActivities } from "../lib/storage/activityStore.js";
+import { loadCachedActivityDetails } from "../lib/storage/activityCache.js";
+import { getCachedProfile, getCachedProfileTimeline } from "../lib/derivedCache.js";
 import { confidenceLabel } from "../lib/profile/confidence.js";
 import { COLORS } from "../lib/colors.js";
 import { fmtDateFull } from "../lib/utils.js";
@@ -318,7 +323,7 @@ export function ProfileView({ storage, onConnect, onReconnect, onOpen, onBack })
     if (!summaries || summaries.length === 0 || !storage.rootHandle) return;
     let cancelled = false;
     const toLoad = summaries.slice(0, MAX_PROFILE_ACTIVITIES);
-    Promise.allSettled(toLoad.map((a) => loadActivityDetail(storage.rootHandle, a.id))).then((results) => {
+    loadCachedActivityDetails(storage.rootHandle, toLoad).then((results) => {
       if (cancelled) return;
       setFullActivities(results.filter((r) => r.status === "fulfilled").map((r) => r.value));
       setFailedCount(results.filter((r) => r.status === "rejected").length);
@@ -326,8 +331,8 @@ export function ProfileView({ storage, onConnect, onReconnect, onOpen, onBack })
     return () => { cancelled = true; };
   }, [summaries, storage.rootHandle]);
 
-  const profile = useMemo(() => (fullActivities ? computeCyclistProfile(fullActivities) : null), [fullActivities]);
-  const timeline = useMemo(() => (fullActivities ? buildProfileTimeline(fullActivities) : []), [fullActivities]);
+  const profile = useMemo(() => (fullActivities ? getCachedProfile(fullActivities) : null), [fullActivities]);
+  const timeline = useMemo(() => (fullActivities ? getCachedProfileTimeline(fullActivities) : []), [fullActivities]);
   const availableDimCount = useMemo(
     () => (profile ? DIMENSION_ORDER.filter((k) => profile.dimensions[k].value != null).length : 0),
     [profile]

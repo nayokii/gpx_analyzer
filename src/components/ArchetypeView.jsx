@@ -18,9 +18,9 @@ import {
 
 import { StorageSettings } from "./StorageSettings.jsx";
 import { SectionTitle } from "./UIPrimitives.jsx";
-import { listActivities, loadActivityDetail } from "../lib/storage/activityStore.js";
-import { computeCyclistProfile } from "../lib/profile/profile.js";
-import { matchArchetypes, matchReferenceRiders, buildArchetypeTimeline } from "../lib/archetypes/matching.js";
+import { listActivities } from "../lib/storage/activityStore.js";
+import { loadCachedActivityDetails } from "../lib/storage/activityCache.js";
+import { getCachedProfile, getCachedArchetypeMatch, getCachedReferenceRiders, getCachedArchetypeTimeline } from "../lib/derivedCache.js";
 import { ARCHETYPE_DIMENSIONS } from "../lib/archetypes/archetypes.js";
 
 const MAX_ARCHETYPE_ACTIVITIES = 200; // même principe que MAX_PROFILE_ACTIVITIES (ProfileView.jsx)
@@ -93,9 +93,63 @@ function DimensionBars({ dims, vectorValues, influence }) {
 /* Ton profil cycliste (archétype dominant)                            */
 /* ------------------------------------------------------------------ */
 
-function DominantArchetypeSection({ match, userValues }) {
+/**
+ * État "pas assez de preuves pour affirmer un archétype" (voir consigne
+ * Phase 9E, problème 1) — distinct du cas "no_match" (données solides, mais
+ * la forme du profil ne ressemble à aucun style connu, voir matching.js).
+ * N'affiche QUE des nombres réellement calculés par le moteur (nombre de
+ * sorties, dimensions disponibles/manquantes, semaines couvertes si connu) —
+ * jamais un nombre de sorties "nécessaires" ni un pourcentage de progression
+ * inventés.
+ */
+function ProfileUnderConstructionNote({ match, profile }) {
+  const availableDims = ARCHETYPE_DIMENSIONS.filter((d) => match.vector && match.vector[d] && match.vector[d].value != null);
+  const missingDims = match.insufficientDimensions;
+  const activityCount = profile ? profile.activityCount : 0;
+  const consistency = profile && profile.dimensions.consistency;
+  const weeksSpan = consistency && consistency.signals ? consistency.signals.totalWeeksSpan : null;
+
+  const bodyText =
+    match.reason === "no_data"
+      ? "Aucune dimension n'est encore exploitable : importe au moins une sortie pour voir apparaître les premières tendances."
+      : "Les premières tendances commencent à apparaître, mais les données disponibles sont encore insuffisantes pour établir un profil fiable.";
+
+  return (
+    <>
+      <p className="gpx-profile-card-meta">
+        {activityCount} sortie{activityCount > 1 ? "s" : ""} analysée{activityCount > 1 ? "s" : ""}
+        {weeksSpan != null ? ` · ${weeksSpan} semaine${weeksSpan > 1 ? "s" : ""} couverte${weeksSpan > 1 ? "s" : ""}` : ""}
+      </p>
+      <p className="gpx-empty-note" style={{ fontStyle: "normal", marginTop: 6 }}>{bodyText}</p>
+
+      {availableDims.length > 0 && (
+        <div style={{ marginTop: 10 }}>
+          <div className="gpx-profile-card-meta">Dimensions actuellement documentées :</div>
+          <ul className="gpx-profile-evidence-list">
+            {availableDims.map((d) => <li key={d}>{DIMENSION_LABELS[d]}</li>)}
+          </ul>
+        </div>
+      )}
+      {missingDims.length > 0 && (
+        <div style={{ marginTop: 6 }}>
+          <div className="gpx-profile-card-meta">Dimensions encore insuffisantes :</div>
+          <ul className="gpx-profile-evidence-list">
+            {missingDims.map((d) => <li key={d}>{DIMENSION_LABELS[d]}</li>)}
+          </ul>
+        </div>
+      )}
+
+      <p className="gpx-empty-note" style={{ fontStyle: "normal", marginTop: 10 }}>
+        La fiabilité du profil augmentera naturellement avec davantage de sorties et de données.
+      </p>
+    </>
+  );
+}
+
+function DominantArchetypeSection({ match, userValues, profile }) {
   const hasResult = !!match.primary;
   const usedDimCount = ARCHETYPE_DIMENSIONS.length - match.insufficientDimensions.length;
+  const isUnderConstruction = !hasResult && match.reason !== "no_match";
   const influence = useMemo(() => {
     if (!match.vector) return {};
     const map = {};
@@ -103,21 +157,25 @@ function DominantArchetypeSection({ match, userValues }) {
     return map;
   }, [match.vector]);
 
+  const headline = isUnderConstruction ? "Profil en construction" : match.combinedLabel;
+
   return (
     <div className="gpx-panel">
       <SectionTitle icon={Fingerprint}>Ton profil cycliste</SectionTitle>
-      <div className="gpx-archetype-headline">{match.combinedLabel}</div>
+      <div className="gpx-archetype-headline">{headline}</div>
       {!hasResult ? (
-        <>
-          <p className="gpx-empty-note">
-            {match.insufficientDimensions.length === ARCHETYPE_DIMENSIONS.length
-              ? "Pas encore assez de dimensions exploitables pour proposer un archétype."
-              : "Les dimensions disponibles ne sont pas encore assez nombreuses ou assez documentées pour proposer un archétype avec confiance."}
-          </p>
-          {match.explanation.map((s, i) => (
-            <p className="gpx-empty-note" key={i} style={{ fontStyle: "normal", marginTop: 4 }}>{s}</p>
-          ))}
-        </>
+        isUnderConstruction ? (
+          <ProfileUnderConstructionNote match={match} profile={profile} />
+        ) : (
+          <>
+            <p className="gpx-empty-note">
+              Les dimensions disponibles ne se rapprochent pas assez nettement d'un style particulier pour l'instant.
+            </p>
+            {match.explanation.map((s, i) => (
+              <p className="gpx-empty-note" key={i} style={{ fontStyle: "normal", marginTop: 4 }}>{s}</p>
+            ))}
+          </>
+        )
       ) : (
         <>
           <div className="gpx-archetype-roles">
@@ -138,7 +196,7 @@ function DominantArchetypeSection({ match, userValues }) {
           </p>
         </>
       )}
-      {match.insufficientDimensions.length > 0 && (
+      {!isUnderConstruction && match.insufficientDimensions.length > 0 && (
         <p className="gpx-profile-card-meta" style={{ marginTop: 8 }}>
           Dimensions manquantes : {match.insufficientDimensions.map((d) => DIMENSION_LABELS[d]).join(", ")}.
         </p>
@@ -274,7 +332,7 @@ export function ArchetypeView({ storage, onConnect, onReconnect, onBack }) {
     if (!summaries || summaries.length === 0 || !storage.rootHandle) return;
     let cancelled = false;
     const toLoad = summaries.slice(0, MAX_ARCHETYPE_ACTIVITIES);
-    Promise.allSettled(toLoad.map((a) => loadActivityDetail(storage.rootHandle, a.id))).then((results) => {
+    loadCachedActivityDetails(storage.rootHandle, toLoad).then((results) => {
       if (cancelled) return;
       setFullActivities(results.filter((r) => r.status === "fulfilled").map((r) => r.value));
       setFailedCount(results.filter((r) => r.status === "rejected").length);
@@ -282,10 +340,10 @@ export function ArchetypeView({ storage, onConnect, onReconnect, onBack }) {
     return () => { cancelled = true; };
   }, [summaries, storage.rootHandle]);
 
-  const profile = useMemo(() => (fullActivities ? computeCyclistProfile(fullActivities) : null), [fullActivities]);
-  const match = useMemo(() => (profile ? matchArchetypes(profile) : null), [profile]);
-  const riderResults = useMemo(() => (profile ? matchReferenceRiders(profile) : []), [profile]);
-  const timeline = useMemo(() => (fullActivities ? buildArchetypeTimeline(fullActivities) : []), [fullActivities]);
+  const profile = useMemo(() => (fullActivities ? getCachedProfile(fullActivities) : null), [fullActivities]);
+  const match = useMemo(() => (profile ? getCachedArchetypeMatch(profile) : null), [profile]);
+  const riderResults = useMemo(() => (profile ? getCachedReferenceRiders(profile) : []), [profile]);
+  const timeline = useMemo(() => (fullActivities ? getCachedArchetypeTimeline(fullActivities) : []), [fullActivities]);
 
   const userValues = useMemo(() => {
     if (!profile) return {};
@@ -350,7 +408,7 @@ export function ArchetypeView({ storage, onConnect, onReconnect, onBack }) {
                 </div>
               )}
 
-              <DominantArchetypeSection match={match} userValues={userValues} />
+              <DominantArchetypeSection match={match} userValues={userValues} profile={profile} />
               <SimilarRidersSection results={riderResults} />
               <EvolutionSection timeline={timeline} />
             </>

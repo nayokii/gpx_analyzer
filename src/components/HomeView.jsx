@@ -37,12 +37,11 @@ import {
 
 import { StorageSettings } from "./StorageSettings.jsx";
 import { SectionTitle } from "./UIPrimitives.jsx";
-import { listActivities, loadActivityDetail } from "../lib/storage/activityStore.js";
-import { computeCyclistProfile } from "../lib/profile/profile.js";
+import { listActivities } from "../lib/storage/activityStore.js";
+import { loadCachedActivityDetails } from "../lib/storage/activityCache.js";
 import { confidenceLabel } from "../lib/profile/confidence.js";
-import { computeProgression } from "../lib/progression/progression.js";
 import { getXpProgress } from "../lib/progression/levels.js";
-import { matchArchetypes } from "../lib/archetypes/matching.js";
+import { getCachedProfile, getCachedProgression, getCachedArchetypeMatch } from "../lib/derivedCache.js";
 import { fmt1, fmtInt, fmtDuration, fmtDateFull } from "../lib/utils.js";
 
 const MAX_HOME_ACTIVITIES = 200; // même principe que MAX_PROFILE_ACTIVITIES (ProfileView.jsx)
@@ -335,7 +334,7 @@ export function HomeView({ storage, onConnect, onReconnect, onNavigate, onOpenAc
     if (!summaries || summaries.length === 0 || !storage.rootHandle) return;
     let cancelled = false;
     const toLoad = summaries.slice(0, MAX_HOME_ACTIVITIES);
-    Promise.allSettled(toLoad.map((a) => loadActivityDetail(storage.rootHandle, a.id))).then((results) => {
+    loadCachedActivityDetails(storage.rootHandle, toLoad).then((results) => {
       if (cancelled) return;
       setFullActivities(results.filter((r) => r.status === "fulfilled").map((r) => r.value));
       setFailedCount(results.filter((r) => r.status === "rejected").length);
@@ -343,9 +342,9 @@ export function HomeView({ storage, onConnect, onReconnect, onNavigate, onOpenAc
     return () => { cancelled = true; };
   }, [summaries, storage.rootHandle]);
 
-  const profile = useMemo(() => (fullActivities ? computeCyclistProfile(fullActivities) : null), [fullActivities]);
-  const progression = useMemo(() => (fullActivities ? computeProgression(fullActivities, profile) : null), [fullActivities, profile]);
-  const archetypeMatch = useMemo(() => (profile ? matchArchetypes(profile) : null), [profile]);
+  const profile = useMemo(() => (fullActivities ? getCachedProfile(fullActivities) : null), [fullActivities]);
+  const progression = useMemo(() => (fullActivities ? getCachedProgression(fullActivities, profile) : null), [fullActivities, profile]);
+  const archetypeMatch = useMemo(() => (profile ? getCachedArchetypeMatch(profile) : null), [profile]);
   const lastActivity = fullActivities && fullActivities.length > 0 ? fullActivities[0] : null;
 
   const isLoading = storage.status === "connected" && (summaries === null || (summaries.length > 0 && fullActivities === null));
