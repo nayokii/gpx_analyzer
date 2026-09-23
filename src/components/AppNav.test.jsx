@@ -4,9 +4,9 @@ import { AppNav, NAV_ITEMS } from "./AppNav.jsx";
 
 afterEach(cleanup);
 
-describe("AppNav — 5 destinations principales", () => {
-  it("expose exactement les 5 destinations attendues", () => {
-    expect(NAV_ITEMS.map((i) => i.key)).toEqual(["home", "rides", "profil", "alterego", "archetype"]);
+describe("AppNav — 6 destinations principales", () => {
+  it("expose exactement les 6 destinations attendues", () => {
+    expect(NAV_ITEMS.map((i) => i.key)).toEqual(["home", "rides", "profil", "alterego", "archetype", "tour"]);
   });
 
   it("rend chaque destination deux fois (barre haute desktop + barre basse mobile) — le choix de layout est purement CSS, jamais deux jeux de données", () => {
@@ -35,6 +35,8 @@ describe("AppNav — navigation", () => {
     expect(onNavigate).toHaveBeenCalledWith("alterego");
     fireEvent.click(screen.getAllByText("Archétype")[0]);
     expect(onNavigate).toHaveBeenCalledWith("archetype");
+    fireEvent.click(screen.getAllByText("Tour")[0]);
+    expect(onNavigate).toHaveBeenCalledWith("tour");
   });
 
   it("le clic sur la marque ramène à l'accueil", () => {

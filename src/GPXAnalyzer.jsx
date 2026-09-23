@@ -41,6 +41,7 @@ import { HistoryDashboard } from "./components/HistoryDashboard.jsx";
 import { ProfileView } from "./components/ProfileView.jsx";
 import { AlterEgoView } from "./components/AlterEgoView.jsx";
 import { ArchetypeView } from "./components/ArchetypeView.jsx";
+import { TourView } from "./components/TourView.jsx";
 import { AppNav } from "./components/AppNav.jsx";
 import { HomeView } from "./components/HomeView.jsx";
 import { DataSourcesView } from "./components/DataSourcesView.jsx";
@@ -88,7 +89,7 @@ const DEFAULT_HR_ZONES = [
 ];
 
 export default function GPXAnalyzer() {
-  const [mode, setMode] = useState("home"); // home | dashboard | historique | profil | alterego | archetype
+  const [mode, setMode] = useState("home"); // home | dashboard | historique | profil | alterego | archetype | tour
   const [isDemo, setIsDemo] = useState(false);
   const [fileName, setFileName] = useState(null);
   const [rideName, setRideName] = useState(null);
@@ -1119,6 +1120,32 @@ export default function GPXAnalyzer() {
         .gpx-archetype-timeline { display: flex; flex-direction: column; gap: 8px; }
         .gpx-archetype-timeline-row { display: flex; justify-content: space-between; align-items: center; font-size: 13px; padding: 8px 10px; background: var(--surface2); border-radius: 10px; }
 
+        /* ---------- Tour Simulator (Phase 10B) ---------- */
+        .gpx-tour-hero {
+          background: linear-gradient(135deg, var(--surface), var(--bgAlt));
+          border: 1px solid rgba(77,217,192,0.25);
+        }
+        .gpx-tour-divider { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
+        .gpx-tour-route-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 10px; }
+        .gpx-tour-stage-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; }
+        .gpx-tour-stage-row {
+          display: grid; grid-template-columns: 32px 1fr auto; align-items: center; gap: 12px;
+          background: var(--surface2); border: 1px solid var(--border); border-radius: 12px; padding: 10px 14px;
+        }
+        .gpx-tour-stage-number { font-size: 13px; font-weight: 800; color: var(--faint); font-variant-numeric: tabular-nums; }
+        .gpx-tour-stage-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+        .gpx-tour-stage-type { font-size: 13px; font-weight: 700; letter-spacing: 0.02em; }
+        .gpx-tour-dots { display: inline-flex; gap: 3px; align-items: center; }
+        .gpx-tour-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--border); }
+        .gpx-tour-dot-filled { background: var(--climb); }
+        .gpx-tour-difficulty-label { display: inline-flex; align-items: center; gap: 6px; }
+        .gpx-tour-weight { color: var(--speed); font-weight: 700; letter-spacing: 0.02em; }
+        .gpx-tour-fatigue-fill { background: var(--climb); }
+        .gpx-tour-progress { margin-bottom: 14px; }
+        .gpx-tour-progress-bar { height: 10px; border-radius: 8px; background: var(--surface2); border: 1px solid var(--border); overflow: hidden; margin-top: 4px; }
+        .gpx-tour-progress-bar-fill { height: 100%; border-radius: 8px; background: linear-gradient(90deg, var(--speed), var(--climb)); transition: width 0.2s ease; }
+        .gpx-tour-finish-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 18px; }
+
         @media (max-width: 860px) {
           .gpx-stats-grid { grid-template-columns: repeat(2, 1fr); }
           .gpx-two-col { grid-template-columns: 1fr; }
@@ -2018,6 +2045,16 @@ export default function GPXAnalyzer() {
           storage={storage}
           onConnect={connectStorage}
           onReconnect={reconnectStorage}
+          onBack={() => setMode(points ? "dashboard" : "home")}
+        />
+      )}
+
+      {mode === "tour" && (
+        <TourView
+          storage={storage}
+          onConnect={connectStorage}
+          onReconnect={reconnectStorage}
+          onViewProfile={() => setMode("profil")}
           onBack={() => setMode(points ? "dashboard" : "home")}
         />
       )}

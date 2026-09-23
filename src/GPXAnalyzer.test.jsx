@@ -29,7 +29,7 @@ vi.mock("./components/MapView.jsx", () => ({ MapView: () => null }));
 
 afterEach(cleanup);
 
-describe("Navigation principale — 5 destinations toujours accessibles", () => {
+describe("Navigation principale — 6 destinations toujours accessibles", () => {
   it("Accueil est l'écran de démarrage", async () => {
     render(<GPXAnalyzer />);
     expect(await screen.findByText(/Glissez-déposez votre fichier/)).toBeTruthy();
@@ -61,6 +61,13 @@ describe("Navigation principale — 5 destinations toujours accessibles", () => 
     await screen.findByText(/Glissez-déposez votre fichier/);
     fireEvent.click(screen.getAllByText("Archétype")[0]);
     expect(await screen.findByRole("heading", { name: "Archétype", level: 1 })).toBeTruthy();
+  });
+
+  it("navigue directement vers Tour depuis la navigation principale", async () => {
+    render(<GPXAnalyzer />);
+    await screen.findByText(/Glissez-déposez votre fichier/);
+    fireEvent.click(screen.getAllByText("Tour")[0]);
+    expect(await screen.findByRole("heading", { name: "Tour Simulator", level: 1 })).toBeTruthy();
   });
 
   it("revient à Accueil depuis n'importe quelle section", async () => {
@@ -103,6 +110,10 @@ describe("Mode démo — isolation", () => {
 
     fireEvent.click(screen.getAllByText("Alter Ego")[0]);
     expect(await screen.findByRole("heading", { name: "Alter Ego", level: 1 })).toBeTruthy();
+    expect(screen.queryByText("Sortie de démonstration")).toBeNull();
+
+    fireEvent.click(screen.getAllByText("Tour")[0]);
+    expect(await screen.findByRole("heading", { name: "Tour Simulator", level: 1 })).toBeTruthy();
     expect(screen.queryByText("Sortie de démonstration")).toBeNull();
   });
 });
