@@ -1,0 +1,12 @@
+{
+  "id": 2222222222,
+  "name": "Sortie sans capteur cardio",
+  "sport_type": "GravelRide",
+  "type": "Ride",
+  "start_date": "2026-06-02T07:00:00Z",
+  "distance": 15000.0,
+  "moving_time": 2400,
+  "elapsed_time": 2450,
+  "average_speed": 6.25,
+  "max_speed": 11.0
+}

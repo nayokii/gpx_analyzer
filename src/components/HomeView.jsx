@@ -252,7 +252,7 @@ function LastRideSection({ lastActivity, onOpen }) {
 /* État vide / import (repris de l'écran d'import existant)            */
 /* ------------------------------------------------------------------ */
 
-function EmptyStateImport({ storage, onConnect, onReconnect, upload, onLoadDemo }) {
+function EmptyStateImport({ storage, onConnect, onReconnect, upload, onLoadDemo, onOpenSources }) {
   return (
     <div className="gpx-landing-inner" style={{ margin: "0 auto" }}>
       <div className="gpx-landing-eyebrow"><Mountain size={13} /> Analyse de sortie vélo</div>
@@ -281,6 +281,11 @@ function EmptyStateImport({ storage, onConnect, onReconnect, upload, onLoadDemo 
       </div>
       <div className="gpx-panel" style={{ marginTop: 24, textAlign: "left" }}>
         <StorageSettings storage={storage} onConnect={onConnect} onReconnect={onReconnect} compact />
+        {onOpenSources && (
+          <button className="gpx-link-btn" style={{ marginTop: 8 }} onClick={onOpenSources}>
+            Sources de données (Strava…)
+          </button>
+        )}
       </div>
       <div className="gpx-landing-features">
         <div className="gpx-landing-feature"><b>100% local</b>Aucune donnée n'est envoyée à un serveur.</div>
@@ -307,7 +312,7 @@ function EmptyStateImport({ storage, onConnect, onReconnect, upload, onLoadDemo 
  *   `<input type="file">` réel est unique dans toute l'app, monté une fois par GPXAnalyzer.jsx ; `onBrowseClick`
  *   se contente de déclencher son clic, cette vue n'en rend jamais un second (voir GPXAnalyzer.jsx: fileInputRef).
  */
-export function HomeView({ storage, onConnect, onReconnect, onNavigate, onOpenActivity, onLoadDemo, upload }) {
+export function HomeView({ storage, onConnect, onReconnect, onNavigate, onOpenActivity, onLoadDemo, upload, onOpenSources }) {
   const [summaries, setSummaries] = useState(null);
   const [summariesError, setSummariesError] = useState(null);
   const [fullActivities, setFullActivities] = useState(null);
@@ -357,7 +362,7 @@ export function HomeView({ storage, onConnect, onReconnect, onNavigate, onOpenAc
         <div className="gpx-panel"><p className="gpx-empty-note">Analyse de ton historique…</p></div>
       ) : isEmpty ? (
         <div className="gpx-landing" style={{ minHeight: "auto", padding: "40px 20px" }}>
-          <EmptyStateImport storage={storage} onConnect={onConnect} onReconnect={onReconnect} upload={upload} onLoadDemo={onLoadDemo} />
+          <EmptyStateImport storage={storage} onConnect={onConnect} onReconnect={onReconnect} upload={upload} onLoadDemo={onLoadDemo} onOpenSources={onOpenSources} />
         </div>
       ) : hasData ? (
         <>
@@ -399,6 +404,11 @@ export function HomeView({ storage, onConnect, onReconnect, onNavigate, onOpenAc
               <div className="gpx-upload-sub">ou cliquez pour parcourir vos fichiers</div>
             </div>
             {upload.error && <div className="gpx-error-box" style={{ marginTop: 10 }}><FileWarning size={15} /> {upload.error}</div>}
+            {onOpenSources && (
+              <button className="gpx-link-btn" style={{ marginTop: 10 }} onClick={onOpenSources}>
+                Sources de données (Strava…)
+              </button>
+            )}
           </div>
         </>
       ) : null}

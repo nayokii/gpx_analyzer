@@ -1,0 +1,4 @@
+[
+  { "id": 9001, "name": "Sortie A", "sport_type": "Ride", "type": "Ride", "start_date": "2026-05-01T06:00:00Z", "distance": 10000, "average_speed": 6.0, "max_speed": 10.0 },
+  { "id": 9002, "name": "Sortie B", "sport_type": "Ride", "type": "Ride", "start_date": "2026-05-02T06:00:00Z", "distance": 20000, "average_speed": 6.5, "max_speed": 11.0 }
+]

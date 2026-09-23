@@ -43,6 +43,7 @@ import { AlterEgoView } from "./components/AlterEgoView.jsx";
 import { ArchetypeView } from "./components/ArchetypeView.jsx";
 import { AppNav } from "./components/AppNav.jsx";
 import { HomeView } from "./components/HomeView.jsx";
+import { DataSourcesView } from "./components/DataSourcesView.jsx";
 
 // Stockage local durable (Phase 2)
 import { toActivity } from "./lib/normalize.js";
@@ -58,7 +59,21 @@ import {
   loadActivityDetail,
   loadActivitySourceText,
   loadActivitySourceArrayBuffer,
+  listActivities,
 } from "./lib/storage/activityStore.js";
+
+// Import Strava (Phase 9C) — voir src/lib/strava/ pour le détail ; ce
+// fichier n'utilise que l'API publique exposée par son index.js.
+import {
+  parseAuthCallback,
+  exchangeCodeForTokens,
+  assertHasActivityReadScope,
+  saveStravaState,
+  createEmptyStravaState,
+  syncStrava,
+  StravaAuthDeniedError,
+  StravaInvalidCallbackError,
+} from "./lib/strava/index.js";
 
 /* ============================================================================
    MAIN APP
@@ -139,6 +154,63 @@ export default function GPXAnalyzer() {
       cancelled = true;
     };
   }, []);
+
+  // Traitement du retour de callback OAuth Strava (voir src/lib/strava/auth.js
+  // et docs/STRAVA_INTEGRATION.md) : à l'ouverture de l'app, si l'URL contient
+  // `code`/`state`/`error` (redirection depuis Strava), on finalise la
+  // connexion. Ne se déclenche qu'une fois par retour de callback (ref) et
+  // seulement quand l'état du stockage local est stabilisé (les jetons sont
+  // persistés dans le dossier choisi — voir strava/storage.js — donc rien à
+  // faire tant qu'on ne sait pas s'il est connecté).
+  const [stravaCallbackError, setStravaCallbackError] = useState(null);
+  const [stravaRefreshTick, setStravaRefreshTick] = useState(0);
+  const stravaCallbackHandled = useRef(false);
+  useEffect(() => {
+    if (stravaCallbackHandled.current) return;
+    if (storage.status === "checking") return;
+    const params = new URLSearchParams(window.location.search);
+    if (!params.has("code") && !params.has("error")) return;
+    stravaCallbackHandled.current = true;
+
+    const expectedState = sessionStorage.getItem("gpx-strava-oauth-state");
+    sessionStorage.removeItem("gpx-strava-oauth-state");
+    // Nettoie l'URL immédiatement (avant même la résolution de l'échange) pour
+    // qu'un rechargement de page ne retraite jamais le même code.
+    window.history.replaceState({}, "", window.location.pathname);
+
+    (async () => {
+      setMode("sources");
+      try {
+        const { code, grantedScope } = parseAuthCallback(params, expectedState);
+        assertHasActivityReadScope(grantedScope);
+
+        if (storage.status !== "connected" || !storage.rootHandle) {
+          throw new Error("Connecte d'abord un dossier de stockage local, puis reconnecte Strava (la connexion n'a pas pu être finalisée).");
+        }
+
+        const tokens = await exchangeCodeForTokens({ code });
+        const initialState = {
+          ...createEmptyStravaState(),
+          connected: true,
+          tokens: { accessToken: tokens.accessToken, refreshToken: tokens.refreshToken, expiresAt: tokens.expiresAt, scope: tokens.scope },
+          athlete: tokens.athlete,
+          connectedAt: new Date().toISOString(),
+        };
+        await saveStravaState(storage.rootHandle, initialState);
+
+        // Première importation automatique (voir consigne : Connect→OAuth→import→normalise→dédoublonne→stocke).
+        const existingSummaries = await listActivities(storage.rootHandle);
+        await syncStrava({ rootHandle: storage.rootHandle, state: initialState, existingSummaries, userSettings });
+        setStravaRefreshTick((t) => t + 1);
+      } catch (err) {
+        const message =
+          err instanceof StravaAuthDeniedError ? "Autorisation Strava refusée."
+          : err instanceof StravaInvalidCallbackError ? "Réponse Strava invalide ou expirée — reconnecte Strava."
+          : err.message || "Échec de la connexion Strava.";
+        setStravaCallbackError(message);
+      }
+    })();
+  }, [storage.status, storage.rootHandle]);
 
   async function connectStorage() {
     try {
@@ -389,6 +461,26 @@ export default function GPXAnalyzer() {
       if (detail.source.type === "fit") {
         const arrayBuffer = await loadActivitySourceArrayBuffer(storage.rootHandle, id);
         ({ name, points } = await parseFITArrayBuffer(arrayBuffer));
+      } else if (detail.source.type === "strava") {
+        // Pas de fichier source à reparser (voir src/lib/strava/adapter.js) :
+        // les points sont reconstruits directement depuis les `samples` déjà
+        // normalisés, qui portent tout ce que les parsers GPX/FIT produisent.
+        name = detail.name;
+        points = detail.samples.map((s) => ({
+          lat: s.latitude,
+          lon: s.longitude,
+          ele: s.altitude,
+          time: s.timestamp ? new Date(s.timestamp) : null,
+          hr: s.heartRate,
+          cad: s.cadence,
+          // Puissance estimée par NOTRE moteur (jamais mesurée par Strava) :
+          // jamais réinjectée comme donnée d'entrée, sous peine d'être prise
+          // pour une mesure réelle au recalcul — voir analysis.js: hasPower.
+          power: detail.flags.powerEstimated ? null : s.power,
+          temp: s.temperature,
+          distanceMeasured: s.distanceMeasured,
+          speedMeasured: s.speedMeasured,
+        }));
       } else {
         const sourceText = await loadActivitySourceText(storage.rootHandle, id);
         ({ name, points } = parseGPXString(sourceText));
@@ -857,6 +949,7 @@ export default function GPXAnalyzer() {
         .gpx-power-efforts { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 10px; margin-bottom: 16px; }
         .gpx-power-source { display: inline-flex; align-items: center; gap: 4px; background: rgba(111,156,242,0.15); color: var(--info); border-radius: 6px; padding: 3px 8px; font-size: 11px; font-weight: 700; text-transform: none; letter-spacing: 0; }
         .gpx-power-source-estimated { display: inline-flex; align-items: center; gap: 4px; background: rgba(244,183,64,0.18); color: var(--climb); border-radius: 6px; padding: 3px 8px; font-size: 11px; font-weight: 700; text-transform: none; letter-spacing: 0; }
+        .gpx-source-badge-strava { display: inline-block; margin-left: 8px; background: rgba(252,76,2,0.16); color: #fc7a45; border-radius: 6px; padding: 2px 7px; font-size: 10px; font-weight: 700; letter-spacing: 0.02em; vertical-align: middle; }
 
         .gpx-hr-config { display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--muted); }
         .gpx-hr-config input { width: 60px; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 5px 8px; color: var(--text); font-size: 12px; }
@@ -1059,6 +1152,7 @@ export default function GPXAnalyzer() {
           onOpenActivity={openActivityFromHistory}
           onLoadDemo={loadDemo}
           upload={uploadProps}
+          onOpenSources={() => setMode("sources")}
         />
       )}
 
@@ -1874,6 +1968,9 @@ export default function GPXAnalyzer() {
                   Le fichier GPX original et une version JSON normalisée sont conservés dans « {storage.dirName} / activities ».
                 </p>
               )}
+              <button className="gpx-link-btn" style={{ marginTop: 10 }} onClick={() => setMode("sources")}>
+                Gérer les sources de données (Strava…)
+              </button>
             </div>
             </>
           )}
@@ -1920,6 +2017,20 @@ export default function GPXAnalyzer() {
           onConnect={connectStorage}
           onReconnect={reconnectStorage}
           onBack={() => setMode(points ? "dashboard" : "home")}
+        />
+      )}
+
+      {mode === "sources" && (
+        <DataSourcesView
+          storage={storage}
+          onConnect={connectStorage}
+          onReconnect={reconnectStorage}
+          onDisconnectStorage={disconnectStorage}
+          onBack={() => setMode(points ? "dashboard" : "home")}
+          isDemo={isDemo}
+          userSettings={userSettings}
+          callbackNotice={stravaCallbackError}
+          refreshSignal={stravaRefreshTick}
         />
       )}
     </div>

@@ -28,9 +28,11 @@ export const ANALYSIS_VERSION = 1;
 
 /**
  * @typedef {Object} ActivitySource
- * @property {'gpx'|'fit'|'demo'} type - Type de fichier source
- * @property {string|null} originalFilename - Nom du fichier tel qu'importé par l'utilisateur
- * @property {string|null} storedFilename - Nom du fichier original conservé dans data/activities/
+ * @property {'gpx'|'fit'|'demo'|'strava'} type - Type de fichier source
+ * @property {string|null} originalFilename - Nom du fichier tel qu'importé par l'utilisateur (`null` pour Strava : pas de fichier local)
+ * @property {string|null} storedFilename - Nom du fichier original conservé dans data/activities/ (`null` pour Strava)
+ * @property {string|null} sourceId - Identifiant de l'activité chez le fournisseur distant (ex. id d'activité Strava) ; `null` pour gpx/fit/demo
+ * @property {string|null} athleteId - Identifiant de l'athlète chez le fournisseur distant (ex. id athlète Strava) ; `null` pour gpx/fit/demo
  */
 
 /**
@@ -119,6 +121,8 @@ export function createEmptyActivity() {
       type: "gpx",
       originalFilename: null,
       storedFilename: null,
+      sourceId: null,
+      athleteId: null,
     },
     analysisVersion: ANALYSIS_VERSION,
 

@@ -17,7 +17,7 @@ import { createEmptyActivity } from "./types.js";
  * @param {string|null} [meta.id] - Identifiant à réutiliser (ex: recalcul d'une sortie existante)
  * @param {string|null} [meta.name] - Nom de l'activité
  * @param {'cycling'|'mtb'|'gravel'|'other'} [meta.sportType]
- * @param {'gpx'|'fit'|'demo'} [meta.sourceType]
+ * @param {'gpx'|'fit'|'demo'|'strava'} [meta.sourceType]
  * @param {string|null} [meta.originalFilename]
  * @param {{distanceKm: number|null, avgSpeedKmh: number|null, maxSpeedKmh: number|null}|null} [meta.measured] -
  *   Totaux mesurés par le device source (ex. session FIT), quand disponibles. `null`/absent
@@ -35,6 +35,8 @@ export function toActivity(analysis, points, meta = {}) {
     type: meta.sourceType || "gpx",
     originalFilename: meta.originalFilename || null,
     storedFilename: null, // renseigné par le module de stockage au moment de la sauvegarde
+    sourceId: null, // renseigné par l'adaptateur source le cas échéant (ex. strava/adapter.js)
+    athleteId: null,
   };
 
   activity.distance = analysis.totalDistanceKm;

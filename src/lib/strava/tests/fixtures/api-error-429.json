@@ -1,0 +1,4 @@
+{
+  "message": "Rate Limit Exceeded",
+  "errors": [{ "resource": "Application", "field": "rate limit", "code": "exceeded" }]
+}

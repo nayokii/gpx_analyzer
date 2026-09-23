@@ -1,0 +1,12 @@
+{
+  "id": 3333333333,
+  "name": "Sortie sans capteur de puissance",
+  "sport_type": "Ride",
+  "type": "Ride",
+  "start_date": "2026-06-03T08:00:00Z",
+  "distance": 12000.0,
+  "moving_time": 2000,
+  "elapsed_time": 2050,
+  "average_speed": 6.0,
+  "max_speed": 10.5
+}

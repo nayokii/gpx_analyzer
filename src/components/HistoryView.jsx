@@ -153,7 +153,12 @@ export function HistoryView({
                         <input type="checkbox" checked={selectedIds.has(a.id)} onChange={() => toggleSelect(a.id)} title="Sélectionner pour comparer (2 sorties max.)" />
                       </td>
                       <td>{a.date ? fmtDateFull(new Date(a.date)) : "Date inconnue"}</td>
-                      <td>{a.name || "Sortie vélo"}</td>
+                      <td>
+                        {a.name || "Sortie vélo"}
+                        {a.source && a.source.type === "strava" && (
+                          <span className="gpx-source-badge-strava" title="Importée depuis Strava">Strava</span>
+                        )}
+                      </td>
                       <td>{fmt1(a.distance)} km</td>
                       <td>{fmtDuration(a.duration)}</td>
                       <td>{a.elevationGain != null ? `+${fmtInt(a.elevationGain)} m` : "—"}</td>

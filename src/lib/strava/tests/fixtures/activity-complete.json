@@ -1,0 +1,12 @@
+{
+  "id": 1111111111,
+  "name": "Sortie matinale complète",
+  "sport_type": "Ride",
+  "type": "Ride",
+  "start_date": "2026-06-01T06:00:00Z",
+  "distance": 20500.0,
+  "moving_time": 3000,
+  "elapsed_time": 3100,
+  "average_speed": 6.8333,
+  "max_speed": 14.2
+}

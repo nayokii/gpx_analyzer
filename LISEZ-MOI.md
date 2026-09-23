@@ -84,6 +84,15 @@ l'interface — c'est une restriction de la plateforme, pas un bug du code.
 Ici, en local dans ton propre navigateur, ces requêtes passent normalement :
 tu obtiens donc les vraies tuiles avec rues, routes, villes et villages.
 
+## Connecter Strava (optionnel)
+
+L'app peut aussi importer tes sorties automatiquement depuis Strava (en plus
+de l'import manuel GPX/FIT), depuis l'écran "Sources de données"
+(accessible depuis l'accueil ou l'onglet Paramètres d'une sortie). Ça demande
+une petite configuration côté développeur (clé d'API Strava) — voir
+[docs/STRAVA_INTEGRATION.md](docs/STRAVA_INTEGRATION.md) pour le détail
+complet.
+
 ## Build de production (optionnel)
 
 Si un jour tu veux un dossier statique déployable (ex: sur un hébergement
