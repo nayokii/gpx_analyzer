@@ -263,4 +263,80 @@ describe("archétypes/matching — intégration avec le vrai fichier FIT (cold s
       expect(Array.isArray(r.missingDimensions)).toBe(true);
     }
   });
+
+  // Phase 9D — tests 9/10/12 (consigne §21) : sur les vraies données, jamais
+  // de score hors [0,100], et une dimension estimée (voir activity.flags.powerEstimated
+  // === true pour ce fixture, confirmé par profileIntegration.test.js) ne
+  // devient jamais accidentellement "measured" au niveau du vecteur de matching.
+  it("toutes les valeurs du vecteur de matching restent dans [0,100] (jamais 110, -5...)", () => {
+    for (const d of ARCHETYPE_DIMENSIONS) {
+      const v = matchResult.vector[d].value;
+      if (v == null) continue;
+      expect(v).toBeGreaterThanOrEqual(0);
+      expect(v).toBeLessThanOrEqual(100);
+    }
+  });
+
+  it("punch (seul signal possible sans capteur puissance sur ce fixture) n'est jamais étiqueté dataQuality='measured'", () => {
+    expect(profile.dimensions.punch.value == null || profile.dimensions.punch.dataQuality !== "measured").toBe(true);
+  });
+});
+
+describe("matchArchetypes — Phase 9D, garde-fou de confiance globale", () => {
+  it("test 5 — Punch élevé (82) à confidence faible sur toutes les dimensions dispo : jamais un archétype affirmatif", () => {
+    // Reproduit exactement l'exemple de la consigne : endurance/climbing/punch/TT
+    // dispo mais tous 'low', sprint/technical absents.
+    const profile = makeProfile({ endurance: 61, climbing: 43, punch: 82, timeTrial: 40 }, 0.2);
+    const result = matchArchetypes(profile);
+    expect(result.primary).toBeNull();
+    expect(result.combinedLabel).toBe("Profil indéterminé");
+    expect(result.confidence.label).toBe("low");
+  });
+
+  it("test 6 — Punch élevé à confidence haute, avec un profil globalement bien documenté : peut réellement déterminer l'archétype", () => {
+    const profile = makeProfile({ endurance: 50, climbing: 65, punch: 92, sprint: 65, timeTrial: 50, technical: 50 }, 0.85);
+    const result = matchArchetypes(profile);
+    expect(result.primary).not.toBeNull();
+    expect(result.primary.id).toBe("puncheur");
+    expect(result.confidence.label).not.toBe("low");
+  });
+
+  it("test 7 — une seule dimension forte disponible, le reste insuffisant : système conservateur quelle que soit sa confidence", () => {
+    // Punch seul, même à confidence ÉLEVÉE : la couverture (1/6) plafonne à elle
+    // seule la confiance globale du matching sous le seuil 'low' (voir
+    // archetypes/confidence.js, déjà testé indépendamment) -> jamais de primary.
+    const profile = makeProfile({ punch: 95 }, 0.95);
+    const result = matchArchetypes(profile);
+    expect(result.primary).toBeNull();
+    expect(result.combinedLabel).toBe("Profil indéterminé");
+  });
+
+  it("test 13 — l'explication du profil indéterminé mentionne les dimensions disponibles et celles manquantes, sans jamais affirmer un archétype", () => {
+    const profile = makeProfile({ punch: 95 }, 0.95);
+    const result = matchArchetypes(profile);
+    expect(result.explanation.length).toBeGreaterThan(0);
+    expect(result.explanation.some((s) => s.toLowerCase().includes("punch"))).toBe(true);
+    expect(result.explanation.join(" ")).not.toMatch(/puncheur|grimpeur|sprinteur|rouleur/i);
+  });
+
+  it("test 13 — quand un archétype est affirmé, une dimension à confidence faible parmi les disponibles est explicitement signalée comme peu influente", () => {
+    const profile = makeProfile({ endurance: 80, climbing: 90, punch: 50, sprint: 20, timeTrial: 50, technical: 35 }, 0.9);
+    profile.dimensions.punch = dim(82, 0.15, "low"); // une dimension isolée à confidence faible parmi 6 bien documentées
+    const result = matchArchetypes(profile);
+    expect(result.primary).not.toBeNull();
+    expect(result.explanation.some((s) => s.includes("punch") && s.toLowerCase().includes("limitée"))).toBe(true);
+  });
+
+  it("le vecteur de matching complet (avec weight/matchingInfluence) est exposé pour l'UI (\"Pourquoi ce profil ?\")", () => {
+    const profile = makeProfile({ endurance: 61, climbing: 43, punch: 67 }, 0.5);
+    const result = matchArchetypes(profile);
+    expect(result.vector).toBeTruthy();
+    expect(result.vector.endurance.weight).toBeGreaterThan(0);
+    expect(typeof result.vector.endurance.matchingInfluence).toBe("string");
+  });
+
+  it("déterministe : le garde-fou de confiance globale ne casse pas l'idempotence du matching", () => {
+    const profile = makeProfile({ punch: 95 }, 0.95);
+    expect(matchArchetypes(profile)).toEqual(matchArchetypes(profile));
+  });
 });

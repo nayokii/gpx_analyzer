@@ -10,23 +10,31 @@
  *   distance    = sqrt( Σ(poids_d × diff_d²) / Σ(poids_d) )          (pour d ∈ D, poids_d > 0)
  *   closeness   = 1 − distance                                       (borné [0,1] en pratique)
  *
- * `poids_d` vient de archetypeProfile.js (= confidence de la dimension côté
- * utilisateur, 0 si absente). Une dimension absente côté UTILISATEUR *ou*
- * côté CIBLE (coureur/archétype) est simplement exclue de D — jamais traitée
- * comme un écart de 0 ou de 100 (consigne §3/§9 : ne jamais pénaliser un
- * `null`).
+ * `poids_d` vient de archetypeProfile.js: `matchingWeight(confidence)` — une
+ * transformation CONVEXE de la confidence de la dimension côté utilisateur
+ * (Phase 9D : plus conservatrice qu'une simple égalité poids=confidence,
+ * voir archetypeProfile.js pour le détail), 0 si absente. Une dimension
+ * absente côté UTILISATEUR *ou* côté CIBLE (coureur/archétype) est
+ * simplement exclue de D — jamais traitée comme un écart de 0 ou de 100
+ * (consigne §3/§9 : ne jamais pénaliser un `null`).
  *
  * `closeness` est un score INTERNE (jamais affiché tel quel, voir
  * consigne §12) : l'UI ne doit consommer que `similarityLabel`
  * ("Profil très proche" / "Profil proche" / "Profil partiellement proche")
  * ou l'ordre déjà trié des résultats.
+ *
+ * Phase 9D ajoute un second garde-fou à `matchArchetypes()` (voir plus bas) :
+ * même avec une `closeness` élevée, un `primary` n'est affirmé que si la
+ * fiabilité GLOBALE du matching (`computeMatchConfidence`, couverture ×
+ * confidence moyenne) n'est pas "low"/"insufficient_data" — `closeness` seule
+ * mesure la forme du profil, pas la quantité/qualité de preuves derrière.
  */
 
 import { ARCHETYPES, ARCHETYPE_DIMENSIONS } from "./archetypes.js";
 import { REFERENCE_RIDERS } from "./references.js";
 import { buildMatchingVector, availableDimensions, missingDimensions } from "./archetypeProfile.js";
 import { computeMatchConfidence } from "./confidence.js";
-import { explainArchetypeMatch, explainRiderMatch } from "./explanations.js";
+import { explainArchetypeMatch, explainRiderMatch, explainInsufficientMatch } from "./explanations.js";
 import { buildProfileTimeline } from "../profile/profile.js";
 
 /** En dessous, le secondaire n'est pas annoncé comme faisant partie d'une combinaison (trop loin du primaire pour être honnête). */
@@ -91,7 +99,7 @@ export function matchArchetypes(profile) {
   const confidence = computeMatchConfidence(vector);
 
   if (available.length === 0) {
-    return { primary: null, secondary: null, combinedLabel: "Profil en construction", confidence, explanation: [], insufficientDimensions: missing, allScores: [] };
+    return { primary: null, secondary: null, combinedLabel: "Profil en construction", confidence, explanation: [], insufficientDimensions: missing, allScores: [], vector };
   }
 
   const scored = ARCHETYPES.map((archetype) => ({ archetype, ...computeCloseness(vector, archetype.dimensions) }))
@@ -99,15 +107,25 @@ export function matchArchetypes(profile) {
     .sort((a, b) => b.closeness - a.closeness);
 
   const top = scored[0];
-  if (!top || top.closeness < MIN_CLOSENESS_FOR_PRIMARY) {
+  // Deuxième garde-fou, Phase 9D (en plus de closeness < seuil ci-dessous) :
+  // `confidence` ici est la fiabilité GLOBALE du matching (couverture × confidence
+  // moyenne des dimensions dispo, voir archetypes/confidence.js) — indépendante
+  // de `closeness` (qui ne mesure que la FORME du profil, pas la quantité/qualité
+  // des preuves derrière). Sans ce garde-fou, un profil avec une seule dimension
+  // disponible (même à closeness élevée) ou plusieurs dimensions toutes à
+  // confidence "low" pouvait produire un archétype présenté comme affirmatif —
+  // exactement le cas que cette phase corrige (voir consigne, exemple Punch=82/low).
+  const overallConfidenceTooLow = confidence.label === "low";
+  if (!top || top.closeness < MIN_CLOSENESS_FOR_PRIMARY || overallConfidenceTooLow) {
     return {
       primary: null,
       secondary: null,
       combinedLabel: "Profil indéterminé",
       confidence,
-      explanation: [],
+      explanation: explainInsufficientMatch(vector, available, missing, confidence),
       insufficientDimensions: missing,
       allScores: scored.map((s) => ({ id: s.archetype.id, closeness: s.closeness })),
+      vector,
     };
   }
 
@@ -126,6 +144,7 @@ export function matchArchetypes(profile) {
     explanation: explainArchetypeMatch(vector, primary, secondary, available),
     insufficientDimensions: missing,
     allScores: scored.map((s) => ({ id: s.archetype.id, closeness: s.closeness })),
+    vector,
   };
 }
 

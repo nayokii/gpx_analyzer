@@ -65,7 +65,15 @@ function formatMonthKey(key) {
 /* Bloc "Pourquoi ?" — barres de dimensions                            */
 /* ------------------------------------------------------------------ */
 
-function DimensionBars({ dims, vectorValues }) {
+/**
+ * @param {string[]} dims
+ * @param {Object} vectorValues - `{[dim]: value}`
+ * @param {Object} [influence] - `{[dim]: string}` libellé d'influence dans le
+ *   matching (voir archetypes/archetypeProfile.js: matchingInfluenceLabel) —
+ *   optionnel : `RiderCard` n'en a pas besoin, seule la section "Ton profil
+ *   cycliste" l'affiche (voir consigne §12).
+ */
+function DimensionBars({ dims, vectorValues, influence }) {
   const sorted = dims.slice().sort((a, b) => vectorValues[b] - vectorValues[a]);
   return (
     <div className="gpx-archetype-bars">
@@ -74,6 +82,7 @@ function DimensionBars({ dims, vectorValues }) {
           <span className="gpx-archetype-bar-label">{DIMENSION_LABELS[d]}</span>
           <div className="gpx-profile-card-bar"><div className="gpx-profile-card-bar-fill" style={{ width: `${Math.max(0, Math.min(100, vectorValues[d]))}%` }} /></div>
           <span className="gpx-archetype-bar-value">{vectorValues[d]}</span>
+          {influence && influence[d] && <span className="gpx-archetype-bar-influence">{influence[d]}</span>}
         </div>
       ))}
     </div>
@@ -87,16 +96,28 @@ function DimensionBars({ dims, vectorValues }) {
 function DominantArchetypeSection({ match, userValues }) {
   const hasResult = !!match.primary;
   const usedDimCount = ARCHETYPE_DIMENSIONS.length - match.insufficientDimensions.length;
+  const influence = useMemo(() => {
+    if (!match.vector) return {};
+    const map = {};
+    for (const d of ARCHETYPE_DIMENSIONS) if (match.vector[d]) map[d] = match.vector[d].matchingInfluence;
+    return map;
+  }, [match.vector]);
+
   return (
     <div className="gpx-panel">
       <SectionTitle icon={Fingerprint}>Ton profil cycliste</SectionTitle>
       <div className="gpx-archetype-headline">{match.combinedLabel}</div>
       {!hasResult ? (
-        <p className="gpx-empty-note">
-          {match.insufficientDimensions.length === ARCHETYPE_DIMENSIONS.length
-            ? "Pas encore assez de dimensions exploitables pour proposer un archétype."
-            : "Les dimensions disponibles ne se rapprochent pas assez nettement d'un style particulier pour l'instant."}
-        </p>
+        <>
+          <p className="gpx-empty-note">
+            {match.insufficientDimensions.length === ARCHETYPE_DIMENSIONS.length
+              ? "Pas encore assez de dimensions exploitables pour proposer un archétype."
+              : "Les dimensions disponibles ne sont pas encore assez nombreuses ou assez documentées pour proposer un archétype avec confiance."}
+          </p>
+          {match.explanation.map((s, i) => (
+            <p className="gpx-empty-note" key={i} style={{ fontStyle: "normal", marginTop: 4 }}>{s}</p>
+          ))}
+        </>
       ) : (
         <>
           <div className="gpx-archetype-roles">
@@ -107,7 +128,7 @@ function DominantArchetypeSection({ match, userValues }) {
             Confiance : <b className={`gpx-confidence-${match.confidence.label}`}>{CONFIDENCE_LABELS[match.confidence.label] || match.confidence.label}</b>
           </div>
           <div className="gpx-alterego-subheading">Pourquoi ?</div>
-          <DimensionBars dims={ARCHETYPE_DIMENSIONS.filter((d) => userValues[d] != null)} vectorValues={userValues} />
+          <DimensionBars dims={ARCHETYPE_DIMENSIONS.filter((d) => userValues[d] != null)} vectorValues={userValues} influence={influence} />
           {match.explanation.map((s, i) => (
             <p className="gpx-empty-note" key={i} style={{ fontStyle: "normal", marginTop: i === 0 ? 10 : 4 }}>{s}</p>
           ))}

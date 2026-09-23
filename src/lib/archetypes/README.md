@@ -31,14 +31,32 @@ jamais "tu es X").
 technical` — **`consistency` est délibérément exclue** : c'est une mesure de
 fréquence de pratique (Phase 6A), pas un trait de style de course.
 
-## Pondération (voir consigne §10)
+## Pondération (Phase 9D — "matching reliability")
 
-`weight(dimension) = dimension.confidence` (0 si `value` est `null`).
-`dim.confidence` (Phase 6A, `profile/confidence.js`) est déjà le produit de
-la quantité de preuves et de la qualité des données (mesuré/estimé/vitesse) —
-le multiplier une deuxième fois par un facteur de qualité de données
-dupliquerait ce facteur. Voir `archetypeProfile.js` pour la justification
-complète.
+`weight(dimension) = matchingWeight(dimension.confidence) = confidence²`
+(0 si `value` est `null`). `dim.confidence` (Phase 6A, `profile/confidence.js`)
+reste la seule source de fiabilité — ce module ne la redérive jamais, il
+décide seulement à quel point elle doit compter dans le matching.
+
+Avant la Phase 9D, `weight = confidence` directement : une dimension à
+confidence "low" (ex. 0.30) gardait encore l'essentiel de son poids relatif
+face à une dimension "high" (0.85), ce qui permettait à une dimension peu
+documentée (ex. Punch estimé sur la seule vitesse) de peser presque autant
+qu'une dimension mesurée. `confidence²` est une transformation convexe :
+monotone (jamais d'inversion), mais qui réduit beaucoup plus les faibles
+valeurs que les fortes (0.3² = 0.09, soit -70% ; 0.85² = 0.72, soit -15%
+seulement) — sans palier abrupt à une frontière de label. Voir
+`archetypeProfile.js` pour la justification complète et les propriétés
+recherchées.
+
+**Second garde-fou** : `matchArchetypes()` n'affirme un `primary` que si la
+fiabilité GLOBALE du matching (`archetypes/confidence.js:
+computeMatchConfidence`, couverture × confidence moyenne des dimensions
+disponibles) n'est pas `"low"`/`"insufficient_data"` — même si la `closeness`
+(forme du profil) dépasse le seuil habituel. Sans ce garde-fou, un profil
+avec une seule dimension disponible (ex. Punch seul, à closeness élevée par
+coïncidence) ou plusieurs dimensions toutes à confidence faible pouvait
+produire un archétype affirmatif malgré des preuves insuffisantes.
 
 ## Algorithme de matching
 

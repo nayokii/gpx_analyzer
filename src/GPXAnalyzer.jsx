@@ -1107,6 +1107,7 @@ export default function GPXAnalyzer() {
         .gpx-archetype-bar-row { display: grid; grid-template-columns: 90px 1fr 32px; align-items: center; gap: 10px; font-size: 12.5px; }
         .gpx-archetype-bar-label { color: var(--muted); }
         .gpx-archetype-bar-value { text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; }
+        .gpx-archetype-bar-influence { grid-column: 1 / -1; font-size: 11px; color: var(--muted); margin-top: -4px; }
         .gpx-archetype-rider-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
         .gpx-archetype-rider-card { background: var(--surface2); border: 1px solid var(--border); border-radius: 16px; padding: 16px; }
         .gpx-archetype-rider-head { display: flex; flex-direction: column; gap: 2px; margin-bottom: 4px; }

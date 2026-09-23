@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildMatchingVector, availableDimensions, missingDimensions } from "./archetypeProfile.js";
+import { buildMatchingVector, availableDimensions, missingDimensions, matchingWeight, matchingInfluenceLabel } from "./archetypeProfile.js";
 import { ARCHETYPE_DIMENSIONS } from "./archetypes.js";
 
 function dim(value, confidence = 0.5, confidenceLabel = "medium") {
@@ -50,7 +50,12 @@ describe("buildMatchingVector", () => {
     expect(vector.sprint.value).toBeNull();
   });
 
-  it("le poids d'une dimension disponible = sa confidence 6A, pas un recalcul", () => {
+  // Phase 9D : `weight` n'est plus une copie directe de `confidence` (voir
+  // archetypeProfile.js pour la justification) — c'est désormais
+  // `matchingWeight(confidence)`, une transformation convexe. On vérifie donc
+  // la RELATION (déterministe, testée dans matchingWeight() elle-même)
+  // plutôt qu'un nombre en dur qui encoderait l'ancienne hypothèse 1:1.
+  it("le poids d'une dimension disponible dérive de sa confidence 6A via matchingWeight(), jamais un recalcul depuis les données brutes", () => {
     const profile = makeProfile({
       endurance: dim(61, 0.42),
       climbing: dim(null),
@@ -60,7 +65,75 @@ describe("buildMatchingVector", () => {
       technical: dim(null),
     });
     const vector = buildMatchingVector(profile);
-    expect(vector.endurance.weight).toBe(0.42);
+    expect(vector.endurance.weight).toBe(matchingWeight(0.42));
+    expect(vector.endurance.weight).toBeLessThan(0.42); // la transformation est strictement dégressive sur ]0,1[
+  });
+
+  it("expose matchingInfluence, un libellé qualitatif dérivé du même confidenceLabel qu'ailleurs dans l'app", () => {
+    const profile = makeProfile({
+      endurance: dim(61, 0.9, "high"),
+      climbing: dim(50, 0.5, "medium"),
+      punch: dim(82, 0.2, "low"),
+      sprint: dim(null),
+      timeTrial: dim(null),
+      technical: dim(null),
+    });
+    const vector = buildMatchingVector(profile);
+    expect(vector.endurance.matchingInfluence).toBe("forte influence");
+    expect(vector.climbing.matchingInfluence).toBe("influence moyenne");
+    expect(vector.punch.matchingInfluence).toBe("influence faible");
+    expect(vector.sprint.matchingInfluence).toBe("données insuffisantes");
+  });
+});
+
+describe("matchingWeight — Phase 9D, fiabilité du matching (tests 1-4)", () => {
+  it("confidence 'high' (>=0.7) : influence quasi normale, proche de la confidence brute", () => {
+    const w = matchingWeight(0.9);
+    expect(w).toBeCloseTo(0.81, 5);
+    expect(w / 0.9).toBeGreaterThan(0.85); // réduction < 15%
+  });
+
+  it("confidence 'medium' (0.35-0.7) : influence réduite, mais pas écrasée", () => {
+    const w = matchingWeight(0.5);
+    expect(w).toBeCloseTo(0.25, 5);
+    const reduction = 1 - w / 0.5;
+    expect(reduction).toBeGreaterThan(0.3);
+    expect(reduction).toBeLessThan(0.7);
+  });
+
+  it("confidence 'low' (<0.35) : influence très faible", () => {
+    const w = matchingWeight(0.2);
+    expect(w).toBeCloseTo(0.04, 5);
+    expect(w / 0.2).toBeLessThan(0.3); // réduction > 70%
+  });
+
+  it("confidence null/0 (insufficient_data) : influence nulle", () => {
+    expect(matchingWeight(null)).toBe(0);
+    expect(matchingWeight(0)).toBe(0);
+  });
+
+  it("transformation strictement monotone : une confidence plus élevée ne produit jamais un poids plus faible", () => {
+    const samples = [0, 0.05, 0.1, 0.2, 0.35, 0.5, 0.7, 0.85, 1];
+    for (let i = 1; i < samples.length; i++) {
+      expect(matchingWeight(samples[i])).toBeGreaterThanOrEqual(matchingWeight(samples[i - 1]));
+    }
+  });
+
+  it("jamais de poids hors de [0,1], quelle que soit l'entrée", () => {
+    for (const c of [-1, 0, 0.3, 0.99, 1, 1.5, null]) {
+      const w = matchingWeight(c);
+      expect(w).toBeGreaterThanOrEqual(0);
+      expect(w).toBeLessThanOrEqual(1);
+    }
+  });
+});
+
+describe("matchingInfluenceLabel", () => {
+  it("mappe chaque confidenceLabel connu vers un libellé stable", () => {
+    expect(matchingInfluenceLabel("high")).toBe("forte influence");
+    expect(matchingInfluenceLabel("medium")).toBe("influence moyenne");
+    expect(matchingInfluenceLabel("low")).toBe("influence faible");
+    expect(matchingInfluenceLabel("insufficient_data")).toBe("données insuffisantes");
   });
 });
 
