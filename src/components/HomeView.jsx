@@ -187,6 +187,9 @@ function ProfilePreviewSection({ profile, onOpen }) {
       <SectionTitle icon={UserRound} right={<button className="gpx-link-btn" onClick={onOpen}>Voir le profil complet</button>}>
         Ton profil
       </SectionTitle>
+      <p className="gpx-profile-card-meta" style={{ marginBottom: 8 }}>
+        {profile.activityCount} sortie{profile.activityCount > 1 ? "s" : ""} analysée{profile.activityCount > 1 ? "s" : ""}
+      </p>
       <div className="gpx-archetype-bars">
         {HOME_DIMENSION_ORDER.map((key) => {
           const dim = profile.dimensions[key];

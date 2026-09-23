@@ -1047,6 +1047,7 @@ export default function GPXAnalyzer() {
         .gpx-profile-card-status { font-size: 12.5px; color: var(--muted); font-weight: 600; }
         .gpx-profile-card-hint { font-size: 11px; color: var(--faint); font-style: italic; }
         .gpx-profile-card-confidence { font-size: 12px; color: var(--muted); }
+        .gpx-profile-card-trend { font-size: 11.5px; color: var(--speed); margin-top: 2px; }
         .gpx-profile-card-confidence b.gpx-confidence-low { color: var(--climb); }
         .gpx-profile-card-confidence b.gpx-confidence-medium { color: var(--info); }
         .gpx-profile-card-confidence b.gpx-confidence-high { color: var(--speed); }

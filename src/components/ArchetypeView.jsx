@@ -112,7 +112,7 @@ function ProfileUnderConstructionNote({ match, profile }) {
   const bodyText =
     match.reason === "no_data"
       ? "Aucune dimension n'est encore exploitable : importe au moins une sortie pour voir apparaître les premières tendances."
-      : "Les premières tendances commencent à apparaître, mais les données disponibles sont encore insuffisantes pour établir un profil fiable.";
+      : "Ton profil commence à prendre forme, mais les données disponibles ne permettent pas encore de déterminer un archétype fiable.";
 
   return (
     <>
@@ -124,7 +124,7 @@ function ProfileUnderConstructionNote({ match, profile }) {
 
       {availableDims.length > 0 && (
         <div style={{ marginTop: 10 }}>
-          <div className="gpx-profile-card-meta">Dimensions actuellement documentées :</div>
+          <div className="gpx-profile-card-meta">Ce qui influence déjà ton profil :</div>
           <ul className="gpx-profile-evidence-list">
             {availableDims.map((d) => <li key={d}>{DIMENSION_LABELS[d]}</li>)}
           </ul>
@@ -132,7 +132,7 @@ function ProfileUnderConstructionNote({ match, profile }) {
       )}
       {missingDims.length > 0 && (
         <div style={{ marginTop: 6 }}>
-          <div className="gpx-profile-card-meta">Dimensions encore insuffisantes :</div>
+          <div className="gpx-profile-card-meta">Ce qui reste à documenter :</div>
           <ul className="gpx-profile-evidence-list">
             {missingDims.map((d) => <li key={d}>{DIMENSION_LABELS[d]}</li>)}
           </ul>
@@ -140,7 +140,7 @@ function ProfileUnderConstructionNote({ match, profile }) {
       )}
 
       <p className="gpx-empty-note" style={{ fontStyle: "normal", marginTop: 10 }}>
-        La fiabilité du profil augmentera naturellement avec davantage de sorties et de données.
+        L'archétype se précisera naturellement avec davantage de données.
       </p>
     </>
   );

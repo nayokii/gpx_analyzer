@@ -128,10 +128,20 @@ describe("ArchetypeView — profil partiel / cold start avec le vrai FIT", () =>
     // Sprint et Technique sont insuffisants sur cette vraie sortie -> forcément listés comme manquants.
     expect(profile.dimensions.sprint.value).toBeNull();
     expect(profile.dimensions.technical.value).toBeNull();
-    const missingHeading = screen.getByText("Dimensions encore insuffisantes :");
+    const missingHeading = screen.getByText("Ce qui reste à documenter :");
     const missingText = missingHeading.parentElement.textContent;
     expect(missingText).toMatch(/Sprint/);
     expect(missingText).toMatch(/Technique/);
+
+    // Phase 9F : les dimensions déjà disponibles sont listées séparément, sous un
+    // intitulé distinct — jamais confondues avec celles qui manquent encore.
+    // Sur ce fixture réel : endurance/climbing/punch/timeTrial ont une valeur (voir §12
+    // de la consigne Phase 9F), donc apparaissent ici, pas dans "reste à documenter".
+    const influenceHeading = screen.getByText("Ce qui influence déjà ton profil :");
+    const influenceText = influenceHeading.parentElement.textContent;
+    expect(profile.dimensions.endurance.value).not.toBeNull();
+    expect(influenceText).toMatch(/Endurance/);
+    expect(influenceText).not.toMatch(/Sprint/);
   });
 
   it("n'affiche jamais une confiance élevée avec une seule vraie sortie", async () => {

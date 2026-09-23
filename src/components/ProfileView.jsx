@@ -44,6 +44,7 @@ import { listActivities } from "../lib/storage/activityStore.js";
 import { loadCachedActivityDetails } from "../lib/storage/activityCache.js";
 import { getCachedProfile, getCachedProfileTimeline } from "../lib/derivedCache.js";
 import { confidenceLabel } from "../lib/profile/confidence.js";
+import { summarizeDimensionTrend } from "../lib/profile/trend.js";
 import { COLORS } from "../lib/colors.js";
 import { fmtDateFull } from "../lib/utils.js";
 
@@ -82,6 +83,37 @@ const DATA_QUALITY_EXPLAIN_LABELS = {
   speed: "Basée sur la vitesse",
 };
 
+// Phase 9F — vocabulaire volontairement neutre (voir trend.js) : jamais
+// "progrès"/"amélioration", seulement une direction observée.
+const TREND_LABELS = {
+  up: "↗ évolution récente",
+  down: "↘ évolution récente",
+  stable: "→ stable sur la période observée",
+  emerging: "Premières observations",
+};
+
+// Phrase de repli quand une dimension insuffisante n'a pas de `signals.reason`
+// propre (voir dimensions/*.js : seuls sprint.js/technical.js en fournissent
+// un aujourd'hui) — jamais une supposition sur CE QUI manque précisément,
+// seulement un constat honnête de ce que le moteur n'a pas encore détecté.
+const MISSING_DIMENSION_FALLBACK = {
+  endurance: "Aucune sortie avec un temps en mouvement exploitable pour l'instant.",
+  climbing: "Aucune montée détectée dans les sorties analysées.",
+  punch: "Aucun effort court/intense détecté pour l'instant.",
+  timeTrial: "Aucun effort soutenu exploitable détecté pour l'instant.",
+  consistency: "Au moins deux sorties datées sont nécessaires pour mesurer la régularité.",
+};
+
+// Phase 9F — qualificatif affiché dans "Ce que tes sorties documentent"
+// quand une dimension disponible repose sur des preuves indirectes/estimées
+// plutôt que mesurées (voir dataQuality, déjà calculé par confidence.js).
+const DATA_QUALITY_SHORT_NOTE = {
+  measured: null,
+  mixed: "mélange mesuré/estimé",
+  estimated: "données estimées",
+  speed: "données indirectes",
+};
+
 function formatMonthKey(key) {
   const d = new Date(`${key}-01T00:00:00`);
   if (isNaN(d.getTime())) return key;
@@ -92,7 +124,7 @@ function formatMonthKey(key) {
 /* Carte d'une dimension                                                */
 /* ------------------------------------------------------------------ */
 
-function DimensionCard({ dimKey, dim, onOpen }) {
+function DimensionCard({ dimKey, dim, onOpen, trend }) {
   const meta = DIMENSION_META[dimKey];
   const [expanded, setExpanded] = useState(false);
   const insufficient = dim.value == null;
@@ -127,6 +159,9 @@ function DimensionCard({ dimKey, dim, onOpen }) {
           <div className="gpx-profile-card-confidence">
             Confiance : <b className={`gpx-confidence-${dim.confidenceLabel}`}>{CONFIDENCE_LABELS[dim.confidenceLabel] || dim.confidenceLabel}</b>
           </div>
+          {trend && TREND_LABELS[trend.status] && (
+            <div className="gpx-profile-card-trend">{TREND_LABELS[trend.status]}</div>
+          )}
           <div className="gpx-profile-card-meta">
             {dim.contributingActivities} sortie{dim.contributingActivities > 1 ? "s" : ""} exploitable{dim.contributingActivities > 1 ? "s" : ""}
           </div>
@@ -265,6 +300,56 @@ function EvolutionSection({ timeline, selectedDimension, setSelectedDimension })
 }
 
 /* ------------------------------------------------------------------ */
+/* Ce que tes sorties documentent / ce qui manque encore (Phase 9F)    */
+/* ------------------------------------------------------------------ */
+
+function WhatsDocumentedSection({ profile }) {
+  const dims = DIMENSION_ORDER.filter((k) => profile.dimensions[k].value != null);
+  if (dims.length === 0) return null;
+
+  return (
+    <div className="gpx-panel">
+      <SectionTitle icon={Info}>Ce que tes sorties commencent à documenter</SectionTitle>
+      <ul className="gpx-profile-evidence-list">
+        {dims.map((k) => {
+          const dim = profile.dimensions[k];
+          const note = DATA_QUALITY_SHORT_NOTE[dim.dataQuality];
+          const count = dim.contributingActivities;
+          return (
+            <li key={k}>
+              <b>{DIMENSION_META[k].label}</b> — {count} observation{count > 1 ? "s" : ""}
+              {note ? ` (${note})` : ""}
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
+function WhatsMissingSection({ profile }) {
+  const dims = DIMENSION_ORDER.filter((k) => profile.dimensions[k].value == null);
+  if (dims.length === 0) return null;
+
+  return (
+    <div className="gpx-panel">
+      <SectionTitle icon={Info}>Ce qui manque encore</SectionTitle>
+      <ul className="gpx-profile-evidence-list">
+        {dims.map((k) => {
+          const dim = profile.dimensions[k];
+          const reason = (dim.signals && dim.signals.reason) || MISSING_DIMENSION_FALLBACK[k] || "Pas encore assez de données.";
+          return (
+            <li key={k}>
+              <b>{DIMENSION_META[k].label}</b> — {reason}
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /* À propos                                                             */
 /* ------------------------------------------------------------------ */
 
@@ -278,6 +363,8 @@ function AboutSection() {
         Ils décrivent ton historique observé dans l'application. Ils ne représentent pas un niveau professionnel ni une mesure physiologique.
         <br />
         La confiance dépend notamment du nombre de sorties, de la qualité des données et des capteurs disponibles.
+        <br />
+        Le score et la confiance sont deux informations distinctes : le score est ce que le modèle estime avec les preuves disponibles ; la confiance indique à quel point ces preuves sont solides. Un score élevé à confiance faible n'est pas une valeur confirmée.
       </p>
     </div>
   );
@@ -410,10 +497,19 @@ export function ProfileView({ storage, onConnect, onReconnect, onOpen, onBack })
                 <SectionTitle icon={Zap}>Dimensions</SectionTitle>
                 <div className="gpx-profile-grid">
                   {DIMENSION_ORDER.map((key) => (
-                    <DimensionCard key={key} dimKey={key} dim={profile.dimensions[key]} onOpen={onOpen} />
+                    <DimensionCard
+                      key={key}
+                      dimKey={key}
+                      dim={profile.dimensions[key]}
+                      onOpen={onOpen}
+                      trend={summarizeDimensionTrend(timeline, key)}
+                    />
                   ))}
                 </div>
               </div>
+
+              <WhatsDocumentedSection profile={profile} />
+              <WhatsMissingSection profile={profile} />
 
               <EvolutionSection timeline={timeline} selectedDimension={selectedDimension} setSelectedDimension={setSelectedDimension} />
               <AboutSection />

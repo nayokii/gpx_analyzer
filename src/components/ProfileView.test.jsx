@@ -280,6 +280,93 @@ describe("ProfileView — timeline avec plusieurs points", () => {
   });
 });
 
+describe("ProfileView — Phase 9F, \"ce que tes sorties documentent\" / \"ce qui manque encore\"", () => {
+  it("avec le vrai FIT (1 sortie) : liste les dimensions dispo sous 'documentent', les insuffisantes sous 'manque encore', jamais les deux à la fois", async () => {
+    const root = new MemoryDirectoryHandle();
+    const { activity, arrayBuffer } = await loadRealFitActivity();
+    await saveActivity(root, activity, arrayBuffer, "fit");
+    const expected = computeCyclistProfile([activity]);
+
+    render(<ProfileView storage={connectedStorage(root)} onConnect={noop} onReconnect={noop} onBack={noop} />);
+    await waitFor(() => expect(screen.getByText("Ce que tes sorties commencent à documenter")).toBeTruthy());
+
+    const documented = screen.getByText("Ce que tes sorties commencent à documenter").closest(".gpx-panel").textContent;
+    const missing = screen.getByText("Ce qui manque encore").closest(".gpx-panel").textContent;
+
+    expect(expected.dimensions.endurance.value).not.toBeNull();
+    expect(documented).toMatch(/Endurance/);
+    expect(expected.dimensions.sprint.value).toBeNull();
+    expect(missing).toMatch(/Sprint/);
+    // Jamais la même dimension listée des deux côtés.
+    expect(documented).not.toMatch(/Sprint/);
+    expect(missing).not.toMatch(/Endurance/);
+  });
+
+  it("un jeu de 6 activités réelles (fixture FIT dupliquée sur plusieurs dates, sans capteur HR/cadence/puissance réelle) : les compteurs affichés viennent du moteur, jamais inventés", async () => {
+    const root = new MemoryDirectoryHandle();
+    const { activity } = await loadRealFitActivity();
+    // 6 activités "réelles" (mêmes échantillons, dates différentes) pour
+    // simuler le volume du dossier réel de l'utilisateur (1 FIT + 5 GPX,
+    // caractéristiques identiques : pas de HR/cadence, puissance estimée,
+    // pas de mtb/gravel) sans dépendre d'un chemin de fichier personnel.
+    const activities = Array.from({ length: 6 }, (_, i) => ({
+      ...activity,
+      id: `real-like-${i}`,
+      date: `2026-0${(i % 2) + 8}-${String(10 + i).padStart(2, "0")}T08:00:00Z`,
+    }));
+    await seed(root, activities);
+    const expected = computeCyclistProfile(activities);
+    expect(expected.activityCount).toBe(6);
+
+    render(<ProfileView storage={connectedStorage(root)} onConnect={noop} onReconnect={noop} onBack={noop} />);
+    await waitFor(() => expect(screen.getByText(/Analyse basée sur 6 sorties/)).toBeTruthy());
+
+    const enduranceCard = getDimensionCard("Endurance");
+    expect(within(enduranceCard).getByText(new RegExp(`${expected.dimensions.endurance.contributingActivities} sorties? exploitable`))).toBeTruthy();
+
+    // Sprint (puissance mesurée requise) et Technique (mtb/gravel requis) :
+    // structurellement insuffisants ici aussi, quel que soit le volume.
+    expect(expected.dimensions.sprint.value).toBeNull();
+    expect(expected.dimensions.technical.value).toBeNull();
+    const missing = screen.getByText("Ce qui manque encore").closest(".gpx-panel").textContent;
+    expect(missing).toMatch(/Sprint/);
+    expect(missing).toMatch(/Technique/);
+  });
+});
+
+describe("ProfileView — Phase 9F, évolution par dimension (tendance)", () => {
+  it("une seule sortie : 'Premières observations', jamais une flèche de tendance inventée", async () => {
+    const root = new MemoryDirectoryHandle();
+    const { activity, arrayBuffer } = await loadRealFitActivity();
+    await saveActivity(root, activity, arrayBuffer, "fit");
+
+    render(<ProfileView storage={connectedStorage(root)} onConnect={noop} onReconnect={noop} onBack={noop} />);
+    await waitFor(() => expect(screen.getAllByText("Endurance").length).toBeGreaterThan(0));
+
+    const enduranceCard = getDimensionCard("Endurance");
+    expect(within(enduranceCard).getByText("Premières observations")).toBeTruthy();
+    expect(within(enduranceCard).queryByText(/évolution récente/)).toBeNull();
+  });
+
+  it("plusieurs mois de sorties : affiche une direction qualitative (↗/↘/stable), jamais un pourcentage", async () => {
+    const root = new MemoryDirectoryHandle();
+    const activities = [
+      makeActivity({ id: "m1", date: "2026-04-05T08:00:00Z", movingTime: 3600 }),
+      makeActivity({ id: "m2", date: "2026-05-05T08:00:00Z", movingTime: 5400 }),
+      makeActivity({ id: "m3", date: "2026-06-05T08:00:00Z", movingTime: 7200 }),
+    ];
+    await seed(root, activities);
+
+    render(<ProfileView storage={connectedStorage(root)} onConnect={noop} onReconnect={noop} onBack={noop} />);
+    await waitFor(() => expect(screen.getAllByText("Endurance").length).toBeGreaterThan(0));
+
+    const enduranceCard = getDimensionCard("Endurance");
+    const cardText = enduranceCard.textContent;
+    expect(cardText).not.toMatch(/%/);
+    expect(cardText).toMatch(/évolution récente|stable sur la période observée|Premières observations/);
+  });
+});
+
 describe("ProfileView — erreur de chargement partielle", () => {
   it("reste utilisable et calcule le profil à partir des sorties disponibles si une activité échoue", async () => {
     const root = new MemoryDirectoryHandle();
