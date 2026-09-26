@@ -18,6 +18,10 @@ import { describe, it, expect, afterEach, vi } from "vitest";
 import { render, cleanup, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import GPXAnalyzer from "./GPXAnalyzer.jsx";
 import { stubResizeObserver } from "./components/testResizeObserverMock.js";
+import { __setSupabaseClientForTests } from "./lib/cloud/client.js";
+import { __resetSyncCoordinatorForTests } from "./lib/storage/activityRepository.js";
+import { createFakeSupabaseBackend } from "./lib/cloud/tests/fakeSupabase.js";
+import { listQueuedOperations, clearQueue } from "./lib/storage/syncQueue.js";
 
 stubResizeObserver();
 
@@ -27,7 +31,17 @@ stubResizeObserver();
 // sans dépendre du rendu cartographique, déjà hors du périmètre de ce fichier.
 vi.mock("./components/MapView.jsx", () => ({ MapView: () => null }));
 
-afterEach(cleanup);
+afterEach(async () => {
+  cleanup();
+  // Laisse une "tick" à un repository.sync() encore en vol (Phase 11C,
+  // déclenché automatiquement au login/mount, voir useActivityRepository.js)
+  // pour se terminer contre SON PROPRE backend simulé avant de le neutraliser.
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  vi.unstubAllEnvs();
+  __setSupabaseClientForTests(null);
+  __resetSyncCoordinatorForTests();
+  clearQueue();
+});
 
 describe("Navigation principale — 6 destinations toujours accessibles", () => {
   it("Accueil est l'écran de démarrage", async () => {
@@ -115,6 +129,26 @@ describe("Mode démo — isolation", () => {
     fireEvent.click(screen.getAllByText("Tour")[0]);
     expect(await screen.findByRole("heading", { name: "Tour Simulator", level: 1 })).toBeTruthy();
     expect(screen.queryByText("Sortie de démonstration")).toBeNull();
+  });
+
+  it("(Phase 11C §22) une sortie démo n'est jamais envoyée au cloud, même avec un compte cloud connecté", async () => {
+    vi.stubEnv("VITE_SUPABASE_URL", "https://example.supabase.co");
+    vi.stubEnv("VITE_SUPABASE_ANON_KEY", "test-anon-key");
+    const backend = createFakeSupabaseBackend();
+    __setSupabaseClientForTests(backend.client);
+    await backend.signUpAndLogin("demo-isolation@example.com");
+
+    render(<GPXAnalyzer />);
+    await screen.findByText(/Glissez-déposez votre fichier/);
+    fireEvent.click(screen.getByText(/Voir un exemple avec des données de démonstration/));
+    await screen.findByText("Sortie de démonstration");
+
+    // Laisse le temps à un éventuel appel réseau (il ne devrait jamais y en avoir).
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    const { data: cloudRows } = await backend.client.from("activities").select();
+    expect(cloudRows).toEqual([]);
+    expect(listQueuedOperations()).toEqual([]);
   });
 });
 

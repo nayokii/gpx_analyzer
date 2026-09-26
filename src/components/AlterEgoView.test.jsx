@@ -15,6 +15,10 @@ import { computeProgression } from "../lib/progression/progression.js";
 import { loadProgressionState } from "../lib/progression/persistence.js";
 import { AlterEgoView } from "./AlterEgoView.jsx";
 import { stubResizeObserver } from "./testResizeObserverMock.js";
+import { __setSupabaseClientForTests } from "../lib/cloud/client.js";
+import { __resetSyncCoordinatorForTests } from "../lib/storage/activityRepository.js";
+import { createFakeSupabaseBackend } from "../lib/cloud/tests/fakeSupabase.js";
+import { uploadActivity as cloudUploadActivity } from "../lib/cloud/index.js";
 
 stubResizeObserver();
 
@@ -257,5 +261,32 @@ describe("AlterEgoView — erreur de chargement partielle", () => {
     await waitFor(() => expect(screen.getByText(/n'a pas pu être chargée/)).toBeTruthy());
     await waitFor(() => expect(screen.getByText(/Basé sur 1 sortie/)).toBeTruthy());
     expect(screen.getByText("Challenges")).toBeTruthy();
+  });
+});
+
+describe("AlterEgoView — Phase 11B : pas de double XP pour une sortie synchronisée", () => {
+  afterEach(async () => {
+    // Laisse une "tick" à un repository.sync() encore en vol (Phase 11C,
+    // déclenché automatiquement au login/mount, voir useActivityRepository.js)
+    // pour se terminer contre SON PROPRE backend simulé avant de le neutraliser.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    __setSupabaseClientForTests(null);
+    __resetSyncCoordinatorForTests();
+  });
+
+  it("une même sortie présente localement ET dans le cloud (même id) n'est comptée qu'une seule fois", async () => {
+    const backend = createFakeSupabaseBackend();
+    __setSupabaseClientForTests(backend.client);
+    await backend.signUpAndLogin("both@example.com");
+
+    const root = new MemoryDirectoryHandle();
+    const { activity, arrayBuffer } = await loadRealFitActivity();
+    await saveActivity(root, activity, arrayBuffer, "fit");
+    await cloudUploadActivity({ activity, originalFileContent: arrayBuffer, sourceFormat: "fit" });
+
+    render(<AlterEgoView storage={connectedStorage(root)} onConnect={noop} onReconnect={noop} onBack={noop} />);
+
+    await waitFor(() => expect(screen.getByText(/Basé sur 1 sortie/)).toBeTruthy(), { timeout: 3000 });
+    expect(screen.queryByText(/Basé sur 2 sorties/)).toBeNull();
   });
 });

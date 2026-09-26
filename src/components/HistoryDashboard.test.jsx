@@ -12,6 +12,10 @@ import { computeAnalysis } from "../lib/analysis.js";
 import { toActivity } from "../lib/normalize.js";
 import { HistoryDashboard } from "./HistoryDashboard.jsx";
 import { stubResizeObserver } from "./testResizeObserverMock.js";
+import { __setSupabaseClientForTests } from "../lib/cloud/client.js";
+import { __resetSyncCoordinatorForTests } from "../lib/storage/activityRepository.js";
+import { createFakeSupabaseBackend } from "../lib/cloud/tests/fakeSupabase.js";
+import { uploadActivity as cloudUploadActivity } from "../lib/cloud/index.js";
 
 stubResizeObserver();
 
@@ -262,5 +266,33 @@ describe("HistoryDashboard — fixture FIT réelle (bout-en-bout, aucune donnée
     await waitFor(() => expect(screen.getByText(/Ton historique commence ici/)).toBeTruthy());
     // Une seule vraie activité : pas de records/tendances fabriqués.
     expect(screen.queryByText("Records (toutes vos sorties)")).toBeNull();
+  });
+});
+
+describe("HistoryDashboard — Phase 11B : historique unifié (sortie cloud-only)", () => {
+  afterEach(async () => {
+    // Laisse une "tick" à un repository.sync() encore en vol (Phase 11C,
+    // déclenché automatiquement au login/mount, voir useActivityRepository.js)
+    // pour se terminer contre SON PROPRE backend simulé avant de le neutraliser.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    __setSupabaseClientForTests(null);
+    __resetSyncCoordinatorForTests();
+  });
+
+  it("affiche une sortie disponible uniquement dans le cloud, avec son indicateur ☁", async () => {
+    const backend = createFakeSupabaseBackend();
+    __setSupabaseClientForTests(backend.client);
+    await backend.signUpAndLogin("phone@example.com");
+
+    const arrayBuffer = loadFitFixtureArrayBuffer();
+    const { name, points, measured } = await parseFITArrayBuffer(arrayBuffer);
+    const analysis = computeAnalysis(points, { weight: 75, bikeWeight: 8 });
+    const activity = toActivity(analysis, points, { name, sourceType: "fit", originalFilename: "ride.fit", measured });
+    await cloudUploadActivity({ activity, originalFileContent: arrayBuffer, sourceFormat: "fit" });
+
+    render(<HistoryDashboard storage={{ status: "disconnected", rootHandle: null }} onConnect={noop} onReconnect={noop} onOpen={noop} onBack={noop} />);
+
+    await waitFor(() => expect(screen.getByText(/1 sortie enregistrée/)).toBeTruthy(), { timeout: 3000 });
+    expect(screen.getByTitle(/Disponible dans le cloud/)).toBeTruthy();
   });
 });

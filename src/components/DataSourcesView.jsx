@@ -18,6 +18,7 @@ import { useState, useEffect, useCallback } from "react";
 import { ArrowLeft, RefreshCw, Unplug, CheckCircle2, AlertCircle, Bike } from "lucide-react";
 
 import { StorageSettings } from "./StorageSettings.jsx";
+import { CloudAccountPanel } from "./CloudAccountPanel.jsx";
 import { SectionTitle } from "./UIPrimitives.jsx";
 import { listActivities } from "../lib/storage/activityStore.js";
 import {
@@ -154,6 +155,8 @@ export function DataSourcesView({ storage, onConnect, onReconnect, onDisconnectS
 
         {actionError && <div className="gpx-error-box" style={{ marginTop: 10 }}>{actionError}</div>}
       </div>
+
+      <CloudAccountPanel storage={storage} isDemo={isDemo} />
     </div>
   );
 }

@@ -93,6 +93,17 @@ une petite configuration côté développeur (clé d'API Strava) — voir
 [docs/STRAVA_INTEGRATION.md](docs/STRAVA_INTEGRATION.md) pour le détail
 complet.
 
+## Synchroniser dans le cloud (optionnel)
+
+L'app peut aussi synchroniser tes sorties vers le cloud (Supabase) pour les
+retrouver depuis un autre appareil (ex. ton téléphone), depuis le même écran
+"Sources de données" que Strava. Ça demande une petite configuration côté
+développeur (créer un projet Supabase gratuit, exécuter `supabase/schema.sql`)
+— voir [docs/CLOUD_ARCHITECTURE.md](docs/CLOUD_ARCHITECTURE.md) pour le détail
+complet. Pour l'instant (Phase 11A), une sortie synchronisée reste dans le
+cloud : elle n'apparaît pas encore dans Profil/Alter Ego/Archétype/Tour sur
+l'appareil qui la retrouve — c'est prévu pour une phase suivante.
+
 ## Build de production (optionnel)
 
 Si un jour tu veux un dossier statique déployable (ex: sur un hébergement

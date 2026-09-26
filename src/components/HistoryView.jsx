@@ -15,18 +15,27 @@
  * double état de chargement/erreur affiché à l'écran.
  */
 import { useEffect, useState, useCallback } from "react";
-import { ArrowLeft, Search, Trash2, ExternalLink, History as HistoryIcon } from "lucide-react";
+import { ArrowLeft, Search, Trash2, ExternalLink, History as HistoryIcon, Cloud, CloudOff, WifiOff } from "lucide-react";
 
-import { listActivities, deleteActivity } from "../lib/storage/activityStore.js";
-import { invalidateActivityCache } from "../lib/storage/activityCache.js";
+import { useActivityRepository } from "./useActivityRepository.js";
 import { fmt1, fmtInt, fmtDuration, fmtDateFull } from "../lib/utils.js";
 import { StorageSettings } from "./StorageSettings.jsx";
 
+const SYNC_BADGE = {
+  synced: { icon: Cloud, title: "Synchronisée avec le cloud" },
+  "cloud-only": { icon: Cloud, title: "Disponible dans le cloud (pas encore ouverte sur cet appareil)" },
+  "local-only": { icon: CloudOff, title: "Locale uniquement — pas encore synchronisée" },
+  conflict: { icon: WifiOff, title: "⚠ Deux versions différentes de cette sortie existent (local et cloud) — à résoudre dans Sources de données → Cloud" },
+  "cloud-deleted": { icon: CloudOff, title: "Supprimée du cloud sur un autre appareil — sera retirée d'ici à la prochaine synchronisation" },
+};
+
 export function HistoryView({
-  storage, onConnect, onReconnect, onOpen, onBack, onCompare, children,
-  activities: activitiesProp, error: errorProp, onRefresh,
+  storage, repository: repositoryProp, onConnect, onReconnect, onOpen, onBack, onCompare, children,
+  activities: activitiesProp, error: errorProp, onRefresh, source,
 }) {
   const controlled = activitiesProp !== undefined;
+  const { repository: ownRepository } = useActivityRepository(storage);
+  const repository = repositoryProp || ownRepository;
 
   const [activitiesState, setActivitiesState] = useState(null); // null = chargement
   const [errorState, setErrorState] = useState(null);
@@ -37,18 +46,20 @@ export function HistoryView({
 
   const activities = controlled ? activitiesProp : activitiesState;
   const error = controlled ? errorProp : errorState;
+  const ready = storage.status === "connected" || repository.hasCloud;
 
   const refresh = useCallback(() => {
     if (controlled) {
       onRefresh && onRefresh();
       return;
     }
-    if (storage.status !== "connected" || !storage.rootHandle) return;
+    if (!ready) return;
     setErrorState(null);
-    listActivities(storage.rootHandle)
-      .then((list) => setActivitiesState(list))
+    repository
+      .listActivities()
+      .then(({ items }) => setActivitiesState(items))
       .catch((err) => setErrorState(err.message || "Impossible de lire l'historique."));
-  }, [controlled, onRefresh, storage.status, storage.rootHandle]);
+  }, [controlled, onRefresh, ready, repository]);
 
   useEffect(() => {
     if (!controlled) refresh();
@@ -57,8 +68,7 @@ export function HistoryView({
   async function handleDelete(id, name) {
     if (!window.confirm(`Supprimer définitivement « ${name || "cette sortie"} » (fichier original inclus) ?`)) return;
     try {
-      await deleteActivity(storage.rootHandle, id);
-      invalidateActivityCache(storage.rootHandle, id);
+      await repository.deleteActivity(id);
       setSelectedIds((s) => {
         const next = new Set(s);
         next.delete(id);
@@ -106,9 +116,16 @@ export function HistoryView({
         <StorageSettings storage={storage} onConnect={onConnect} onReconnect={onReconnect} />
       </div>
 
-      {storage.status === "connected" && children}
+      {ready && source === "offline" && (
+        <div className="gpx-storage-box gpx-storage-warn">
+          <WifiOff size={14} />
+          <span>Hors connexion — données locales utilisées (le cloud sera revérifié à la prochaine ouverture).</span>
+        </div>
+      )}
 
-      {storage.status === "connected" && (
+      {ready && children}
+
+      {ready && (
         <div className="gpx-panel">
           <div className="gpx-history-toolbar">
             <div className="gpx-history-search">
@@ -159,6 +176,12 @@ export function HistoryView({
                         {a.name || "Sortie vélo"}
                         {a.source && a.source.type === "strava" && (
                           <span className="gpx-source-badge-strava" title="Importée depuis Strava">Strava</span>
+                        )}
+                        {a.syncStatus && SYNC_BADGE[a.syncStatus] && (
+                          (() => {
+                            const { icon: Icon, title } = SYNC_BADGE[a.syncStatus];
+                            return <Icon size={12} className="gpx-sync-badge" style={{ marginLeft: 6, verticalAlign: "-2px" }} title={title} />;
+                          })()
                         )}
                       </td>
                       <td>{fmt1(a.distance)} km</td>

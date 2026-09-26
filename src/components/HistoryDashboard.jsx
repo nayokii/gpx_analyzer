@@ -32,8 +32,7 @@ import {
 
 import { HistoryView } from "./HistoryView.jsx";
 import { SectionTitle, StatCard } from "./UIPrimitives.jsx";
-import { listActivities } from "../lib/storage/activityStore.js";
-import { getCachedActivityDetail } from "../lib/storage/activityCache.js";
+import { useActivityRepository } from "./useActivityRepository.js";
 import { computeHistoryAnalytics, filterActivitiesByPeriod } from "../lib/history/historyAnalytics.js";
 import { buildTimeSeries, computeTrend } from "../lib/history/trends.js";
 import { compareActivities } from "../lib/history/comparisons.js";
@@ -250,7 +249,7 @@ function RecordsSection({ records, onOpen }) {
 /* Parcours répétés (chargement complet à la demande uniquement)       */
 /* ------------------------------------------------------------------ */
 
-function SimilarRoutesSection({ activities, rootHandle }) {
+function SimilarRoutesSection({ activities, repository }) {
   const [groups, setGroups] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -261,7 +260,7 @@ function SimilarRoutesSection({ activities, rootHandle }) {
     setLoading(true);
     setError(null);
     try {
-      const full = await Promise.all(activities.map((a) => getCachedActivityDetail(rootHandle, a.id)));
+      const full = await Promise.all(activities.map((a) => repository.loadActivityDetail(a.id)));
       setGroups(groupActivitiesByRoute(full));
     } catch (err) {
       setError(err.message || "Impossible de charger le détail de ces sorties.");
@@ -474,10 +473,13 @@ function ComparisonContent({ cmp }) {
  * @param {Function} props.onBack
  * @param {number} [props.ftp] - Pour les zones de puissance en comparaison
  * @param {number} [props.maxHR] - Pour les zones de FC en comparaison
+ * @param {Object} [props.userSettings] - {weight, bikeWeight, ftp} (voir consigne §13 Phase 11B)
  */
-export function HistoryDashboard({ storage, onConnect, onReconnect, onOpen, onBack, ftp, maxHR }) {
+export function HistoryDashboard({ storage, onConnect, onReconnect, onOpen, onBack, ftp, maxHR, userSettings }) {
+  const { repository } = useActivityRepository(storage, userSettings);
   const [activities, setActivities] = useState(null);
   const [error, setError] = useState(null);
+  const [source, setSource] = useState(null);
 
   const [period, setPeriod] = useState("30d");
   const [customFrom, setCustomFrom] = useState("");
@@ -488,13 +490,18 @@ export function HistoryDashboard({ storage, onConnect, onReconnect, onOpen, onBa
   const [compareLoading, setCompareLoading] = useState(false);
   const [compareError, setCompareError] = useState(null);
 
+  // Prête dès qu'une source d'activités existe (local OU cloud) — voir
+  // ProfileView.jsx pour la même logique et sa justification (Phase 11B §2).
+  const ready = storage.status === "connected" || repository.hasCloud;
+
   const refresh = useCallback(() => {
-    if (storage.status !== "connected" || !storage.rootHandle) return;
+    if (!ready) return; // ne renvoie jamais "0 sortie" tant qu'aucune source n'est connectée (voir HistoryView.jsx, même garde)
     setError(null);
-    listActivities(storage.rootHandle)
-      .then(setActivities)
+    repository
+      .listActivities()
+      .then(({ items, source: src }) => { setActivities(items); setSource(src); })
       .catch((err) => setError(err.message || "Impossible de lire l'historique."));
-  }, [storage.status, storage.rootHandle]);
+  }, [repository, ready]);
 
   useEffect(() => { refresh(); }, [refresh]);
 
@@ -527,7 +534,7 @@ export function HistoryDashboard({ storage, onConnect, onReconnect, onOpen, onBa
     setCompareError(null);
     setCompareLoading(true);
     try {
-      const [a, b] = await Promise.all(ids.map((id) => getCachedActivityDetail(storage.rootHandle, id)));
+      const [a, b] = await Promise.all(ids.map((id) => repository.loadActivityDetail(id)));
       const cmp = compareActivities(a, b, { ftp, maxHR });
       setCompareResult({ a, b, cmp });
     } catch (err) {
@@ -535,7 +542,7 @@ export function HistoryDashboard({ storage, onConnect, onReconnect, onOpen, onBa
     } finally {
       setCompareLoading(false);
     }
-  }, [storage.rootHandle, ftp, maxHR]);
+  }, [repository, ftp, maxHR]);
 
   function closeComparison() {
     setCompareIds(null);
@@ -551,8 +558,8 @@ export function HistoryDashboard({ storage, onConnect, onReconnect, onOpen, onBa
 
   return (
     <HistoryView
-      storage={storage} onConnect={onConnect} onReconnect={onReconnect} onOpen={onOpen} onBack={onBack}
-      onCompare={handleCompare} activities={activities} error={error} onRefresh={refresh}
+      storage={storage} repository={repository} onConnect={onConnect} onReconnect={onReconnect} onOpen={onOpen} onBack={onBack}
+      onCompare={handleCompare} activities={activities} error={error} onRefresh={refresh} source={source}
     >
       {hasData && (
         <>
@@ -584,7 +591,7 @@ export function HistoryDashboard({ storage, onConnect, onReconnect, onOpen, onBa
                 </>
               )}
               <RecordsSection records={records} onOpen={onOpen} />
-              <SimilarRoutesSection activities={activities} rootHandle={storage.rootHandle} />
+              <SimilarRoutesSection activities={activities} repository={repository} />
             </>
           )}
         </>

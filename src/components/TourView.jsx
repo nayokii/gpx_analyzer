@@ -48,8 +48,7 @@ import {
 
 import { StorageSettings } from "./StorageSettings.jsx";
 import { SectionTitle } from "./UIPrimitives.jsx";
-import { listActivities } from "../lib/storage/activityStore.js";
-import { loadCachedActivityDetails } from "../lib/storage/activityCache.js";
+import { useActivityRepository, useUnifiedActivities } from "./useActivityRepository.js";
 import { getCachedProfile } from "../lib/derivedCache.js";
 import { ARCHETYPE_DIMENSIONS } from "../lib/archetypes/archetypes.js";
 import { simulateTour, createGenericTour, getStageTypeProfile, categorizeAffinity } from "../lib/simulator/index.js";
@@ -451,39 +450,20 @@ function TourFinishedSection({ stageCount, overall, onReplay, onViewProfile }) {
  * @param {Function} props.onReconnect
  * @param {Function} props.onBack
  * @param {Function} props.onViewProfile - navigue vers la vue Profil
+ * @param {Object} [props.userSettings] - {weight, bikeWeight, ftp} (voir consigne §13 Phase 11B)
  */
-export function TourView({ storage, onConnect, onReconnect, onBack, onViewProfile }) {
-  const [summaries, setSummaries] = useState(null);
-  const [summariesError, setSummariesError] = useState(null);
-  const [fullActivities, setFullActivities] = useState(null);
-  const [failedCount, setFailedCount] = useState(0);
+export function TourView({ storage, onConnect, onReconnect, onBack, onViewProfile, userSettings }) {
+  const { repository } = useActivityRepository(storage, userSettings);
+  const { summaries, summariesError, fullActivities, failedCount } = useUnifiedActivities(repository, { max: MAX_TOUR_ACTIVITIES });
   const [tourState, setTourState] = useState(null); // null = simulation pas encore commencée
 
-  const refresh = useCallback(() => {
-    if (storage.status !== "connected" || !storage.rootHandle) return;
-    setSummariesError(null);
-    setSummaries(null);
-    setFullActivities(null);
-    setFailedCount(0);
-    setTourState(null);
-    listActivities(storage.rootHandle)
-      .then(setSummaries)
-      .catch((err) => setSummariesError(err.message || "Impossible de lire l'historique."));
-  }, [storage.status, storage.rootHandle]);
+  // Prête dès qu'une source d'activités existe (local OU cloud) — voir
+  // ProfileView.jsx pour la même logique et sa justification (Phase 11B §2).
+  const ready = storage.status === "connected" || repository.hasCloud;
 
-  useEffect(() => { refresh(); }, [refresh]);
-
-  useEffect(() => {
-    if (!summaries || summaries.length === 0 || !storage.rootHandle) return;
-    let cancelled = false;
-    const toLoad = summaries.slice(0, MAX_TOUR_ACTIVITIES);
-    loadCachedActivityDetails(storage.rootHandle, toLoad).then((results) => {
-      if (cancelled) return;
-      setFullActivities(results.filter((r) => r.status === "fulfilled").map((r) => r.value));
-      setFailedCount(results.filter((r) => r.status === "rejected").length);
-    });
-    return () => { cancelled = true; };
-  }, [summaries, storage.rootHandle]);
+  // Une simulation en cours n'a plus de sens si l'historique change de source
+  // (ex. connexion/déconnexion cloud) — mêmes conditions que l'ancien refresh().
+  useEffect(() => { setTourState(null); }, [repository]);
 
   // Profil réutilisé tel quel (voir derivedCache.js) — jamais recalculé à
   // partir des samples ici (voir consigne §3/§18).
@@ -513,7 +493,7 @@ export function TourView({ storage, onConnect, onReconnect, onBack, onViewProfil
           <div className="gpx-ride-meta">
             {profile ? (
               <span>Basé sur {profile.activityCount} sortie{profile.activityCount > 1 ? "s" : ""}</span>
-            ) : storage.status === "connected" ? (
+            ) : ready ? (
               <span>{summaries ? "Analyse de ton historique…" : "Chargement…"}</span>
             ) : null}
           </div>
@@ -527,7 +507,7 @@ export function TourView({ storage, onConnect, onReconnect, onBack, onViewProfil
         <StorageSettings storage={storage} onConnect={onConnect} onReconnect={onReconnect} />
       </div>
 
-      {storage.status === "connected" && (
+      {ready && (
         <>
           {summariesError && <div className="gpx-error-box" style={{ marginBottom: 14 }}>{summariesError}</div>}
 

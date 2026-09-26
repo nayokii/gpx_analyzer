@@ -30,7 +30,7 @@
  *   que AlterEgoView.jsx/ArchetypeView.jsx, qui recalculent le même profil
  *   sur le même historique, réutilisent ce résultat plutôt que de le refaire.
  */
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useMemo } from "react";
 import {
   ArrowLeft, Info, TrendingUp, Mountain, Zap, Flame, Gauge, Repeat, Bike, Timer, AlertTriangle,
 } from "lucide-react";
@@ -40,8 +40,7 @@ import {
 
 import { StorageSettings } from "./StorageSettings.jsx";
 import { SectionTitle } from "./UIPrimitives.jsx";
-import { listActivities } from "../lib/storage/activityStore.js";
-import { loadCachedActivityDetails } from "../lib/storage/activityCache.js";
+import { useActivityRepository, useUnifiedActivities } from "./useActivityRepository.js";
 import { getCachedProfile, getCachedProfileTimeline } from "../lib/derivedCache.js";
 import { confidenceLabel } from "../lib/profile/confidence.js";
 import { summarizeDimensionTrend } from "../lib/profile/trend.js";
@@ -381,42 +380,19 @@ function AboutSection() {
  * @param {Function} props.onReconnect
  * @param {Function} [props.onOpen] - Ouvre une activité par id depuis une preuve (optionnel)
  * @param {Function} props.onBack
+ * @param {Object} [props.userSettings] - {weight, bikeWeight, ftp} (voir consigne §13 Phase 11B : nécessaire pour matérialiser une sortie cloud-only)
  */
-export function ProfileView({ storage, onConnect, onReconnect, onOpen, onBack }) {
-  const [summaries, setSummaries] = useState(null); // null = chargement, [] = historique vide
-  const [summariesError, setSummariesError] = useState(null);
-  const [fullActivities, setFullActivities] = useState(null); // null = détail pas encore chargé
-  const [failedCount, setFailedCount] = useState(0);
+export function ProfileView({ storage, onConnect, onReconnect, onOpen, onBack, userSettings }) {
+  const { repository } = useActivityRepository(storage, userSettings);
+  const { summaries, summariesError, fullActivities, failedCount } = useUnifiedActivities(repository, { max: MAX_PROFILE_ACTIVITIES });
   const [selectedDimension, setSelectedDimension] = useState("endurance");
 
-  const refresh = useCallback(() => {
-    if (storage.status !== "connected" || !storage.rootHandle) return;
-    setSummariesError(null);
-    setSummaries(null);
-    setFullActivities(null);
-    setFailedCount(0);
-    listActivities(storage.rootHandle)
-      .then(setSummaries)
-      .catch((err) => setSummariesError(err.message || "Impossible de lire l'historique."));
-  }, [storage.status, storage.rootHandle]);
-
-  useEffect(() => { refresh(); }, [refresh]);
-
-  // Deuxième étage de chargement : détail complet des sorties (nécessaire
-  // pour la plupart des dimensions), uniquement une fois l'index connu et
-  // non vide. Ne se redéclenche pas tant que `summaries` (même référence, un
-  // seul appel à listActivities par refresh) ne change pas.
-  useEffect(() => {
-    if (!summaries || summaries.length === 0 || !storage.rootHandle) return;
-    let cancelled = false;
-    const toLoad = summaries.slice(0, MAX_PROFILE_ACTIVITIES);
-    loadCachedActivityDetails(storage.rootHandle, toLoad).then((results) => {
-      if (cancelled) return;
-      setFullActivities(results.filter((r) => r.status === "fulfilled").map((r) => r.value));
-      setFailedCount(results.filter((r) => r.status === "rejected").length);
-    });
-    return () => { cancelled = true; };
-  }, [summaries, storage.rootHandle]);
+  // Prête dès qu'une SOURCE d'activités existe — dossier local connecté OU
+  // compte cloud connecté (voir consigne Phase 11B §2 : l'appli ne doit plus
+  // avoir besoin de savoir "local ou cloud" ; un téléphone sans dossier local
+  // — File System Access API indisponible sur la plupart des navigateurs
+  // mobiles — doit pouvoir utiliser Profil via le seul compte cloud).
+  const ready = storage.status === "connected" || repository.hasCloud;
 
   const profile = useMemo(() => (fullActivities ? getCachedProfile(fullActivities) : null), [fullActivities]);
   const timeline = useMemo(() => (fullActivities ? getCachedProfileTimeline(fullActivities) : []), [fullActivities]);
@@ -443,7 +419,7 @@ export function ProfileView({ storage, onConnect, onReconnect, onOpen, onBack })
                 </span>
                 <span>Dernière mise à jour : {fmtDateFull(new Date(profile.generatedAt))}</span>
               </>
-            ) : storage.status === "connected" ? (
+            ) : ready ? (
               <span>{summaries ? "Analyse de ton historique…" : "Chargement…"}</span>
             ) : null}
           </div>
@@ -457,7 +433,7 @@ export function ProfileView({ storage, onConnect, onReconnect, onOpen, onBack })
         <StorageSettings storage={storage} onConnect={onConnect} onReconnect={onReconnect} />
       </div>
 
-      {storage.status === "connected" && (
+      {ready && (
         <>
           {summariesError && <div className="gpx-error-box" style={{ marginBottom: 14 }}>{summariesError}</div>}
 

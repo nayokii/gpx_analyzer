@@ -8,11 +8,16 @@ import { MemoryDirectoryHandle } from "../lib/storage/testFsHandle.js";
 import { saveActivity } from "../lib/storage/activityStore.js";
 import { createEmptyActivity } from "../lib/types.js";
 import { parseFITArrayBuffer } from "../lib/parsers/fitParser.js";
+import { parseGPXString } from "../lib/parsers/gpxParser.js";
 import { computeAnalysis } from "../lib/analysis.js";
 import { toActivity } from "../lib/normalize.js";
 import { computeCyclistProfile } from "../lib/profile/profile.js";
 import { ProfileView } from "./ProfileView.jsx";
 import { stubResizeObserver } from "./testResizeObserverMock.js";
+import { __setSupabaseClientForTests } from "../lib/cloud/client.js";
+import { createActivityRepository, __resetSyncCoordinatorForTests } from "../lib/storage/activityRepository.js";
+import { createFakeSupabaseBackend } from "../lib/cloud/tests/fakeSupabase.js";
+import { uploadActivity as cloudUploadActivity } from "../lib/cloud/index.js";
 
 stubResizeObserver();
 
@@ -390,5 +395,61 @@ describe("ProfileView — erreur de chargement partielle", () => {
     // Le profil reste calculé et affiché malgré l'échec partiel.
     await waitFor(() => expect(screen.getByText(/Analyse basée sur 1 sortie/)).toBeTruthy());
     expect(screen.getByText("Dimensions")).toBeTruthy();
+  });
+});
+
+describe("ProfileView — Phase 11B : utilise les activités cloud", () => {
+  afterEach(async () => {
+    // Laisse une "tick" à un repository.sync() encore en vol (Phase 11C,
+    // déclenché automatiquement au login/mount, voir useActivityRepository.js)
+    // pour se terminer contre SON PROPRE backend simulé avant de le neutraliser.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    __setSupabaseClientForTests(null);
+    __resetSyncCoordinatorForTests();
+  });
+
+  it("calcule le profil à partir d'une sortie disponible uniquement dans le cloud (aucun dossier local connecté)", async () => {
+    const backend = createFakeSupabaseBackend();
+    __setSupabaseClientForTests(backend.client);
+    await backend.signUpAndLogin("phone@example.com");
+
+    const { activity, arrayBuffer } = await loadRealFitActivity();
+    await cloudUploadActivity({ activity, originalFileContent: arrayBuffer, sourceFormat: "fit" });
+    const expected = computeCyclistProfile([activity]);
+
+    render(<ProfileView storage={{ status: "disconnected", rootHandle: null }} onConnect={noop} onReconnect={noop} onBack={noop} />);
+
+    await waitFor(() => expect(screen.getByText(/Analyse basée sur 1 sortie/)).toBeTruthy(), { timeout: 3000 });
+    const enduranceCard = getDimensionCard("Endurance");
+    expect(within(enduranceCard).getByText(String(expected.dimensions.endurance.value))).toBeTruthy();
+  });
+
+  it("(Phase 11C §11/§12) se rafraîchit automatiquement quand une synchronisation déclenchée AILLEURS ajoute une sortie", async () => {
+    const backend = createFakeSupabaseBackend();
+    __setSupabaseClientForTests(backend.client);
+    const user = await backend.signUpAndLogin("auto-refresh@example.com");
+
+    const { activity, arrayBuffer } = await loadRealFitActivity();
+    await cloudUploadActivity({ activity, originalFileContent: arrayBuffer, sourceFormat: "fit" });
+
+    render(<ProfileView storage={{ status: "disconnected", rootHandle: null }} onConnect={noop} onReconnect={noop} onBack={noop} />);
+    await waitFor(() => expect(screen.getByText(/Analyse basée sur 1 sortie/)).toBeTruthy(), { timeout: 3000 });
+
+    // Une seconde sortie arrive dans le cloud (simule un autre appareil), puis
+    // une synchronisation déclenchée par un repository INDÉPENDANT (jamais
+    // celui de ce composant) — voir onSyncCompleted() dans activityRepository.js :
+    // la notification est module-level, ProfileView doit se rafraîchir seul.
+    const secondGpx = `<?xml version="1.0"?><gpx><trk><name>seconde</name><trkseg>
+<trkpt lat="46.0000" lon="6.0000"><ele>400</ele><time>2026-09-21T08:00:00Z</time></trkpt>
+<trkpt lat="46.0100" lon="6.0100"><ele>420</ele><time>2026-09-21T08:30:00Z</time></trkpt>
+</trkseg></trk></gpx>`;
+    const { points } = parseGPXString(secondGpx);
+    const secondActivity = toActivity(computeAnalysis(points, null), points, { id: "second", name: "seconde", sourceType: "gpx", originalFilename: "second.gpx" });
+    await cloudUploadActivity({ activity: secondActivity, originalFileContent: secondGpx, sourceFormat: "gpx" });
+
+    const otherDeviceRepo = createActivityRepository({ rootHandle: null, cloudUser: user });
+    await otherDeviceRepo.sync({ force: true });
+
+    await waitFor(() => expect(screen.getByText(/Analyse basée sur 2 sorties/)).toBeTruthy(), { timeout: 3000 });
   });
 });

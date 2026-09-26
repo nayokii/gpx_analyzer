@@ -8,6 +8,7 @@ import { MemoryDirectoryHandle } from "../lib/storage/testFsHandle.js";
 import { saveActivity } from "../lib/storage/activityStore.js";
 import { createEmptyActivity } from "../lib/types.js";
 import { parseFITArrayBuffer } from "../lib/parsers/fitParser.js";
+import { parseGPXString } from "../lib/parsers/gpxParser.js";
 import { computeAnalysis } from "../lib/analysis.js";
 import { toActivity } from "../lib/normalize.js";
 import { computeCyclistProfile } from "../lib/profile/profile.js";
@@ -15,6 +16,10 @@ import { ARCHETYPE_DIMENSIONS } from "../lib/archetypes/archetypes.js";
 import { simulateTour, createGenericTour, getStageTypeProfile } from "../lib/simulator/index.js";
 import { TourView } from "./TourView.jsx";
 import { stubResizeObserver } from "./testResizeObserverMock.js";
+import { __setSupabaseClientForTests } from "../lib/cloud/client.js";
+import { __resetSyncCoordinatorForTests } from "../lib/storage/activityRepository.js";
+import { createFakeSupabaseBackend } from "../lib/cloud/tests/fakeSupabase.js";
+import { uploadActivity as cloudUploadActivity } from "../lib/cloud/index.js";
 
 stubResizeObserver();
 
@@ -33,6 +38,19 @@ const DIMENSION_LABELS = {
 function loadFitFixtureArrayBuffer() {
   const buf = fs.readFileSync(FIXTURE_PATH);
   return buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);
+}
+
+/** GPX minimal mais réellement parsable (voir ../lib/parsers/gpxParser.js) — sert de second fichier, distinct de la fixture FIT, pour éviter toute collision de hash côté cloud. */
+function minimalGpxActivity(id, dateIso) {
+  const gpx = `<?xml version="1.0"?><gpx><trk><name>${id}</name><trkseg>
+<trkpt lat="45.1000" lon="5.1000"><ele>300</ele><time>${dateIso}</time></trkpt>
+<trkpt lat="45.1050" lon="5.1050"><ele>340</ele><time>2026-09-13T08:20:00Z</time></trkpt>
+</trkseg></trk></gpx>`;
+  const { name, points } = parseGPXString(gpx);
+  const analysis = computeAnalysis(points, { weight: 75, bikeWeight: 8 });
+  const activity = toActivity(analysis, points, { id, name, sourceType: "gpx", originalFilename: `${id}.gpx`, date: dateIso });
+  activity.date = dateIso;
+  return { activity, gpxContent: gpx };
 }
 
 async function loadRealFitActivity(idOverride, dateOverride) {
@@ -354,5 +372,32 @@ describe("TourView — structure responsive", () => {
     }
     // Les actions de fin de Tour utilisent une rangée flex qui wrap, jamais un débordement horizontal figé.
     expect(document.querySelector(".gpx-tour-finish-actions")).toBeTruthy();
+  });
+});
+
+describe("TourView — Phase 11B : profil cloud utilisable (aucun dossier local connecté)", () => {
+  afterEach(async () => {
+    // Laisse une "tick" à un repository.sync() encore en vol (Phase 11C,
+    // déclenché automatiquement au login/mount, voir useActivityRepository.js)
+    // pour se terminer contre SON PROPRE backend simulé avant de le neutraliser.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    __setSupabaseClientForTests(null);
+    __resetSyncCoordinatorForTests();
+  });
+
+  it("dépasse le cold start et affiche le Tour à partir de deux sorties disponibles uniquement dans le cloud", async () => {
+    const backend = createFakeSupabaseBackend();
+    __setSupabaseClientForTests(backend.client);
+    await backend.signUpAndLogin("phone@example.com");
+
+    const { activity: a1, arrayBuffer } = await loadRealFitActivity("fit-1", "2026-09-20T08:00:00.000Z");
+    const { activity: a2, gpxContent } = minimalGpxActivity("gpx-2", "2026-09-13T08:00:00.000Z");
+    await cloudUploadActivity({ activity: a1, originalFileContent: arrayBuffer, sourceFormat: "fit" });
+    await cloudUploadActivity({ activity: a2, originalFileContent: gpxContent, sourceFormat: "gpx" });
+
+    render(<TourView storage={{ status: "disconnected", rootHandle: null }} onConnect={noop} onReconnect={noop} onViewProfile={noop} onBack={noop} />);
+
+    await waitFor(() => expect(screen.getByText(/Basé sur 2 sorties/)).toBeTruthy(), { timeout: 3000 });
+    expect(screen.getByText("Commencer")).toBeTruthy();
   });
 });

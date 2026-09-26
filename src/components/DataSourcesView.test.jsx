@@ -17,10 +17,12 @@ function connectedStorage(rootHandle) {
 }
 
 describe("DataSourcesView — isolation démo", () => {
-  it("n'affiche aucune action Strava en mode démo, quel que soit l'état du stockage", () => {
+  it("n'affiche aucune action Strava ni Cloud en mode démo, quel que soit l'état du stockage", () => {
     render(<DataSourcesView storage={connectedStorage(new MemoryDirectoryHandle())} isDemo onBack={() => {}} />);
-    expect(screen.getByText(/Indisponible en mode démo/)).toBeTruthy();
+    // Un message "Indisponible en mode démo" par source (Strava et Cloud, voir CloudAccountPanel.jsx).
+    expect(screen.getAllByText(/Indisponible en mode démo/)).toHaveLength(2);
     expect(screen.queryByText("Connecter Strava")).toBeNull();
+    expect(screen.queryByText("Créer un compte")).toBeNull();
   });
 });
 

@@ -11,15 +11,14 @@
  * l'atteindre : cette vue ne lit jamais l'activité "ouverte" dans le
  * dashboard, seulement l'historique persisté du dossier connecté.
  */
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useMemo } from "react";
 import {
   ArrowLeft, Info, Fingerprint, Users, TrendingUp, AlertTriangle, ExternalLink, ChevronDown, ChevronUp,
 } from "lucide-react";
 
 import { StorageSettings } from "./StorageSettings.jsx";
 import { SectionTitle } from "./UIPrimitives.jsx";
-import { listActivities } from "../lib/storage/activityStore.js";
-import { loadCachedActivityDetails } from "../lib/storage/activityCache.js";
+import { useActivityRepository, useUnifiedActivities } from "./useActivityRepository.js";
 import { getCachedProfile, getCachedArchetypeMatch, getCachedReferenceRiders, getCachedArchetypeTimeline } from "../lib/derivedCache.js";
 import { ARCHETYPE_DIMENSIONS } from "../lib/archetypes/archetypes.js";
 
@@ -308,37 +307,15 @@ function EvolutionSection({ timeline }) {
  * @param {Function} props.onConnect
  * @param {Function} props.onReconnect
  * @param {Function} props.onBack
+ * @param {Object} [props.userSettings] - {weight, bikeWeight, ftp} (voir consigne §13 Phase 11B)
  */
-export function ArchetypeView({ storage, onConnect, onReconnect, onBack }) {
-  const [summaries, setSummaries] = useState(null);
-  const [summariesError, setSummariesError] = useState(null);
-  const [fullActivities, setFullActivities] = useState(null);
-  const [failedCount, setFailedCount] = useState(0);
+export function ArchetypeView({ storage, onConnect, onReconnect, onBack, userSettings }) {
+  const { repository } = useActivityRepository(storage, userSettings);
+  const { summaries, summariesError, fullActivities, failedCount } = useUnifiedActivities(repository, { max: MAX_ARCHETYPE_ACTIVITIES });
 
-  const refresh = useCallback(() => {
-    if (storage.status !== "connected" || !storage.rootHandle) return;
-    setSummariesError(null);
-    setSummaries(null);
-    setFullActivities(null);
-    setFailedCount(0);
-    listActivities(storage.rootHandle)
-      .then(setSummaries)
-      .catch((err) => setSummariesError(err.message || "Impossible de lire l'historique."));
-  }, [storage.status, storage.rootHandle]);
-
-  useEffect(() => { refresh(); }, [refresh]);
-
-  useEffect(() => {
-    if (!summaries || summaries.length === 0 || !storage.rootHandle) return;
-    let cancelled = false;
-    const toLoad = summaries.slice(0, MAX_ARCHETYPE_ACTIVITIES);
-    loadCachedActivityDetails(storage.rootHandle, toLoad).then((results) => {
-      if (cancelled) return;
-      setFullActivities(results.filter((r) => r.status === "fulfilled").map((r) => r.value));
-      setFailedCount(results.filter((r) => r.status === "rejected").length);
-    });
-    return () => { cancelled = true; };
-  }, [summaries, storage.rootHandle]);
+  // Prête dès qu'une source d'activités existe (local OU cloud) — voir
+  // ProfileView.jsx pour la même logique et sa justification (Phase 11B §2).
+  const ready = storage.status === "connected" || repository.hasCloud;
 
   const profile = useMemo(() => (fullActivities ? getCachedProfile(fullActivities) : null), [fullActivities]);
   const match = useMemo(() => (profile ? getCachedArchetypeMatch(profile) : null), [profile]);
@@ -360,7 +337,7 @@ export function ArchetypeView({ storage, onConnect, onReconnect, onBack }) {
           <div className="gpx-ride-meta">
             {profile ? (
               <span>Basé sur {profile.activityCount} sortie{profile.activityCount > 1 ? "s" : ""}</span>
-            ) : storage.status === "connected" ? (
+            ) : ready ? (
               <span>{summaries ? "Analyse de ton historique…" : "Chargement…"}</span>
             ) : null}
           </div>
@@ -374,7 +351,7 @@ export function ArchetypeView({ storage, onConnect, onReconnect, onBack }) {
         <StorageSettings storage={storage} onConnect={onConnect} onReconnect={onReconnect} />
       </div>
 
-      {storage.status === "connected" && (
+      {ready && (
         <>
           {summariesError && <div className="gpx-error-box" style={{ marginBottom: 14 }}>{summariesError}</div>}
 

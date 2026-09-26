@@ -14,6 +14,10 @@ import { computeCyclistProfile } from "../lib/profile/profile.js";
 import { matchArchetypes, matchReferenceRiders } from "../lib/archetypes/matching.js";
 import { ArchetypeView } from "./ArchetypeView.jsx";
 import { stubResizeObserver } from "./testResizeObserverMock.js";
+import { __setSupabaseClientForTests } from "../lib/cloud/client.js";
+import { __resetSyncCoordinatorForTests } from "../lib/storage/activityRepository.js";
+import { createFakeSupabaseBackend } from "../lib/cloud/tests/fakeSupabase.js";
+import { uploadActivity as cloudUploadActivity } from "../lib/cloud/index.js";
 
 stubResizeObserver();
 
@@ -265,6 +269,31 @@ describe("ArchetypeView — erreur de chargement partielle", () => {
     render(<ArchetypeView storage={connectedStorage(root)} onConnect={noop} onReconnect={noop} onBack={noop} />);
     await waitFor(() => expect(screen.getByText(/n'a pas pu être chargée/)).toBeTruthy());
     await waitFor(() => expect(screen.getByText(/Basé sur 1 sortie/)).toBeTruthy());
+    expect(screen.getByText("Ton profil cycliste")).toBeTruthy();
+  });
+});
+
+describe("ArchetypeView — Phase 11B : profil basé sur l'historique unifié (local + cloud)", () => {
+  afterEach(async () => {
+    // Laisse une "tick" à un repository.sync() encore en vol (Phase 11C,
+    // déclenché automatiquement au login/mount, voir useActivityRepository.js)
+    // pour se terminer contre SON PROPRE backend simulé avant de le neutraliser.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    __setSupabaseClientForTests(null);
+    __resetSyncCoordinatorForTests();
+  });
+
+  it("calcule l'archétype à partir d'une sortie disponible uniquement dans le cloud", async () => {
+    const backend = createFakeSupabaseBackend();
+    __setSupabaseClientForTests(backend.client);
+    await backend.signUpAndLogin("phone@example.com");
+
+    const { activity, arrayBuffer } = await loadRealFitActivity();
+    await cloudUploadActivity({ activity, originalFileContent: arrayBuffer, sourceFormat: "fit" });
+
+    render(<ArchetypeView storage={{ status: "disconnected", rootHandle: null }} onConnect={noop} onReconnect={noop} onBack={noop} />);
+
+    await waitFor(() => expect(screen.getByText(/Basé sur 1 sortie/)).toBeTruthy(), { timeout: 3000 });
     expect(screen.getByText("Ton profil cycliste")).toBeTruthy();
   });
 });

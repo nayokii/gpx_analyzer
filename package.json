@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@garmin/fitsdk": "^21.214.0",
+    "@supabase/supabase-js": "^2.117.1",
     "leaflet": "^1.9.4",
     "lucide-react": "^0.383.0",
     "maplibre-gl": "^6.10.0",

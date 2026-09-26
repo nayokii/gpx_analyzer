@@ -7,9 +7,11 @@
   functions = "netlify/functions"
 
 # Pin Node.js version so builds stay reproducible across deploys.
-# Vite 5 requires Node 18+ ; Netlify 20 is fully compatible.
+# Vite 5 requires Node 18+. Bumped 20 -> 22 in Phase 11A: Node 20 reached
+# end-of-life in April 2026, and @supabase/supabase-js dropped Node 20
+# support starting at v2.110.0 (see docs/CLOUD_ARCHITECTURE.md).
 [build.environment]
-  NODE_VERSION = "20"
+  NODE_VERSION = "22"
 
 # Single-page application: any unknown URL falls back to index.html
 # so that deep links / reloads do not 404.

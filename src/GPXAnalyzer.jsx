@@ -45,6 +45,7 @@ import { TourView } from "./components/TourView.jsx";
 import { AppNav } from "./components/AppNav.jsx";
 import { HomeView } from "./components/HomeView.jsx";
 import { DataSourcesView } from "./components/DataSourcesView.jsx";
+import { useActivityRepository } from "./components/useActivityRepository.js";
 
 // Stockage local durable (Phase 2)
 import { toActivity } from "./lib/normalize.js";
@@ -128,6 +129,13 @@ export default function GPXAnalyzer() {
   });
 
   const fileInputRef = useRef(null);
+
+  // Repository unifié local+cloud (Phase 11B) — voir
+  // ./components/useActivityRepository.js et ./lib/storage/activityRepository.js.
+  // Utilisé ici pour l'import (loadFile) et la réouverture d'une sortie
+  // depuis l'historique (openActivityFromHistory), qui doivent tous deux
+  // fonctionner qu'une sortie soit locale ou cloud-only.
+  const { repository, cloudUser } = useActivityRepository(storage, userSettings);
 
   // Sauvegarder les paramètres quand ils changent
   useEffect(() => {
@@ -435,56 +443,103 @@ export default function GPXAnalyzer() {
     setSelectedClimb(null);
 
     // Sauvegarde automatique et durable (fichier original + version normalisée),
-    // uniquement si un dossier de stockage local est connecté.
+    // uniquement si un dossier de stockage local est connecté. Le repository
+    // (voir lib/storage/activityRepository.js) se charge en plus, si un
+    // compte cloud est connecté, d'envoyer la sortie dans le cloud — jamais
+    // au prix de la sauvegarde locale, qui reste la première garantie (voir
+    // consigne Phase 11B §19 : "NE PAS perdre la sortie locale").
+    //
+    // La sauvegarde locale est attendue (rapide, disque), mais l'upload cloud
+    // NE L'EST PAS (voir consigne Phase 11C §10 : "l'import ne doit pas être
+    // rendu inutilement lent par le réseau") — `cloudSyncPromise` se résout en
+    // arrière-plan, et met à jour le message affiché une fois le résultat connu.
     if (storage.status === "connected" && storage.rootHandle) {
       try {
         const freshAnalysis = computeAnalysis(points, userSettings);
         const activity = toActivity(freshAnalysis, points, { name, sourceType: format, originalFilename: file.name, measured });
         const sourceContent = format === "fit" ? sourceArrayBuffer : sourceText;
-        const saved = await saveActivity(storage.rootHandle, activity, sourceContent, format);
+        const { activity: saved, cloudSyncPromise } = await repository.saveActivity(activity, sourceContent, format);
         setActiveActivityId(saved.id);
-        setSaveStatus({ ok: true, message: "Sortie enregistrée dans l'historique." });
+        if (!cloudUser) {
+          setSaveStatus({ ok: true, message: "Sortie enregistrée dans l'historique." });
+        } else {
+          setSaveStatus({ ok: true, message: "Sortie importée. ☁ Synchronisation…" });
+          cloudSyncPromise.then(({ cloudSynced, cloudError }) => {
+            setSaveStatus({
+              ok: true,
+              message: cloudSynced
+                ? "✓ Sortie synchronisée."
+                : "Sortie enregistrée localement. ◌ Synchronisation en attente" + (cloudError ? ` (${cloudError})` : "") + ".",
+            });
+          });
+        }
       } catch (err) {
         setSaveStatus({ ok: false, message: "Sortie analysée mais non enregistrée : " + (err.message || err) });
       }
     } else if (storage.status === "needs-permission") {
       setSaveStatus({ ok: false, message: "Sortie analysée mais non enregistrée : reconnecte le dossier de stockage dans Paramètres." });
     }
-  }, [storage, userSettings]);
+  }, [storage, userSettings, repository, cloudUser]);
+
+  // Reconstruit les points exploitables par le dashboard directement depuis
+  // les `samples` déjà normalisés d'une Activity — voir plus bas : c'est
+  // exactement ce que fait déjà la branche "strava" ci-dessous (pas de
+  // fichier source à reparser), généralisé ici au cas cloud-only (Phase
+  // 11B) : une fois matérialisée par le repository, une activité cloud n'a
+  // pas non plus besoin d'être reparsée une seconde fois.
+  function pointsFromSamples(detail) {
+    return detail.samples.map((s) => ({
+      lat: s.latitude,
+      lon: s.longitude,
+      ele: s.altitude,
+      time: s.timestamp ? new Date(s.timestamp) : null,
+      hr: s.heartRate,
+      cad: s.cadence,
+      // Puissance estimée par NOTRE moteur : jamais réinjectée comme donnée
+      // d'entrée, sous peine d'être prise pour une mesure réelle au recalcul
+      // — voir analysis.js: hasPower.
+      power: detail.flags.powerEstimated ? null : s.power,
+      temp: s.temperature,
+      distanceMeasured: s.distanceMeasured,
+      speedMeasured: s.speedMeasured,
+    }));
+  }
 
   async function openActivityFromHistory(id) {
-    if (!storage.rootHandle) return;
     setError(null);
     setSaveStatus(null);
     try {
-      const detail = await loadActivityDetail(storage.rootHandle, id);
+      // D'abord le stockage local (comportement inchangé, voir consigne §4) :
+      // reparse le fichier ORIGINAL, pas les samples déjà normalisés, pour
+      // rester fidèle au comportement d'avant cette phase.
+      let detail = null;
+      if (storage.rootHandle) {
+        try {
+          detail = await loadActivityDetail(storage.rootHandle, id);
+        } catch {
+          detail = null; // absente localement : peut-être une sortie cloud-only, voir ci-dessous
+        }
+      }
+
       let name, points;
-      if (detail.source.type === "fit") {
+      if (detail && detail.source.type === "fit") {
         const arrayBuffer = await loadActivitySourceArrayBuffer(storage.rootHandle, id);
         ({ name, points } = await parseFITArrayBuffer(arrayBuffer));
-      } else if (detail.source.type === "strava") {
-        // Pas de fichier source à reparser (voir src/lib/strava/adapter.js) :
-        // les points sont reconstruits directement depuis les `samples` déjà
-        // normalisés, qui portent tout ce que les parsers GPX/FIT produisent.
+      } else if (detail && detail.source.type === "strava") {
+        // Pas de fichier source à reparser (voir src/lib/strava/adapter.js).
         name = detail.name;
-        points = detail.samples.map((s) => ({
-          lat: s.latitude,
-          lon: s.longitude,
-          ele: s.altitude,
-          time: s.timestamp ? new Date(s.timestamp) : null,
-          hr: s.heartRate,
-          cad: s.cadence,
-          // Puissance estimée par NOTRE moteur (jamais mesurée par Strava) :
-          // jamais réinjectée comme donnée d'entrée, sous peine d'être prise
-          // pour une mesure réelle au recalcul — voir analysis.js: hasPower.
-          power: detail.flags.powerEstimated ? null : s.power,
-          temp: s.temperature,
-          distanceMeasured: s.distanceMeasured,
-          speedMeasured: s.speedMeasured,
-        }));
-      } else {
+        points = pointsFromSamples(detail);
+      } else if (detail) {
         const sourceText = await loadActivitySourceText(storage.rootHandle, id);
         ({ name, points } = parseGPXString(sourceText));
+      } else {
+        // Absente du stockage local (ou aucun dossier connecté) : le
+        // repository la matérialise depuis le cloud (voir consigne §13,
+        // ../lib/storage/activityRepository.js) — déjà une Activity complète
+        // avec samples, jamais besoin de reparser quoi que ce soit ici.
+        detail = await repository.loadActivityDetail(id);
+        name = detail.name;
+        points = pointsFromSamples(detail);
       }
       setPoints(points);
       setRideName(detail.name || name);
@@ -1005,6 +1060,24 @@ export default function GPXAnalyzer() {
         .gpx-storage-box.gpx-storage-warn { border-color: rgba(244,183,64,0.35); background: rgba(244,183,64,0.08); }
         .gpx-storage-box.gpx-storage-warn svg { color: var(--climb); }
         .gpx-storage-box .gpx-btn-ghost, .gpx-storage-box .gpx-link-btn { margin-left: auto; }
+
+        /* ---------- Cloud (Phase 11A) ---------- */
+        .gpx-cloud-form { display: flex; flex-direction: column; gap: 10px; max-width: 320px; }
+        .gpx-cloud-field { display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; color: var(--muted); }
+        .gpx-cloud-field input {
+          background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+          padding: 9px 12px; color: var(--text); font-size: 13.5px; width: 100%;
+        }
+        .gpx-cloud-field input:focus { outline: none; border-color: var(--speed); }
+        .gpx-cloud-form-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 4px; }
+        .gpx-cloud-activity-list { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; max-height: 260px; overflow-y: auto; }
+        .gpx-cloud-activity-row {
+          display: flex; align-items: center; justify-content: space-between; gap: 10px;
+          background: var(--surface2); border: 1px solid var(--border); border-radius: 10px;
+          padding: 9px 12px; font-size: 12.5px;
+        }
+        .gpx-cloud-activity-name { font-weight: 600; color: var(--text); }
+        .gpx-cloud-count { font-size: 22px; font-weight: 800; color: var(--text); }
 
         .gpx-history-toolbar { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 16px; align-items: center; }
         .gpx-history-search {
@@ -2015,6 +2088,7 @@ export default function GPXAnalyzer() {
           onBack={() => setMode(points ? "dashboard" : "home")}
           ftp={userSettings.ftp}
           maxHR={maxHR}
+          userSettings={userSettings}
         />
       )}
 
@@ -2025,6 +2099,7 @@ export default function GPXAnalyzer() {
           onReconnect={reconnectStorage}
           onOpen={openActivityFromHistory}
           onBack={() => setMode(points ? "dashboard" : "home")}
+          userSettings={userSettings}
         />
       )}
 
@@ -2037,6 +2112,7 @@ export default function GPXAnalyzer() {
           onViewArchetype={() => setMode("archetype")}
           onViewProfile={() => setMode("profil")}
           onBack={() => setMode(points ? "dashboard" : "home")}
+          userSettings={userSettings}
         />
       )}
 
@@ -2046,6 +2122,7 @@ export default function GPXAnalyzer() {
           onConnect={connectStorage}
           onReconnect={reconnectStorage}
           onBack={() => setMode(points ? "dashboard" : "home")}
+          userSettings={userSettings}
         />
       )}
 
@@ -2056,6 +2133,7 @@ export default function GPXAnalyzer() {
           onReconnect={reconnectStorage}
           onViewProfile={() => setMode("profil")}
           onBack={() => setMode(points ? "dashboard" : "home")}
+          userSettings={userSettings}
         />
       )}
 
