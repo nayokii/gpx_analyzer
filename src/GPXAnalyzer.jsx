@@ -648,6 +648,13 @@ export default function GPXAnalyzer() {
   return (
     <div className="gpx-app">
       <style>{`
+        /* Reset UA par défaut (margin de 8px sur <body>, notamment) — sans lui, une
+           bande blanche apparaît sur les 4 côtés à toutes les tailles d'écran, la
+           couleur de fond de la page (blanche par défaut) restant visible autour de
+           .gpx-app qui ne la recouvre pas. */
+        html, body, #root { margin: 0; padding: 0; }
+        html, body { overflow-x: hidden; }
+        body { background: #0a0d0c; }
         .gpx-app {
           --bg:#0a0d0c; --bgAlt:#0e1211; --surface:#141917; --surface2:#1a201d;
           --border:rgba(237,239,236,0.08); --borderStrong:rgba(237,239,236,0.16);
@@ -1002,6 +1009,21 @@ export default function GPXAnalyzer() {
         .gpx-power-zone-watts { color: var(--muted); font-variant-numeric: tabular-nums; }
         .gpx-power-zone-time { text-align: right; font-variant-numeric: tabular-nums; color: var(--text); font-weight: 600; }
         .gpx-power-zone-pct { text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); font-size: 11px; }
+        /* En dessous de ~480px, les 5 colonnes fixes (150+90+90+50px + gaps) dépassent
+           la largeur d'un téléphone : on repasse en grille 2 colonnes sur 3 lignes,
+           même contenu, sans troncature ni scroll horizontal. */
+        @media (max-width: 480px) {
+          .gpx-power-zone-row {
+            grid-template-columns: 1fr auto;
+            grid-template-areas: "name watts" "bar bar" "time pct";
+            row-gap: 4px;
+          }
+          .gpx-power-zone-name { grid-area: name; }
+          .gpx-power-zone-watts { grid-area: watts; text-align: right; }
+          .gpx-zone-track { grid-area: bar; }
+          .gpx-power-zone-time { grid-area: time; text-align: left; }
+          .gpx-power-zone-pct { grid-area: pct; }
+        }
         .gpx-power-efforts { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 10px; margin-bottom: 16px; }
         .gpx-power-source { display: inline-flex; align-items: center; gap: 4px; background: rgba(111,156,242,0.15); color: var(--info); border-radius: 6px; padding: 3px 8px; font-size: 11px; font-weight: 700; text-transform: none; letter-spacing: 0; }
         .gpx-power-source-estimated { display: inline-flex; align-items: center; gap: 4px; background: rgba(244,183,64,0.18); color: var(--climb); border-radius: 6px; padding: 3px 8px; font-size: 11px; font-weight: 700; text-transform: none; letter-spacing: 0; }
