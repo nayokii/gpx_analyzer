@@ -884,6 +884,17 @@ export default function GPXAnalyzer() {
 
         /* ---------- Stats grid ---------- */
         .gpx-stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 18px; }
+        /* Variante 5 colonnes ("Arrêts & pauses") : un style inline figeait
+           repeat(5,1fr) à toutes les tailles d'écran, illisible sur mobile (5
+           colonnes de ~60px). Sélecteur composé (spécificité supérieure à la
+           règle @media 860px de .gpx-stats-grid ci-dessous, qui ne doit PAS
+           s'appliquer ici — desktop/tablette n'ont jamais débordé en 5
+           colonnes) : ne réduit qu'en dessous de ~560px, seuil où 5 colonnes
+           deviennent réellement trop étroites. */
+        .gpx-stats-grid.gpx-stats-grid-5 { grid-template-columns: repeat(5, 1fr); }
+        @media (max-width: 560px) {
+          .gpx-stats-grid.gpx-stats-grid-5 { grid-template-columns: repeat(2, 1fr); }
+        }
         .gpx-stat-card {
           display: flex; gap: 12px; align-items: flex-start;
           background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 14px 16px;
@@ -1061,11 +1072,16 @@ export default function GPXAnalyzer() {
         .gpx-effort-card-sub { font-size: 11px; color: var(--muted); margin-top: 3px; }
 
         .gpx-stop-list { display: flex; flex-direction: column; gap: 8px; }
-        .gpx-stop-item { display: flex; justify-content: space-between; font-size: 13px; padding: 8px 10px; background: var(--surface2); border-radius: 10px; }
+        .gpx-stop-item { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 4px 12px; font-size: 13px; padding: 8px 10px; background: var(--surface2); border-radius: 10px; }
         .gpx-stop-item span { color: var(--muted); }
 
         .gpx-chart-card-title { font-size: 13px; font-weight: 700; margin-bottom: 4px; }
-        .gpx-chart-card-stats { display: flex; gap: 16px; font-size: 12px; color: var(--muted); margin-bottom: 12px; }
+        /* flex-wrap : sans lui, "Puissance normalisée 272 W" (et les lignes équivalentes
+           FC/cadence) forçait 3 items sur une seule ligne non wrappable, débordant sur
+           mobile (~375-414px) au lieu de passer à la ligne comme les autres rangées flex
+           de l'app (ex. .gpx-ride-meta, .gpx-lastride-stats). Aucun changement visuel sur
+           desktop/tablette : les items continuent de tenir sur une seule ligne. */
+        .gpx-chart-card-stats { display: flex; flex-wrap: wrap; gap: 8px 16px; font-size: 12px; color: var(--muted); margin-bottom: 12px; }
         .gpx-chart-card-stats b { color: var(--text); }
 
         .gpx-empty-note { font-size: 12.5px; color: var(--faint); font-style: italic; }
@@ -1496,7 +1512,7 @@ export default function GPXAnalyzer() {
               {analysis.hasTime && (
                 <div className="gpx-panel">
                   <SectionTitle icon={PauseCircle}>Arrêts & pauses</SectionTitle>
-                  <div className="gpx-stats-grid" style={{ gridTemplateColumns: "repeat(5,1fr)" }}>
+                  <div className="gpx-stats-grid gpx-stats-grid-5">
                     <StatCard icon={Clock} label="Temps total" value={fmtDurationLong(analysis.totalTimeSec)} accent={COLORS.info} />
                     <StatCard icon={Activity} label="Temps en mouvement" value={fmtDurationLong(analysis.movingTimeSec)} accent={COLORS.speed} />
                     <StatCard icon={PauseCircle} label="Temps arrêté" value={fmtDurationLong(analysis.stoppedTimeSec)} accent={COLORS.alert} />
