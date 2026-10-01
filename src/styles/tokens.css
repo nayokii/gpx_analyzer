@@ -1,0 +1,112 @@
+/**
+ * Cycling OS — tokens du design system (source de vérité unique).
+ *
+ * Les noms historiques (--bg, --surface, --speed, …) sont conservés tels quels :
+ * toutes les vues existantes les utilisent déjà. Les nouveaux tokens (--radius-*,
+ * --dur-*, --ease, --font-mono, --text-*) sont additifs.
+ */
+:root {
+  /* Fonds et surfaces */
+  --bg: #0a0d0c;
+  --bgAlt: #0e1211;
+  --surface: #141917;
+  --surface2: #1a201d;
+
+  /* Bordures */
+  --border: rgba(237, 239, 236, 0.08);
+  --borderStrong: rgba(237, 239, 236, 0.16);
+
+  /* Texte : principal / secondaire (muted) / tertiaire (faint) */
+  --text: #eef1ee;
+  --muted: #8b948e;
+  --faint: #5c645f;
+
+  /* Couleurs sémantiques (le sens, jamais le décor) */
+  --speed: #4dd9c0;
+  --climb: #f4b740;
+  --effort: #e8543a;
+  --alert: #ff5470;
+  --info: #6f9cf2;
+
+  /* Rayons : 4 = contrôles/badges, 8 = panneaux, 12 = conteneurs importants */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+
+  /* Mouvement : 3 durées, une seule courbe */
+  --dur-fast: 120ms;
+  --dur-base: 250ms;
+  --dur-slow: 400ms;
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+
+  /* État actif unique : accent sémantique + filet fin. --active se redéfinit localement
+     (ex. --climb pour une montée sélectionnée), le reste suit. */
+  --active: var(--speed);
+  --active-line: 2px;
+  --active-tint: color-mix(in srgb, var(--active) 8%, transparent);
+  --disabled-opacity: 0.4;
+
+  /* Typographie : texte courant = system-ui existant ; chiffres et micro-labels = mono système */
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
+  --font-mono: ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+
+/* Prépare les futures animations : si l'utilisateur demande moins de mouvement, tout est neutralisé. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-fast: 0.01ms;
+    --dur-base: 0.01ms;
+    --dur-slow: 0.01ms;
+  }
+  .gpx-app *,
+  .gpx-app *::before,
+  .gpx-app *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Filet d'état actif partagé (nav haute, nav basse mobile, onglets). Positionné par ActiveIndicator.jsx. */
+.gpx-has-indicator { position: relative; }
+.gpx-active-indicator {
+  position: absolute; left: 0; height: var(--active-line); background: var(--active);
+  pointer-events: none; opacity: 0; z-index: 1;
+}
+.gpx-active-indicator.is-ready {
+  transition: transform var(--dur-base) var(--ease), width var(--dur-base) var(--ease), opacity var(--dur-fast) var(--ease);
+}
+
+/* Apparition d'un groupe (Reveal.jsx) : opacité + 3px, une fois au montage. fill-mode "backwards" :
+   l'état initial s'applique pendant le délai, puis le transform disparaît (pas de contexte d'empilement résiduel). */
+@keyframes gpx-reveal-in {
+  from { opacity: 0; transform: translateY(3px); }
+  to { opacity: 1; transform: none; }
+}
+.gpx-reveal {
+  animation: gpx-reveal-in var(--dur-base) var(--ease) var(--reveal-delay, 0ms) backwards;
+}
+@media (prefers-reduced-motion: reduce) {
+  .gpx-reveal { animation: none; }
+}
+@media print {
+  .gpx-reveal { animation: none; }
+}
+
+/* Valeur numérique interpolée (AnimatedValue.jsx) : chiffres de largeur fixe, jamais de retour à la ligne. */
+.gpx-av { display: inline-block; white-space: nowrap; font-variant-numeric: tabular-nums; text-align: left; }
+
+/* Voix technique : micro-labels, chiffres, unités. */
+.gpx-mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+.gpx-label-tech {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+}

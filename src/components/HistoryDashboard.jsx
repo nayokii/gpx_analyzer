@@ -32,6 +32,7 @@ import {
 
 import { HistoryView } from "./HistoryView.jsx";
 import { SectionTitle, StatCard } from "./UIPrimitives.jsx";
+import { Reveal } from "./Reveal.jsx";
 import { useActivityRepository } from "./useActivityRepository.js";
 import { computeHistoryAnalytics, filterActivitiesByPeriod } from "../lib/history/historyAnalytics.js";
 import { buildTimeSeries, computeTrend } from "../lib/history/trends.js";
@@ -581,17 +582,26 @@ export function HistoryDashboard({ storage, onConnect, onReconnect, onOpen, onBa
             </div>
           ) : (
             <>
-              <PeriodFilter period={period} setPeriod={setPeriod} customFrom={customFrom} setCustomFrom={setCustomFrom} customTo={customTo} setCustomTo={setCustomTo} />
-              {filtered.length === 0 ? (
-                <div className="gpx-panel"><p className="gpx-empty-note">Aucune sortie enregistrée pour cette période.</p></div>
-              ) : (
-                <>
+              {/* Cascade d'apparition (Phase 5A) : wrappers stables, donc rien ne rejoue au changement de période. */}
+              <Reveal delay={60}>
+                <PeriodFilter period={period} setPeriod={setPeriod} customFrom={customFrom} setCustomFrom={setCustomFrom} customTo={customTo} setCustomTo={setCustomTo} />
+              </Reveal>
+              <Reveal delay={90}>
+                {filtered.length === 0 ? (
+                  <div className="gpx-panel"><p className="gpx-empty-note">Aucune sortie enregistrée pour cette période.</p></div>
+                ) : (
                   <OverviewSection historyAnalytics={historyAnalytics} periodLabel={PERIOD_LABELS[period] || "période personnalisée"} />
+                )}
+              </Reveal>
+              <Reveal delay={120}>
+                {filtered.length > 0 && (
                   <ChartsSection series={series} trendDistance={trendDistance} trendElevationGain={trendElevationGain} trendAvgSpeed={trendAvgSpeed} bucket={bucket} />
-                </>
-              )}
-              <RecordsSection records={records} onOpen={onOpen} />
-              <SimilarRoutesSection activities={activities} repository={repository} />
+                )}
+              </Reveal>
+              <Reveal delay={150}>
+                <RecordsSection records={records} onOpen={onOpen} />
+                <SimilarRoutesSection activities={activities} repository={repository} />
+              </Reveal>
             </>
           )}
         </>

@@ -32,6 +32,7 @@ import { COLORS, MAP_TILE_FILTER } from "./lib/colors.js";
 import { generateSummary, generateHighlights } from "./lib/narrative.js";
 import { generateDemoPoints } from "./lib/demoData.js";
 import { StatCard, SectionTitle, CustomTooltip } from "./components/UIPrimitives.jsx";
+import { ActiveIndicator, useActiveIndicator } from "./components/ActiveIndicator.jsx";
 import { AnalyticsView } from "./components/AnalyticsView.jsx";
 import { MapView } from "./components/MapView.jsx";
 import { MapLibrePrototype } from "./components/MapLibrePrototype.jsx"; // POC expérimental, voir onglet Carte
@@ -42,6 +43,7 @@ import { ProfileView } from "./components/ProfileView.jsx";
 import { AlterEgoView } from "./components/AlterEgoView.jsx";
 import { ArchetypeView } from "./components/ArchetypeView.jsx";
 import { TourView } from "./components/TourView.jsx";
+import { CoachView } from "./components/CoachView.jsx";
 import { AppNav } from "./components/AppNav.jsx";
 import { HomeView } from "./components/HomeView.jsx";
 import { DataSourcesView } from "./components/DataSourcesView.jsx";
@@ -645,6 +647,9 @@ export default function GPXAnalyzer() {
     { key: "parametres", label: "Paramètres" },
   ];
 
+  // Indicateur d'état actif des onglets de sortie (même règle que la nav principale, voir ActiveIndicator.jsx).
+  const tabsIndicator = useActiveIndicator(activeTab);
+
   return (
     <div className="gpx-app">
       <style>{`
@@ -654,16 +659,13 @@ export default function GPXAnalyzer() {
            .gpx-app qui ne la recouvre pas. */
         html, body, #root { margin: 0; padding: 0; }
         html, body { overflow-x: hidden; }
-        body { background: #0a0d0c; }
+        body { background: var(--bg, #0a0d0c); }
+        /* Les tokens (couleurs, rayons, durées, easing, fontes) vivent dans src/styles/tokens.css. */
         .gpx-app {
-          --bg:#0a0d0c; --bgAlt:#0e1211; --surface:#141917; --surface2:#1a201d;
-          --border:rgba(237,239,236,0.08); --borderStrong:rgba(237,239,236,0.16);
-          --text:#eef1ee; --muted:#8b948e; --faint:#5c645f;
-          --speed:#4dd9c0; --climb:#f4b740; --effort:#e8543a; --alert:#ff5470; --info:#6f9cf2;
           background: var(--bg);
           color: var(--text);
           min-height: 100vh;
-          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
+          font-family: var(--font-sans);
           -webkit-font-smoothing: antialiased;
           position: relative;
           isolation: isolate;
@@ -683,15 +685,19 @@ export default function GPXAnalyzer() {
           background: none; border: none; color: var(--text); font-weight: 800; font-size: 14px; letter-spacing: -0.01em;
         }
         .gpx-topbar-brand-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--speed); box-shadow: 0 0 10px var(--speed); }
+        .gpx-topbar-brand-text { font-family: var(--font-mono); font-size: 13px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; }
         .gpx-appnav { display: flex; gap: 4px; min-width: 0; }
         .gpx-appnav-top { flex: 1; min-width: 0; }
         .gpx-appnav-item {
           display: flex; align-items: center; gap: 7px; padding: 8px 14px; border-radius: 10px;
           border: none; background: none; color: var(--muted); font-size: 13px; font-weight: 700;
-          white-space: nowrap; transition: color 0.15s ease, background 0.15s ease;
+          white-space: nowrap; transition: color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
         }
         .gpx-appnav-item:hover { color: var(--text); background: rgba(255,255,255,0.03); }
-        .gpx-appnav-item.active { color: var(--speed); background: rgba(77,217,192,0.12); }
+        /* État actif unifié : texte/icône en accent + filet fin glissant (ActiveIndicator), plus de fond teinté. */
+        .gpx-appnav-item.active, .gpx-appnav-item.active:hover { color: var(--active); background: none; }
+        .gpx-appnav-top .gpx-active-indicator { bottom: -11px; }
+        .gpx-appnav-bottom .gpx-active-indicator { top: 0; }
         .gpx-appnav-import { flex-shrink: 0; padding: 9px 16px; white-space: nowrap; }
         .gpx-appnav-bottom { display: none; }
         .gpx-context-strip {
@@ -708,6 +714,8 @@ export default function GPXAnalyzer() {
         }
         @media (max-width: 680px) {
           .gpx-appnav-top { display: none; }
+          .gpx-topbar { justify-content: space-between; }
+          .gpx-topbar-brand-text { display: inline; }
           .gpx-appnav-import span { display: none; }
           .gpx-topbar { padding: 10px 14px; }
           .gpx-appnav-bottom {
@@ -827,11 +835,36 @@ export default function GPXAnalyzer() {
         .gpx-dashboard { max-width: 1180px; margin: 0 auto; padding: 20px 20px 80px 20px; }
         .gpx-header {
           display: flex; align-items: flex-start; justify-content: space-between; gap: 16px;
-          padding: 20px 22px; border-radius: 20px; margin-bottom: 16px;
-          background: linear-gradient(135deg, var(--surface), var(--bgAlt));
+          padding: 18px 22px 20px; border-radius: var(--radius-lg); margin-bottom: 16px;
+          background: var(--surface);
           border: 1px solid var(--border);
           flex-wrap: wrap;
         }
+        /* Panneau héros : repères de coin statiques (8 filets de 1px, 10px de long), uniquement sur l'en-tête d'Analyse. */
+        .gpx-panel--hero { position: relative; }
+        .gpx-panel--hero::before {
+          content: ""; position: absolute; inset: -1px; pointer-events: none; border-radius: var(--radius-lg);
+          --corner: rgba(77,217,192,0.55);
+          background:
+            linear-gradient(var(--corner), var(--corner)) top left / 10px 1px no-repeat,
+            linear-gradient(var(--corner), var(--corner)) top left / 1px 10px no-repeat,
+            linear-gradient(var(--corner), var(--corner)) top right / 10px 1px no-repeat,
+            linear-gradient(var(--corner), var(--corner)) top right / 1px 10px no-repeat,
+            linear-gradient(var(--corner), var(--corner)) bottom left / 10px 1px no-repeat,
+            linear-gradient(var(--corner), var(--corner)) bottom left / 1px 10px no-repeat,
+            linear-gradient(var(--corner), var(--corner)) bottom right / 10px 1px no-repeat,
+            linear-gradient(var(--corner), var(--corner)) bottom right / 1px 10px no-repeat;
+        }
+        .gpx-hero-status {
+          flex-basis: 100%; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: -4px;
+          font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--faint);
+        }
+        .gpx-hero-status b { font-weight: 500; color: var(--muted); }
+        .gpx-hero-status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--speed); flex-shrink: 0; }
+        .gpx-hero-status-dot.demo { background: var(--climb); }
+        .gpx-hero-status-sep { color: var(--border); }
+        .gpx-hero-status-sensors { margin-left: auto; display: inline-flex; gap: 6px; }
+        .gpx-hero-status-sensors span { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 1px 5px; color: var(--muted); }
         .gpx-demo-banner {
           display: flex; align-items: center; gap: 8px;
           background: rgba(244,183,64,0.12); border: 1px solid rgba(244,183,64,0.35);
@@ -852,8 +885,9 @@ export default function GPXAnalyzer() {
         .gpx-ride-meta { color: var(--muted); font-size: 13px; display: flex; gap: 14px; flex-wrap: wrap; }
         .gpx-header-quickstats { display: flex; gap: 22px; flex-wrap: wrap; }
         .gpx-qs { text-align: right; }
-        .gpx-qs-label { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--faint); margin-bottom: 3px; }
-        .gpx-qs-value { font-size: 20px; font-weight: 800; font-variant-numeric: tabular-nums; }
+        .gpx-qs-label { font-family: var(--font-mono); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--faint); margin-bottom: 4px; }
+        .gpx-qs-value { font-family: var(--font-mono); font-size: 20px; font-weight: 600; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+        .gpx-qs-unit { font-size: 11px; font-weight: 500; letter-spacing: 0.04em; color: var(--faint); margin-left: 5px; }
         .gpx-header-actions { display: flex; gap: 8px; align-items: center; }
         .gpx-icon-btn {
           width: 34px; height: 34px; border-radius: 10px; border: 1px solid var(--border);
@@ -875,12 +909,13 @@ export default function GPXAnalyzer() {
         }
         .gpx-tab {
           border: none; background: none; color: var(--muted); font-size: 13.5px; font-weight: 600;
-          padding: 11px 16px; border-bottom: 2px solid transparent; white-space: nowrap;
-          transition: color 0.15s ease;
+          padding: 11px 16px; border-bottom: var(--active-line) solid transparent; white-space: nowrap;
+          transition: color var(--dur-fast) var(--ease);
         }
         .gpx-tab:hover:not(:disabled) { color: var(--text); }
-        .gpx-tab.active { color: var(--speed); border-bottom-color: var(--speed); }
-        .gpx-tab:disabled { opacity: 0.35; cursor: not-allowed; }
+        .gpx-tab.active { color: var(--active); }
+        .gpx-nav .gpx-active-indicator { bottom: 0; }
+        .gpx-tab:disabled { opacity: var(--disabled-opacity); cursor: not-allowed; }
 
         /* ---------- Stats grid ---------- */
         .gpx-stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 18px; }
@@ -895,21 +930,44 @@ export default function GPXAnalyzer() {
         @media (max-width: 560px) {
           .gpx-stats-grid.gpx-stats-grid-5 { grid-template-columns: repeat(2, 1fr); }
         }
+        /* StatCard instrument : micro-label mono, valeur dominante mono, unité séparée, l'accent sémantique tient dans un filet de 2px. */
         .gpx-stat-card {
-          display: flex; gap: 12px; align-items: flex-start;
-          background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 14px 16px;
+          display: flex; flex-direction: column; gap: 6px; min-width: 0;
+          background: var(--surface); border: 1px solid var(--border); border-left: 2px solid var(--stat-accent, var(--speed));
+          border-radius: var(--radius-md); padding: 11px 14px 12px;
         }
-        .gpx-stat-icon { width: 32px; height: 32px; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-        .gpx-stat-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin-bottom: 4px; }
-        .gpx-stat-value { font-size: 21px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.1; }
-        .gpx-stat-unit { font-size: 12px; font-weight: 600; color: var(--muted); margin-left: 3px; }
-        .gpx-stat-sub { font-size: 11px; color: var(--faint); margin-top: 3px; }
+        .gpx-stat-label {
+          display: flex; align-items: center; gap: 6px; min-width: 0;
+          font-family: var(--font-mono); font-size: 10.5px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted);
+        }
+        .gpx-stat-label > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .gpx-stat-label svg { flex-shrink: 0; color: var(--stat-accent, var(--speed)); opacity: 0.85; }
+        .gpx-stat-value {
+          display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap;
+          font-family: var(--font-mono); font-size: 24px; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1.05; letter-spacing: -0.02em;
+        }
+        .gpx-stat-unit { font-size: 11px; font-weight: 500; letter-spacing: 0.04em; color: var(--faint); }
+        .gpx-stat-sub { font-family: var(--font-mono); font-size: 10.5px; color: var(--faint); }
 
         /* ---------- Panels ---------- */
         .gpx-panel {
           background: var(--surface); border: 1px solid var(--border); border-radius: 18px;
           padding: 18px 20px; margin-bottom: 16px;
         }
+        /* Variante instrument — opt-in via .gpx-view-analyse (Phase 2 : Analyse uniquement, avant propagation aux autres vues). */
+        .gpx-view-analyse .gpx-panel { border-radius: var(--radius-md); background: var(--surface); }
+        .gpx-view-analyse .gpx-section-title {
+          font-family: var(--font-mono); font-size: 11px; font-weight: 500; letter-spacing: 0.1em; color: var(--muted);
+          padding-bottom: 10px; border-bottom: 1px solid var(--border);
+        }
+        .gpx-view-analyse .gpx-section-title-left span { color: var(--muted); }
+        .gpx-view-analyse .gpx-section-title-left svg { width: 13px; height: 13px; }
+        .gpx-view-analyse .gpx-table th { font-family: var(--font-mono); font-weight: 500; letter-spacing: 0.1em; }
+        .gpx-view-analyse .gpx-table td { font-family: var(--font-mono); font-size: 12.5px; }
+        .gpx-view-analyse .gpx-leaflet-container,
+        .gpx-view-analyse .gpx-profile-wrap { border-radius: var(--radius-md); }
+        .gpx-view-analyse .gpx-tab { font-family: var(--font-mono); font-size: 12px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; }
+        .gpx-view-analyse .gpx-badge-best, .gpx-view-analyse .gpx-badge-worst, .gpx-view-analyse .gpx-badge-climb { border-radius: var(--radius-sm); font-family: var(--font-mono); }
         .gpx-section-title {
           display: flex; align-items: center; justify-content: space-between;
           font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;
@@ -922,11 +980,16 @@ export default function GPXAnalyzer() {
         .gpx-map-block { position: relative; }
         .gpx-map-toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; gap: 10px; flex-wrap: wrap; }
         .gpx-map-modes { display: flex; gap: 6px; flex-wrap: wrap; }
+        /* Filtres : sélectionné = accent + bordure accent + teinte très légère ; non sélectionné = neutre ; désactivé = atténué.
+           Pas de filet glissant : un chip n'est pas une destination, c'est un état on/off. */
         .gpx-chip {
           border: 1px solid var(--border); background: var(--surface2); color: var(--muted);
-          border-radius: 100px; padding: 6px 12px; font-size: 12px; font-weight: 600;
+          border-radius: var(--radius-sm); padding: 6px 12px; font-size: 12px; font-weight: 600;
+          transition: color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
         }
-        .gpx-chip-active { background: rgba(77,217,192,0.15); border-color: var(--speed); color: var(--speed); }
+        .gpx-chip:hover:not(:disabled):not(.gpx-chip-active) { color: var(--text); border-color: var(--borderStrong); }
+        .gpx-chip-active, .gpx-chip-active:hover { background: var(--active-tint); border-color: var(--active); color: var(--active); }
+        .gpx-chip:disabled { opacity: var(--disabled-opacity); cursor: not-allowed; }
         .gpx-map-engine-toggle { display: inline-flex; gap: 4px; }
         .gpx-leaflet-container {
           position: relative; border-radius: 16px; overflow: hidden; background: var(--bgAlt);
@@ -980,7 +1043,9 @@ export default function GPXAnalyzer() {
         .gpx-table td { padding: 9px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; font-variant-numeric: tabular-nums; }
         .gpx-table tr:last-child td { border-bottom: none; }
         .gpx-table tr.gpx-row-clickable:hover { background: rgba(255,255,255,0.02); cursor: pointer; }
-        .gpx-table tr.gpx-row-selected { background: rgba(244,183,64,0.08); }
+        /* Ligne sélectionnée : même vocabulaire que la nav (filet fin de 2px en accent), sans teinter toute la ligne. */
+        .gpx-table tr.gpx-row-selected { --active: var(--climb); }
+        .gpx-table tr.gpx-row-selected td:first-child { box-shadow: inset var(--active-line) 0 0 var(--active); }
         .gpx-badge-best { background: rgba(77,217,192,0.15); color: var(--speed); border-radius: 6px; padding: 2px 6px; font-size: 10.5px; font-weight: 700; margin-left: 6px; }
         .gpx-badge-worst { background: rgba(232,84,58,0.15); color: var(--effort); border-radius: 6px; padding: 2px 6px; font-size: 10.5px; font-weight: 700; margin-left: 6px; }
         .gpx-badge-climb { background: rgba(244,183,64,0.15); color: var(--climb); border-radius: 6px; padding: 2px 6px; font-size: 10.5px; font-weight: 700; margin-left: 6px; }
@@ -1002,7 +1067,8 @@ export default function GPXAnalyzer() {
           transition: border-color 0.15s ease;
         }
         .gpx-climb-card:hover { border-color: var(--borderStrong); }
-        .gpx-climb-card.selected { border-color: var(--climb); background: rgba(244,183,64,0.07); }
+        /* Montée sélectionnée : accent "climb" + filet fin à gauche (même règle que les lignes de tableau). */
+        .gpx-climb-card.selected { --active: var(--climb); border-color: var(--borderStrong); box-shadow: inset var(--active-line) 0 0 var(--active); }
         .gpx-climb-card-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
         .gpx-climb-card-name { font-weight: 800; font-size: 14px; }
         .gpx-climb-card-grade { font-size: 18px; font-weight: 800; color: var(--climb); font-variant-numeric: tabular-nums; }
@@ -1153,6 +1219,8 @@ export default function GPXAnalyzer() {
         }
         .gpx-profile-card-value { font-size: 32px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1; margin-top: 2px; }
         .gpx-profile-card-value-empty { color: var(--faint); }
+        /* Score interpolé (Phase 5C) : monospace = largeur de chaque chiffre identique, le "/100" ne bouge pas pendant la transition. Limité au nombre animé : Tour/Alter Ego gardent leur rendu. */
+        .gpx-profile-card-value .gpx-av { font-family: var(--font-mono); font-weight: 700; letter-spacing: -0.02em; }
         .gpx-profile-card-value-scale { font-size: 13px; font-weight: 600; color: var(--faint); margin-left: 2px; }
         .gpx-profile-card-bar { height: 8px; border-radius: 6px; background: var(--bg); overflow: hidden; margin-top: 2px; }
         .gpx-profile-card-bar-fill { height: 100%; border-radius: 6px; background: var(--speed); }
@@ -1297,13 +1365,25 @@ export default function GPXAnalyzer() {
       )}
 
       {mode === "dashboard" && analysis && (
-        <div className="gpx-dashboard">
+        <div className="gpx-dashboard gpx-view-analyse">
           {isDemo && (
             <div className="gpx-demo-banner">
               <Sparkles size={14} /> Données de démonstration — fictives, générées uniquement pour illustrer l'interface.
             </div>
           )}
-          <div className="gpx-header">
+          <div className="gpx-header gpx-panel--hero">
+            <div className="gpx-hero-status" aria-label="État de l'analyse">
+              <span className={"gpx-hero-status-dot" + (isDemo ? " demo" : "")} />
+              <span>Analysis / <b>{isDemo ? "Demo" : "Activity"}</b></span>
+              {fileName && fileName.includes(".") && (<><span className="gpx-hero-status-sep">|</span><span>Source / <b>{fileName.split(".").pop()}</b></span></>)}
+              {saveStatus && saveStatus.ok && (<><span className="gpx-hero-status-sep">|</span><span><b>Saved</b></span></>)}
+              <span className="gpx-hero-status-sensors">
+                {analysis.hasEle && <span>ELE</span>}
+                {analysis.hasHR && <span>HR</span>}
+                {analysis.hasCad && <span>CAD</span>}
+                {analysis.hasPower && <span>PWR</span>}
+              </span>
+            </div>
             <div className="gpx-header-left">
               <h1 className="gpx-ride-name">{rideName || "Sortie vélo"}</h1>
               <div className="gpx-ride-meta">
@@ -1313,9 +1393,9 @@ export default function GPXAnalyzer() {
               </div>
             </div>
             <div className="gpx-header-quickstats">
-              <div className="gpx-qs"><div className="gpx-qs-label">Distance</div><div className="gpx-qs-value">{fmt1(analysis.totalDistanceKm)} km</div></div>
+              <div className="gpx-qs"><div className="gpx-qs-label">Distance</div><div className="gpx-qs-value">{fmt1(analysis.totalDistanceKm)}<span className="gpx-qs-unit">km</span></div></div>
               <div className="gpx-qs"><div className="gpx-qs-label">Durée</div><div className="gpx-qs-value">{fmtDuration(analysis.totalTimeSec)}</div></div>
-              {analysis.hasEle && <div className="gpx-qs"><div className="gpx-qs-label">D+</div><div className="gpx-qs-value">{fmtInt(analysis.elevGain)} m</div></div>}
+              {analysis.hasEle && <div className="gpx-qs"><div className="gpx-qs-label">D+</div><div className="gpx-qs-value">{fmtInt(analysis.elevGain)}<span className="gpx-qs-unit">m</span></div></div>}
             </div>
             <div className="gpx-header-actions">
               <button className="gpx-icon-btn" title="Exporter (PDF)" onClick={exportPDF}><Download size={15} /></button>
@@ -1329,12 +1409,13 @@ export default function GPXAnalyzer() {
             </div>
           )}
 
-          <div className="gpx-nav">
+          <div className="gpx-nav gpx-has-indicator" ref={tabsIndicator.ref}>
             {TABS.map((t) => (
               <button key={t.key} className={"gpx-tab" + (activeTab === t.key ? " active" : "")} disabled={t.disabled} onClick={() => setActiveTab(t.key)}>
                 {t.label}
               </button>
             ))}
+            <ActiveIndicator style={tabsIndicator.style} ready={tabsIndicator.ready} />
           </div>
 
           {/* ---------------- RÉSUMÉ ---------------- */}
@@ -2170,6 +2251,17 @@ export default function GPXAnalyzer() {
           onConnect={connectStorage}
           onReconnect={reconnectStorage}
           onViewProfile={() => setMode("profil")}
+          onBack={() => setMode(points ? "dashboard" : "home")}
+          userSettings={userSettings}
+        />
+      )}
+
+      {mode === "coach" && (
+        <CoachView
+          storage={storage}
+          onConnect={connectStorage}
+          onReconnect={reconnectStorage}
+          onOpen={openActivityFromHistory}
           onBack={() => setMode(points ? "dashboard" : "home")}
           userSettings={userSettings}
         />

@@ -40,6 +40,8 @@ import {
 
 import { StorageSettings } from "./StorageSettings.jsx";
 import { SectionTitle } from "./UIPrimitives.jsx";
+import { Reveal } from "./Reveal.jsx";
+import { AnimatedValue } from "./AnimatedValue.jsx";
 import { useActivityRepository, useUnifiedActivities } from "./useActivityRepository.js";
 import { getCachedProfile, getCachedProfileTimeline } from "../lib/derivedCache.js";
 import { confidenceLabel } from "../lib/profile/confidence.js";
@@ -123,7 +125,8 @@ function formatMonthKey(key) {
 /* Carte d'une dimension                                                */
 /* ------------------------------------------------------------------ */
 
-function DimensionCard({ dimKey, dim, onOpen, trend }) {
+// Exporté uniquement pour pouvoir tester la carte isolément (aucune logique ajoutée).
+export function DimensionCard({ dimKey, dim, onOpen, trend }) {
   const meta = DIMENSION_META[dimKey];
   const [expanded, setExpanded] = useState(false);
   const insufficient = dim.value == null;
@@ -148,7 +151,8 @@ function DimensionCard({ dimKey, dim, onOpen, trend }) {
       ) : (
         <>
           <div className="gpx-profile-card-value">
-            {dim.value}
+            {/* Phase 5C : le nombre seul s'interpole (AnimatedValue) quand le score CALCULÉ change réellement ; barre, confiance et libellés restent instantanés. */}
+            <AnimatedValue value={dim.value} />
             <span className="gpx-profile-card-value-scale">/100</span>
           </div>
           <div className="gpx-profile-card-bar">
@@ -403,6 +407,8 @@ export function ProfileView({ storage, onConnect, onReconnect, onOpen, onBack, u
 
   return (
     <div className="gpx-dashboard">
+      {/* Cascade d'apparition (Phase 5B) : groupes visuels via Reveal, 30 ms d'écart. Les bandeaux d'avertissement et les cartes de dimensions ne sont pas animés individuellement. */}
+      <Reveal>
       <div className="gpx-header">
         <div className="gpx-header-left">
           <h1 className="gpx-ride-name">Mon profil cycliste</h1>
@@ -428,10 +434,13 @@ export function ProfileView({ storage, onConnect, onReconnect, onOpen, onBack, u
           <button className="gpx-btn-ghost" onClick={onBack}><ArrowLeft size={14} /> Retour</button>
         </div>
       </div>
+      </Reveal>
 
-      <div className="gpx-panel">
-        <StorageSettings storage={storage} onConnect={onConnect} onReconnect={onReconnect} />
-      </div>
+      <Reveal delay={30}>
+        <div className="gpx-panel">
+          <StorageSettings storage={storage} onConnect={onConnect} onReconnect={onReconnect} />
+        </div>
+      </Reveal>
 
       {ready && (
         <>
@@ -467,28 +476,36 @@ export function ProfileView({ storage, onConnect, onReconnect, onOpen, onBack, u
                 </div>
               )}
 
-              <DataQualitySection activities={fullActivities} />
+              <Reveal delay={60}>
+                <DataQualitySection activities={fullActivities} />
+              </Reveal>
 
-              <div className="gpx-panel">
-                <SectionTitle icon={Zap}>Dimensions</SectionTitle>
-                <div className="gpx-profile-grid">
-                  {DIMENSION_ORDER.map((key) => (
-                    <DimensionCard
-                      key={key}
-                      dimKey={key}
-                      dim={profile.dimensions[key]}
-                      onOpen={onOpen}
-                      trend={summarizeDimensionTrend(timeline, key)}
-                    />
-                  ))}
+              <Reveal delay={90}>
+                <div className="gpx-panel">
+                  <SectionTitle icon={Zap}>Dimensions</SectionTitle>
+                  <div className="gpx-profile-grid">
+                    {DIMENSION_ORDER.map((key) => (
+                      <DimensionCard
+                        key={key}
+                        dimKey={key}
+                        dim={profile.dimensions[key]}
+                        onOpen={onOpen}
+                        trend={summarizeDimensionTrend(timeline, key)}
+                      />
+                    ))}
+                  </div>
                 </div>
-              </div>
+              </Reveal>
 
-              <WhatsDocumentedSection profile={profile} />
-              <WhatsMissingSection profile={profile} />
+              <Reveal delay={120}>
+                <WhatsDocumentedSection profile={profile} />
+                <WhatsMissingSection profile={profile} />
+              </Reveal>
 
-              <EvolutionSection timeline={timeline} selectedDimension={selectedDimension} setSelectedDimension={setSelectedDimension} />
-              <AboutSection />
+              <Reveal delay={150}>
+                <EvolutionSection timeline={timeline} selectedDimension={selectedDimension} setSelectedDimension={setSelectedDimension} />
+                <AboutSection />
+              </Reveal>
             </>
           )}
         </>

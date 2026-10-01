@@ -20,6 +20,7 @@ import { ArrowLeft, Search, Trash2, ExternalLink, History as HistoryIcon, Cloud,
 import { useActivityRepository } from "./useActivityRepository.js";
 import { fmt1, fmtInt, fmtDuration, fmtDateFull } from "../lib/utils.js";
 import { StorageSettings } from "./StorageSettings.jsx";
+import { Reveal } from "./Reveal.jsx";
 
 const SYNC_BADGE = {
   synced: { icon: Cloud, title: "Synchronisée avec le cloud" },
@@ -100,32 +101,38 @@ export function HistoryView({
 
   return (
     <div className="gpx-dashboard">
-      <div className="gpx-header">
-        <div className="gpx-header-left">
-          <h1 className="gpx-ride-name"><HistoryIcon size={20} style={{ verticalAlign: "-3px", marginRight: 8 }} />Historique</h1>
-          <div className="gpx-ride-meta">
-            <span>{activities ? `${activities.length} sortie${activities.length > 1 ? "s" : ""} enregistrée${activities.length > 1 ? "s" : ""}` : "Chargement…"}</span>
+      {/* Cascade d'apparition (Phase 5A) : groupes visuels, 30 ms d'écart — voir Reveal.jsx. Les lignes du tableau ne sont jamais animées une à une. */}
+      <Reveal>
+        <div className="gpx-header">
+          <div className="gpx-header-left">
+            <h1 className="gpx-ride-name"><HistoryIcon size={20} style={{ verticalAlign: "-3px", marginRight: 8 }} />Historique</h1>
+            <div className="gpx-ride-meta">
+              <span>{activities ? `${activities.length} sortie${activities.length > 1 ? "s" : ""} enregistrée${activities.length > 1 ? "s" : ""}` : "Chargement…"}</span>
+            </div>
+          </div>
+          <div className="gpx-header-actions">
+            <button className="gpx-btn-ghost" onClick={onBack}><ArrowLeft size={14} /> Retour</button>
           </div>
         </div>
-        <div className="gpx-header-actions">
-          <button className="gpx-btn-ghost" onClick={onBack}><ArrowLeft size={14} /> Retour</button>
-        </div>
-      </div>
+      </Reveal>
 
-      <div className="gpx-panel">
-        <StorageSettings storage={storage} onConnect={onConnect} onReconnect={onReconnect} />
-      </div>
-
-      {ready && source === "offline" && (
-        <div className="gpx-storage-box gpx-storage-warn">
-          <WifiOff size={14} />
-          <span>Hors connexion — données locales utilisées (le cloud sera revérifié à la prochaine ouverture).</span>
+      <Reveal delay={30}>
+        <div className="gpx-panel">
+          <StorageSettings storage={storage} onConnect={onConnect} onReconnect={onReconnect} />
         </div>
-      )}
+
+        {ready && source === "offline" && (
+          <div className="gpx-storage-box gpx-storage-warn">
+            <WifiOff size={14} />
+            <span>Hors connexion — données locales utilisées (le cloud sera revérifié à la prochaine ouverture).</span>
+          </div>
+        )}
+      </Reveal>
 
       {ready && children}
 
       {ready && (
+        <Reveal delay={180}>
         <div className="gpx-panel">
           <div className="gpx-history-toolbar">
             <div className="gpx-history-search">
@@ -229,6 +236,7 @@ export function HistoryView({
             </div>
           )}
         </div>
+        </Reveal>
       )}
     </div>
   );

@@ -18,6 +18,7 @@ import {
 
 import { StorageSettings } from "./StorageSettings.jsx";
 import { SectionTitle } from "./UIPrimitives.jsx";
+import { Reveal } from "./Reveal.jsx";
 import { useActivityRepository, useUnifiedActivities } from "./useActivityRepository.js";
 import { getCachedProfile, getCachedArchetypeMatch, getCachedReferenceRiders, getCachedArchetypeTimeline } from "../lib/derivedCache.js";
 import { ARCHETYPE_DIMENSIONS } from "../lib/archetypes/archetypes.js";
@@ -331,6 +332,8 @@ export function ArchetypeView({ storage, onConnect, onReconnect, onBack, userSet
 
   return (
     <div className="gpx-dashboard">
+      {/* Cascade d'apparition (Phase 5B) : groupes visuels via Reveal, 30 ms d'écart. Les bandeaux de limites/confiance restent affichés immédiatement. */}
+      <Reveal>
       <div className="gpx-header">
         <div className="gpx-header-left">
           <h1 className="gpx-ride-name">Archétype</h1>
@@ -346,10 +349,13 @@ export function ArchetypeView({ storage, onConnect, onReconnect, onBack, userSet
           <button className="gpx-btn-ghost" onClick={onBack}><ArrowLeft size={14} /> Retour</button>
         </div>
       </div>
+      </Reveal>
 
-      <div className="gpx-panel">
-        <StorageSettings storage={storage} onConnect={onConnect} onReconnect={onReconnect} />
-      </div>
+      <Reveal delay={30}>
+        <div className="gpx-panel">
+          <StorageSettings storage={storage} onConnect={onConnect} onReconnect={onReconnect} />
+        </div>
+      </Reveal>
 
       {ready && (
         <>
@@ -385,9 +391,15 @@ export function ArchetypeView({ storage, onConnect, onReconnect, onBack, userSet
                 </div>
               )}
 
-              <DominantArchetypeSection match={match} userValues={userValues} profile={profile} />
-              <SimilarRidersSection results={riderResults} />
-              <EvolutionSection timeline={timeline} />
+              <Reveal delay={60}>
+                <DominantArchetypeSection match={match} userValues={userValues} profile={profile} />
+              </Reveal>
+              <Reveal delay={90}>
+                <SimilarRidersSection results={riderResults} />
+              </Reveal>
+              <Reveal delay={120}>
+                <EvolutionSection timeline={timeline} />
+              </Reveal>
             </>
           )}
         </>

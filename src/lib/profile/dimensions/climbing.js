@@ -26,7 +26,9 @@ import { buildEvidenceEntry } from "../evidence.js";
 
 const STARTUP_RANGE_VAM = { min: 200, max: 1000 };
 
-function vamOf(climb) {
+// Exportée (Coach V2) pour que src/lib/coach/ réutilise CETTE formule plutôt
+// que d'en dupliquer une équivalente — logique inchangée.
+export function vamOf(climb) {
   if (climb.gainM == null || climb.durationSec == null || climb.durationSec <= 0 || climb.gainM <= 0) return null;
   return (climb.gainM / climb.durationSec) * 3600;
 }

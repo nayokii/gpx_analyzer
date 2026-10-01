@@ -4,23 +4,22 @@
  */
 
 import { COLORS } from "../lib/colors.js";
+import { AnimatedValue } from "./AnimatedValue.jsx";
 import { fmt1, fmtInt, fmtClock } from "../lib/utils.js";
 
 export function StatCard({ icon: Icon, label, value, unit, accent = COLORS.speed, sub }) {
   if (value == null) return null;
   return (
-    <div className="gpx-stat-card">
-      <div className="gpx-stat-icon" style={{ color: accent, background: accent + "1a" }}>
-        <Icon size={16} strokeWidth={2.2} />
+    <div className="gpx-stat-card" style={{ "--stat-accent": accent }}>
+      <div className="gpx-stat-label">
+        {Icon && <Icon size={12} strokeWidth={2} />}
+        <span>{label}</span>
       </div>
-      <div className="gpx-stat-body">
-        <div className="gpx-stat-label">{label}</div>
-        <div className="gpx-stat-value">
-          {value}
-          {unit && <span className="gpx-stat-unit">{unit}</span>}
-        </div>
-        {sub && <div className="gpx-stat-sub">{sub}</div>}
+      <div className="gpx-stat-value">
+        <AnimatedValue value={value} />
+        {unit && <span className="gpx-stat-unit">{unit}</span>}
       </div>
+      {sub && <div className="gpx-stat-sub">{sub}</div>}
     </div>
   );
 }
