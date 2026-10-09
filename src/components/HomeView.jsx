@@ -36,7 +36,9 @@ import {
 } from "lucide-react";
 
 import { StorageSettings } from "./StorageSettings.jsx";
-import { SectionTitle } from "./UIPrimitives.jsx";
+import { Reveal } from "./Reveal.jsx";
+import { SectionTitle, ProgressRing } from "./UIPrimitives.jsx";
+import { COLORS } from "../lib/colors.js";
 import { listActivities } from "../lib/storage/activityStore.js";
 import { loadCachedActivityDetails } from "../lib/storage/activityCache.js";
 import { confidenceLabel } from "../lib/profile/confidence.js";
@@ -44,15 +46,22 @@ import { getXpProgress } from "../lib/progression/levels.js";
 import { getCachedProfile, getCachedProgression, getCachedArchetypeMatch } from "../lib/derivedCache.js";
 import { fmt1, fmtInt, fmtDuration, fmtDateFull } from "../lib/utils.js";
 
+/** "vendredi 9 octobre" → "Vendredi 9 octobre" (la casse du mois reste française). */
+function formatToday() {
+  const text = new Date().toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" });
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
 const MAX_HOME_ACTIVITIES = 200; // même principe que MAX_PROFILE_ACTIVITIES (ProfileView.jsx)
 
 const CONFIDENCE_LABELS = { low: "faible", medium: "moyenne", high: "élevée" };
 
+// Couleurs métier : endurance = vitesse/temps, grimpe = dénivelé, punch = effort, sprint = puissance.
 const DIMENSION_META = {
-  endurance: { label: "Endurance", icon: Timer },
-  climbing: { label: "Grimpe", icon: Mountain },
-  punch: { label: "Punch", icon: Zap },
-  sprint: { label: "Sprint", icon: Flame },
+  endurance: { label: "Endurance", icon: Timer, accent: COLORS.speed },
+  climbing: { label: "Grimpe", icon: Mountain, accent: COLORS.climb },
+  punch: { label: "Punch", icon: Zap, accent: COLORS.effort },
+  sprint: { label: "Sprint", icon: Flame, accent: COLORS.info },
 };
 const HOME_DIMENSION_ORDER = ["endurance", "climbing", "punch", "sprint"];
 
@@ -100,30 +109,38 @@ function FocusSection({ profile, progression, onViewChallenges }) {
   const coldStart = profile.activityCount < 2;
   const confLabel = confidenceLabel(profile.overallConfidence);
   const focus = coldStart ? null : pickFocusChallenge(progression.challenges);
+  const pct = focus ? Math.max(0, Math.min(100, (focus.current / focus.target) * 100)) : 0;
 
   return (
-    <div className="gpx-panel gpx-focus-panel">
-      <SectionTitle icon={Target}>Ton focus</SectionTitle>
-      {coldStart ? (
-        <>
-          <div className="gpx-focus-headline">Profil en construction</div>
-          <p className="gpx-focus-desc">Continue à enregistrer des sorties pour obtenir suffisamment de données.</p>
-        </>
-      ) : !focus ? (
-        <>
-          <div className="gpx-focus-headline">Tous tes objectifs actuels sont atteints</div>
-          <p className="gpx-focus-desc">De nouveaux challenges apparaîtront à mesure que ton historique grandit.</p>
-        </>
-      ) : (
-        <>
-          <div className="gpx-focus-headline">{FOCUS_TITLES[focus.category] || focus.label}</div>
-          <p className="gpx-focus-desc">{focus.category === "consistency" ? focus.reason : FOCUS_DESCRIPTIONS[focus.category]}</p>
-          <div className="gpx-focus-bar"><div className="gpx-focus-bar-fill" style={{ width: `${Math.max(0, Math.min(100, (focus.current / focus.target) * 100))}%` }} /></div>
-          <div className="gpx-focus-meta">
-            <span>{focus.current} / {focus.target} {focus.unit}</span>
-            <span className="gpx-alterego-xp-badge">+{focus.xpReward} XP</span>
-          </div>
-        </>
+    <div className={"gpx-panel gpx-focus-panel" + (focus ? "" : " gpx-focus-panel--solo")}>
+      <div className="gpx-focus-main">
+        <SectionTitle icon={Target}>Ton focus</SectionTitle>
+        {coldStart ? (
+          <>
+            <div className="gpx-focus-headline">Profil en construction</div>
+            <p className="gpx-focus-desc">Continue à enregistrer des sorties pour obtenir suffisamment de données.</p>
+          </>
+        ) : !focus ? (
+          <>
+            <div className="gpx-focus-headline">Tous tes objectifs actuels sont atteints</div>
+            <p className="gpx-focus-desc">De nouveaux challenges apparaîtront à mesure que ton historique grandit.</p>
+          </>
+        ) : (
+          <>
+            <div className="gpx-focus-headline">{FOCUS_TITLES[focus.category] || focus.label}</div>
+            <p className="gpx-focus-desc">{focus.category === "consistency" ? focus.reason : FOCUS_DESCRIPTIONS[focus.category]}</p>
+            <div className="gpx-focus-meta">
+              <span>{focus.current} / {focus.target} {focus.unit}</span>
+              <span className="gpx-alterego-xp-badge">+{focus.xpReward} XP</span>
+            </div>
+          </>
+        )}
+      </div>
+      {focus && (
+        <ProgressRing className="gpx-focus-ring" value={pct} label={`Progression de l'objectif : ${Math.round(pct)} %`}>
+          <span className="gpx-ring-value">{Math.round(pct)}<small>%</small></span>
+          <span className="gpx-ring-caption">de l'objectif</span>
+        </ProgressRing>
       )}
       <div className="gpx-focus-footer">
         <span className="gpx-profile-card-meta">
@@ -143,8 +160,8 @@ function HomeCard({ icon: Icon, title, onOpen, children }) {
   return (
     <button className="gpx-home-card" onClick={onOpen}>
       <div className="gpx-home-card-head">
-        <span className="gpx-home-card-title"><Icon size={15} /> {title}</span>
-        <ArrowRight size={14} className="gpx-home-card-arrow" />
+        <span className="gpx-home-card-title"><span className="gpx-section-icon" aria-hidden="true"><Icon size={15} /></span> {title}</span>
+        <ArrowRight size={18} className="gpx-home-card-arrow" />
       </div>
       <div className="gpx-home-card-body">{children}</div>
     </button>
@@ -157,12 +174,12 @@ function AlterEgoPreview({ progression, onOpen }) {
   return (
     <HomeCard icon={Trophy} title="Alter Ego" onOpen={onOpen}>
       <div className="gpx-home-card-headline">Niveau {progression.level}</div>
-      <div className="gpx-profile-card-meta">{progression.title} · {progression.xp} XP</div>
-      <div className="gpx-profile-card-bar" style={{ margin: "8px 0" }}>
-        <div className="gpx-profile-card-bar-fill" style={{ width: `${pct}%` }} />
+      <div className="gpx-home-card-sub">{progression.title} · {progression.xp} XP</div>
+      <div className="gpx-xp-bar" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct} aria-label={`Progression vers le niveau ${progression.level + 1}`}>
+        <div style={{ width: `${pct}%` }} />
       </div>
       <div className="gpx-profile-card-meta">{pct}% vers le niveau {progression.level + 1}</div>
-      <span className="gpx-home-card-link">+ Voir Alter Ego</span>
+      <span className="gpx-home-card-link">Voir Alter Ego</span>
     </HomeCard>
   );
 }
@@ -171,7 +188,7 @@ function ArchetypePreview({ archetypeMatch, onOpen }) {
   return (
     <HomeCard icon={Fingerprint} title="Ton archétype" onOpen={onOpen}>
       <div className="gpx-home-card-headline">{archetypeMatch.combinedLabel}</div>
-      {archetypeMatch.primary?.description && <p className="gpx-focus-desc" style={{ marginTop: 6 }}>{archetypeMatch.primary.description}</p>}
+      {archetypeMatch.primary?.description && <p className="gpx-archetype-desc">{archetypeMatch.primary.description}</p>}
       <span className="gpx-home-card-link">Voir mon archétype</span>
     </HomeCard>
   );
@@ -187,22 +204,25 @@ function ProfilePreviewSection({ profile, onOpen }) {
       <SectionTitle icon={UserRound} right={<button className="gpx-link-btn" onClick={onOpen}>Voir le profil complet</button>}>
         Ton profil
       </SectionTitle>
-      <p className="gpx-profile-card-meta" style={{ marginBottom: 8 }}>
+      <p className="gpx-profile-card-meta gpx-home-count">
         {profile.activityCount} sortie{profile.activityCount > 1 ? "s" : ""} analysée{profile.activityCount > 1 ? "s" : ""}
       </p>
-      <div className="gpx-archetype-bars">
+      <div className="gpx-dims">
         {HOME_DIMENSION_ORDER.map((key) => {
           const dim = profile.dimensions[key];
           const meta = DIMENSION_META[key];
           return (
-            <div className="gpx-archetype-bar-row" key={key}>
-              <span className="gpx-archetype-bar-label"><meta.icon size={12} style={{ verticalAlign: -2, marginRight: 4 }} />{meta.label}</span>
+            <div className="gpx-dim" key={key} style={{ "--dim-accent": meta.accent }}>
+              <div className="gpx-dim-head"><span><meta.icon size={15} />{meta.label}</span></div>
               {dim.value == null ? (
-                <span className="gpx-profile-card-meta" style={{ gridColumn: "2 / span 2" }}>Données insuffisantes</span>
+                <>
+                  <div className="gpx-dim-missing">Données insuffisantes</div>
+                  <div className="gpx-dim-bar" />
+                </>
               ) : (
                 <>
-                  <div className="gpx-profile-card-bar"><div className="gpx-profile-card-bar-fill" style={{ width: `${Math.max(0, Math.min(100, dim.value))}%` }} /></div>
-                  <span className="gpx-archetype-bar-value">{dim.value}</span>
+                  <div className="gpx-dim-value">{dim.value}<small>/100</small></div>
+                  <div className="gpx-dim-bar"><div style={{ width: `${Math.max(0, Math.min(100, dim.value))}%` }} /></div>
                 </>
               )}
             </div>
@@ -218,6 +238,9 @@ function ProfilePreviewSection({ profile, onOpen }) {
 /* ------------------------------------------------------------------ */
 
 function LastRideSection({ lastActivity, onOpen }) {
+  const speed = lastActivity ? lastActivity.avgSpeed : null;
+  const power = lastActivity ? lastActivity.avgPower : null;
+  const estimated = !!(lastActivity && lastActivity.flags && lastActivity.flags.powerEstimated);
   return (
     <div className="gpx-panel">
       <SectionTitle icon={Sparkles}>Dernière sortie</SectionTitle>
@@ -227,24 +250,44 @@ function LastRideSection({ lastActivity, onOpen }) {
           <p className="gpx-empty-note">Importe ta première activité pour commencer à construire ton profil.</p>
         </>
       ) : (
-        <>
-          <div className="gpx-home-card-headline">{lastActivity.name || "Sortie vélo"}</div>
-          <div className="gpx-profile-card-meta" style={{ marginTop: 4 }}>
-            {lastActivity.date ? fmtDateFull(new Date(lastActivity.date)) : "Date inconnue"}
+        <div className="gpx-lastride">
+          <div>
+            <div className="gpx-lastride-name">{lastActivity.name || "Sortie vélo"}</div>
+            <div className="gpx-lastride-date">
+              {lastActivity.date ? fmtDateFull(new Date(lastActivity.date)) : "Date inconnue"}
+            </div>
+            <div className="gpx-lastride-stats">
+              <div className="gpx-lastride-stat">
+                <span className="gpx-lastride-stat-label">Distance</span>
+                <span className="gpx-lastride-stat-value">{fmt1(lastActivity.distance)}<small>km</small></span>
+              </div>
+              <div className="gpx-lastride-stat">
+                <span className="gpx-lastride-stat-label">Durée</span>
+                <span className="gpx-lastride-stat-value">{fmtDuration(lastActivity.movingTime ?? lastActivity.duration)}</span>
+              </div>
+              {speed != null && (
+                <div className="gpx-lastride-stat">
+                  <span className="gpx-lastride-stat-label">Vitesse moyenne</span>
+                  <span className="gpx-lastride-stat-value">{fmt1(speed)}<small>km/h</small></span>
+                </div>
+              )}
+              {lastActivity.elevationGain != null && (
+                <div className="gpx-lastride-stat">
+                  <span className="gpx-lastride-stat-label">Dénivelé</span>
+                  <span className="gpx-lastride-stat-value">+{fmtInt(lastActivity.elevationGain)}<small>m</small></span>
+                </div>
+              )}
+              {power != null && (
+                <div className="gpx-lastride-stat">
+                  <span className="gpx-lastride-stat-label">Puissance moyenne</span>
+                  <span className="gpx-lastride-stat-value">{fmtInt(power)}<small>W</small></span>
+                  <span className={estimated ? "gpx-power-source-estimated" : "gpx-power-source"}>{estimated ? "estimée" : "mesurée"}</span>
+                </div>
+              )}
+            </div>
           </div>
-          <div className="gpx-lastride-stats">
-            <span>{fmt1(lastActivity.distance)} km</span>
-            {lastActivity.avgSpeed != null && <span>{fmt1(lastActivity.avgSpeed)} km/h</span>}
-            <span>{fmtDuration(lastActivity.movingTime ?? lastActivity.duration)}</span>
-            {lastActivity.elevationGain != null && <span>+{fmtInt(lastActivity.elevationGain)} m</span>}
-            {lastActivity.avgPower != null && (
-              <span className={lastActivity.flags && lastActivity.flags.powerEstimated ? "gpx-power-source-estimated" : "gpx-power-source"}>
-                {fmtInt(lastActivity.avgPower)} W {lastActivity.flags && lastActivity.flags.powerEstimated ? "estimée" : "mesurée"}
-              </span>
-            )}
-          </div>
-          <button className="gpx-btn-ghost" style={{ marginTop: 12 }} onClick={onOpen}>Voir l'analyse</button>
-        </>
+          <button className="gpx-btn-primary gpx-lastride-cta" onClick={onOpen}>Voir l'analyse <ArrowRight size={16} /></button>
+        </div>
       )}
     </div>
   );
@@ -256,7 +299,7 @@ function LastRideSection({ lastActivity, onOpen }) {
 
 function EmptyStateImport({ storage, onConnect, onReconnect, upload, onLoadDemo, onOpenSources }) {
   return (
-    <div className="gpx-landing-inner" style={{ margin: "0 auto" }}>
+    <div className="gpx-landing-inner">
       <div className="gpx-landing-eyebrow"><Mountain size={13} /> Analyse de sortie vélo</div>
       <h1 className="gpx-landing-title">Importez votre sortie<br /><span>GPX ou FIT</span></h1>
       <p className="gpx-landing-sub">
@@ -281,10 +324,10 @@ function EmptyStateImport({ storage, onConnect, onReconnect, upload, onLoadDemo,
       <div className="gpx-landing-demo">
         <button className="gpx-link-btn" onClick={onLoadDemo}>Voir un exemple avec des données de démonstration (fictives)</button>
       </div>
-      <div className="gpx-panel" style={{ marginTop: 24, textAlign: "left" }}>
+      <div className="gpx-landing-storage">
         <StorageSettings storage={storage} onConnect={onConnect} onReconnect={onReconnect} compact />
         {onOpenSources && (
-          <button className="gpx-link-btn" style={{ marginTop: 8 }} onClick={onOpenSources}>
+          <button className="gpx-link-btn" onClick={onOpenSources}>
             Sources de données (Strava…)
           </button>
         )}
@@ -363,17 +406,16 @@ export function HomeView({ storage, onConnect, onReconnect, onNavigate, onOpenAc
       ) : isLoading ? (
         <div className="gpx-panel"><p className="gpx-empty-note">Analyse de ton historique…</p></div>
       ) : isEmpty ? (
-        <div className="gpx-landing" style={{ minHeight: "auto", padding: "40px 20px" }}>
+        <div className="gpx-landing gpx-landing--embedded">
           <EmptyStateImport storage={storage} onConnect={onConnect} onReconnect={onReconnect} upload={upload} onLoadDemo={onLoadDemo} onOpenSources={onOpenSources} />
         </div>
       ) : hasData ? (
         <>
-          <div className="gpx-header">
-            <div className="gpx-header-left">
-              <h1 className="gpx-ride-name">Bonjour.</h1>
-              <div className="gpx-ride-meta"><span>Ton identité cycliste, en un coup d'œil.</span></div>
-            </div>
-          </div>
+          <header className="gpx-home-head">
+            <p className="gpx-home-date">{formatToday()}</p>
+            <h1 className="gpx-home-title">Bonjour.</h1>
+            <p className="gpx-home-lede">Ton identité cycliste, en un coup d'œil.</p>
+          </header>
 
           {failedCount > 0 && (
             <div className="gpx-profile-banner">
@@ -382,15 +424,13 @@ export function HomeView({ storage, onConnect, onReconnect, onNavigate, onOpenAc
             </div>
           )}
 
-          <FocusSection profile={profile} progression={progression} onViewChallenges={() => onNavigate("alterego")} />
-
-          <div className="gpx-home-grid gpx-home-grid-pair">
-            <AlterEgoPreview progression={progression} onOpen={() => onNavigate("alterego")} />
-            <ArchetypePreview archetypeMatch={archetypeMatch} onOpen={() => onNavigate("archetype")} />
+          <div className="gpx-home-grid">
+            <Reveal className="gpx-span-8"><FocusSection profile={profile} progression={progression} onViewChallenges={() => onNavigate("alterego")} /></Reveal>
+            <Reveal className="gpx-span-4 gpx-home-ae" delay={40}><AlterEgoPreview progression={progression} onOpen={() => onNavigate("alterego")} /></Reveal>
+            <Reveal className="gpx-span-12 gpx-home-last" delay={80}><LastRideSection lastActivity={lastActivity} onOpen={lastActivity ? () => onOpenActivity(lastActivity.id) : undefined} /></Reveal>
+            <Reveal className="gpx-span-7 gpx-home-profile" delay={120}><ProfilePreviewSection profile={profile} onOpen={() => onNavigate("profil")} /></Reveal>
+            <Reveal className="gpx-span-5 gpx-home-ar" delay={160}><ArchetypePreview archetypeMatch={archetypeMatch} onOpen={() => onNavigate("archetype")} /></Reveal>
           </div>
-
-          <ProfilePreviewSection profile={profile} onOpen={() => onNavigate("profil")} />
-          <LastRideSection lastActivity={lastActivity} onOpen={lastActivity ? () => onOpenActivity(lastActivity.id) : undefined} />
 
           <div className="gpx-panel gpx-home-import-compact">
             <SectionTitle icon={Upload}>Importer une nouvelle sortie</SectionTitle>

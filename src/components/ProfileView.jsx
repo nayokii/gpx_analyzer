@@ -39,14 +39,14 @@ import {
 } from "recharts";
 
 import { StorageSettings } from "./StorageSettings.jsx";
-import { SectionTitle } from "./UIPrimitives.jsx";
+import { SectionTitle, PageHead } from "./UIPrimitives.jsx";
 import { Reveal } from "./Reveal.jsx";
 import { AnimatedValue } from "./AnimatedValue.jsx";
 import { useActivityRepository, useUnifiedActivities } from "./useActivityRepository.js";
 import { getCachedProfile, getCachedProfileTimeline } from "../lib/derivedCache.js";
 import { confidenceLabel } from "../lib/profile/confidence.js";
 import { summarizeDimensionTrend } from "../lib/profile/trend.js";
-import { COLORS } from "../lib/colors.js";
+import { COLORS, CHART_TOOLTIP_STYLE, CHART_AXIS } from "../lib/colors.js";
 import { fmtDateFull } from "../lib/utils.js";
 
 // Cap de sécurité avant de charger le détail complet de tout un historique
@@ -57,14 +57,15 @@ import { fmtDateFull } from "../lib/utils.js";
 // fichiers.
 const MAX_PROFILE_ACTIVITIES = 200;
 
+// Couleur métier de chaque dimension (mêmes teintes que l'Accueil pour les quatre premières).
 const DIMENSION_META = {
-  endurance: { label: "Endurance", icon: Timer },
-  climbing: { label: "Grimpe", icon: Mountain },
-  punch: { label: "Punch", icon: Zap },
-  sprint: { label: "Sprint", icon: Flame },
-  timeTrial: { label: "CLM", icon: Gauge },
-  technical: { label: "Technique", icon: Bike },
-  consistency: { label: "Régularité", icon: Repeat },
+  endurance: { label: "Endurance", icon: Timer, accent: "var(--speed)" },
+  climbing: { label: "Grimpe", icon: Mountain, accent: "var(--climb)" },
+  punch: { label: "Punch", icon: Zap, accent: "var(--effort)" },
+  sprint: { label: "Sprint", icon: Flame, accent: "var(--info)" },
+  timeTrial: { label: "CLM", icon: Gauge, accent: "color-mix(in srgb, var(--info) 55%, var(--speed))" },
+  technical: { label: "Technique", icon: Bike, accent: "color-mix(in srgb, var(--climb) 55%, var(--effort))" },
+  consistency: { label: "Régularité", icon: Repeat, accent: "color-mix(in srgb, var(--speed) 60%, var(--climb))" },
 };
 const DIMENSION_ORDER = ["endurance", "climbing", "punch", "sprint", "timeTrial", "technical", "consistency"];
 
@@ -136,7 +137,7 @@ export function DimensionCard({ dimKey, dim, onOpen, trend }) {
   const barWidth = insufficient ? 0 : Math.max(0, Math.min(100, dim.value));
 
   return (
-    <div className="gpx-profile-card">
+    <div className="gpx-profile-card" style={{ "--dim-accent": meta.accent }}>
       <div className="gpx-profile-card-head">
         <meta.icon size={14} />
         <span>{meta.label}</span>
@@ -168,7 +169,7 @@ export function DimensionCard({ dimKey, dim, onOpen, trend }) {
           <div className="gpx-profile-card-meta">
             {dim.contributingActivities} sortie{dim.contributingActivities > 1 ? "s" : ""} exploitable{dim.contributingActivities > 1 ? "s" : ""}
           </div>
-          {DATA_QUALITY_CARD_NOTES[dim.dataQuality] && <div className="gpx-profile-card-hint">{DATA_QUALITY_CARD_NOTES[dim.dataQuality]}</div>}
+          {DATA_QUALITY_CARD_NOTES[dim.dataQuality] && <div className="gpx-profile-card-hint gpx-profile-card-limit">{DATA_QUALITY_CARD_NOTES[dim.dataQuality]}</div>}
         </>
       )}
 
@@ -284,17 +285,17 @@ function EvolutionSection({ timeline, selectedDimension, setSelectedDimension })
       {!hasEnoughPoints ? (
         <p className="gpx-empty-note">Pas encore assez de données pour établir une évolution fiable.</p>
       ) : (
-        <ResponsiveContainer width="100%" height={180}>
-          <LineChart data={points} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
+        <ResponsiveContainer width="100%" height={220}>
+          <LineChart data={points} margin={{ top: 8, right: 22, bottom: 0, left: -10 }}>
             <CartesianGrid stroke={COLORS.border} vertical={false} />
-            <XAxis dataKey="date" stroke={COLORS.textMuted} fontSize={10} tickFormatter={formatMonthKey} />
-            <YAxis stroke={COLORS.textMuted} fontSize={10} width={36} domain={[0, "dataMax + 10"]} />
+            <XAxis dataKey="date" {...CHART_AXIS} tickFormatter={formatMonthKey} interval="preserveStartEnd" minTickGap={30} />
+            <YAxis {...CHART_AXIS} width={44} domain={[0, (max) => Math.max(100, Math.ceil(max / 10) * 10)]} tickCount={5} />
             <Tooltip
               formatter={(v, _name, ctx) => [v == null ? "Données insuffisantes" : `${v} (confiance ${CONFIDENCE_LABELS[ctx.payload.confidenceLabel] || ctx.payload.confidenceLabel})`, meta.label]}
               labelFormatter={formatMonthKey}
-              contentStyle={{ background: "#0e1211", border: `1px solid ${COLORS.borderStrong}`, borderRadius: 10, fontSize: 12 }}
+              contentStyle={CHART_TOOLTIP_STYLE}
             />
-            <Line type="monotone" dataKey="value" stroke={COLORS.speed} dot={{ r: 3 }} strokeWidth={2} isAnimationActive={false} connectNulls={false} />
+            <Line type="monotone" dataKey="value" stroke={COLORS.speed} dot={{ r: 4, strokeWidth: 0, fill: COLORS.speed }} strokeWidth={2.5} isAnimationActive={false} connectNulls={false} />
           </LineChart>
         </ResponsiveContainer>
       )}
@@ -358,7 +359,7 @@ function WhatsMissingSection({ profile }) {
 
 function AboutSection() {
   return (
-    <div className="gpx-panel">
+    <div className="gpx-panel gpx-panel--quiet">
       <SectionTitle icon={Info}>Comment fonctionne ce profil ?</SectionTitle>
       <p className="gpx-profile-about">
         Les indices sont calculés à partir des sorties enregistrées dans l'application.
@@ -409,35 +410,29 @@ export function ProfileView({ storage, onConnect, onReconnect, onOpen, onBack, u
     <div className="gpx-dashboard">
       {/* Cascade d'apparition (Phase 5B) : groupes visuels via Reveal, 30 ms d'écart. Les bandeaux d'avertissement et les cartes de dimensions ne sont pas animés individuellement. */}
       <Reveal>
-      <div className="gpx-header">
-        <div className="gpx-header-left">
-          <h1 className="gpx-ride-name">Mon profil cycliste</h1>
-          <div className="gpx-ride-meta">
-            {profile ? (
-              <>
-                <span>Analyse basée sur {profile.activityCount} sortie{profile.activityCount > 1 ? "s" : ""}</span>
-                <span>{availableDimCount} / {DIMENSION_ORDER.length} dimensions exploitables</span>
-                <span>
-                  Confiance globale :{" "}
-                  <b className={`gpx-confidence-${confidenceLabel(profile.overallConfidence)}`}>
-                    {CONFIDENCE_LABELS[confidenceLabel(profile.overallConfidence)] || "insuffisante"}
-                  </b>
-                </span>
-                <span>Dernière mise à jour : {fmtDateFull(new Date(profile.generatedAt))}</span>
-              </>
-            ) : ready ? (
-              <span>{summaries ? "Analyse de ton historique…" : "Chargement…"}</span>
-            ) : null}
-          </div>
-        </div>
-        <div className="gpx-header-actions">
-          <button className="gpx-btn-ghost" onClick={onBack}><ArrowLeft size={14} /> Retour</button>
-        </div>
-      </div>
+        <PageHead
+          title="Mon profil cycliste"
+          meta={profile ? (
+            <>
+              <span>Analyse basée sur {profile.activityCount} sortie{profile.activityCount > 1 ? "s" : ""}</span>
+              <span>{availableDimCount} / {DIMENSION_ORDER.length} dimensions exploitables</span>
+              <span>
+                Confiance globale :{" "}
+                <b className={`gpx-confidence-${confidenceLabel(profile.overallConfidence)}`}>
+                  {CONFIDENCE_LABELS[confidenceLabel(profile.overallConfidence)] || "insuffisante"}
+                </b>
+              </span>
+              <span>Dernière mise à jour : {fmtDateFull(new Date(profile.generatedAt))}</span>
+            </>
+          ) : ready ? (
+            <span>{summaries ? "Analyse de ton historique…" : "Chargement…"}</span>
+          ) : null}
+          actions={<button className="gpx-btn-ghost" onClick={onBack}><ArrowLeft size={15} /> <span>Retour</span></button>}
+        />
       </Reveal>
 
       <Reveal delay={30}>
-        <div className="gpx-panel">
+        <div className="gpx-statusline">
           <StorageSettings storage={storage} onConnect={onConnect} onReconnect={onReconnect} />
         </div>
       </Reveal>
@@ -497,7 +492,7 @@ export function ProfileView({ storage, onConnect, onReconnect, onOpen, onBack, u
                 </div>
               </Reveal>
 
-              <Reveal delay={120}>
+              <Reveal delay={120} className="gpx-two-up">
                 <WhatsDocumentedSection profile={profile} />
                 <WhatsMissingSection profile={profile} />
               </Reveal>

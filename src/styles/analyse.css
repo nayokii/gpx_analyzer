@@ -1,0 +1,162 @@
+/**
+ * Cycling OS — vue Analyse (écran de référence n°2).
+ * En-tête héroïque, scène carte + profil, groupes de métriques, lecture éditoriale, zones et efforts.
+ */
+
+/* ---------- En-tête de la sortie ---------- */
+.gpx-hero {
+  position: relative; overflow: hidden; isolation: isolate;
+  background: var(--surface); border-radius: var(--radius-lg); box-shadow: var(--shadow-card);
+  padding: 28px 32px 36px; margin-bottom: 20px;
+}
+.gpx-hero-top { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.gpx-hero-eyebrow { font-size: 14px; font-weight: 600; color: var(--muted); display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; }
+.gpx-hero-eyebrow span + span::before { content: "·"; margin-right: 10px; color: var(--faint); }
+.gpx-header-actions { display: flex; gap: 8px; align-items: center; }
+.gpx-ride-name {
+  font-size: clamp(30px, 4.4vw, 48px); font-weight: 750; line-height: 1.04; letter-spacing: -0.04em;
+  margin: 14px 0 0; word-break: break-word; max-width: 18em;
+}
+.gpx-hero-badges { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; }
+.gpx-hero-badge {
+  display: inline-flex; align-items: center; gap: 6px; padding: 4px 11px; border-radius: var(--radius-pill);
+  background: var(--surface2); color: var(--muted); font-size: 12.5px; font-weight: 600;
+}
+.gpx-hero-badge i { width: 7px; height: 7px; border-radius: 50%; background: var(--badge-accent, var(--faint)); }
+.gpx-hero-badge.is-demo { background: color-mix(in srgb, var(--climb) 15%, transparent); color: var(--climb-ink); }
+.gpx-hero-badge.is-ok { background: color-mix(in srgb, var(--speed) 13%, transparent); color: var(--speed-ink); }
+.gpx-hero-metrics {
+  position: relative; z-index: 1; display: grid; grid-template-columns: repeat(auto-fit, minmax(124px, 1fr)); gap: 20px 24px;
+  margin-top: 36px;
+}
+.gpx-hero-metric-label { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; color: var(--muted); }
+.gpx-hero-metric-label i { width: 9px; height: 9px; border-radius: 50%; background: var(--metric-accent, var(--speed)); }
+.gpx-hero-metric-value { margin-top: 6px; display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; font-size: clamp(36px, 5vw, 58px); font-weight: 700; line-height: 1; letter-spacing: -0.05em; font-variant-numeric: tabular-nums; }
+.gpx-hero-metric-unit { font-size: 18px; font-weight: 600; letter-spacing: -0.01em; color: var(--muted); }
+/* Place réservée à la silhouette du relief, seulement quand la sortie a des altitudes */
+.gpx-hero.has-relief { padding-bottom: 112px; }
+/* Silhouette du relief, tirée des vraies altitudes de la sortie */
+.gpx-silhouette { position: absolute; left: 0; right: 0; bottom: 0; height: 84px; z-index: 0; pointer-events: none; }
+.gpx-silhouette svg { display: block; width: 100%; height: 100%; }
+@media (max-width: 680px) {
+  .gpx-hero-top { flex-wrap: nowrap; align-items: flex-start; }
+  .gpx-hero-eyebrow { flex-direction: column; align-items: flex-start; gap: 2px; font-size: 13.5px; }
+  .gpx-hero-eyebrow span + span::before { content: none; }
+  .gpx-ride-name { margin-top: 18px; }
+  .gpx-hero { padding: 22px 20px 28px; border-radius: 22px; }
+  .gpx-hero.has-relief { padding-bottom: 92px; }
+  .gpx-silhouette { height: 66px; }
+  .gpx-hero-metrics { grid-template-columns: repeat(2, 1fr); gap: 22px 16px; margin-top: 26px; }
+  .gpx-hero-metric-unit { font-size: 15px; }
+  .gpx-header-actions .gpx-btn-ghost span { display: none; }
+  .gpx-header-actions .gpx-btn-ghost { width: 40px; height: 40px; padding: 0; justify-content: center; border-radius: 50%; }
+}
+
+/* ---------- Scène carte + profil ---------- */
+.gpx-stage { padding: 22px; }
+.gpx-stage .gpx-section-title { padding: 4px 6px 0; margin-bottom: 14px; }
+.gpx-stage-profile { margin-top: 18px; padding: 0 6px 4px; }
+@media (max-width: 680px) { .gpx-stage { padding: 16px 12px; } .gpx-stage-profile { padding: 0 2px; } }
+
+/* ---------- Lecture éditoriale ---------- */
+.gpx-summary-text { font-size: 19px; line-height: 1.55; font-weight: 500; letter-spacing: -0.015em; color: var(--text); margin: 0 0 24px; max-width: 46em; }
+.gpx-highlight-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; padding-top: 22px; border-top: 1px solid var(--separator); }
+.gpx-highlight-col-title { font-size: 14px; font-weight: 650; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+.gpx-highlight-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 12px; }
+.gpx-highlight-list li { font-size: 15px; color: var(--text); padding-left: 18px; position: relative; line-height: 1.5; }
+.gpx-highlight-list li::before { content: ""; position: absolute; left: 0; top: 0.6em; width: 7px; height: 7px; border-radius: 50%; background: var(--bullet, var(--faint)); }
+.gpx-highlight-col.is-strong { --bullet: var(--speed); }
+.gpx-highlight-col.is-notable { --bullet: var(--climb); }
+@media (max-width: 760px) { .gpx-highlight-grid { grid-template-columns: 1fr; gap: 22px; } .gpx-summary-text { font-size: 17px; } }
+
+/* ---------- Distribution de pente ---------- */
+.gpx-grade-bar { height: 6px; border-radius: var(--radius-pill); background: var(--surface3); margin-top: 6px; overflow: hidden; }
+.gpx-grade-bar > div { height: 100%; background: var(--climb); border-radius: var(--radius-pill); }
+
+/* ---------- Montées & efforts (cartes de liste) ---------- */
+.gpx-climb-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; margin-bottom: 20px; }
+.gpx-panel .gpx-climb-cards { margin-bottom: 0; }
+.gpx-climb-card {
+  background: var(--surface); box-shadow: var(--shadow-card); border-radius: var(--radius-md); padding: 16px 18px; cursor: pointer;
+  transition: background var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
+}
+.gpx-panel .gpx-climb-card { background: var(--surface2); box-shadow: none; }
+.gpx-climb-card:hover { box-shadow: var(--shadow-pop); }
+.gpx-panel .gpx-climb-card:hover { background: var(--surface3); box-shadow: none; }
+/* Montée sélectionnée : accent « climb » + filet à gauche */
+.gpx-climb-card.selected, .gpx-panel .gpx-climb-card.selected { --active: var(--climb); background: color-mix(in srgb, var(--climb) 11%, var(--surface)); box-shadow: inset 3px 0 0 var(--climb); }
+.gpx-climb-card-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-bottom: 8px; }
+.gpx-climb-card-name { font-weight: 650; font-size: 15px; letter-spacing: -0.01em; }
+.gpx-climb-card-grade { font-size: 24px; font-weight: 700; letter-spacing: -0.04em; color: var(--climb-ink); font-variant-numeric: tabular-nums; }
+.gpx-climb-card-meta { display: flex; gap: 4px 14px; font-size: 13px; color: var(--muted); flex-wrap: wrap; font-variant-numeric: tabular-nums; }
+
+/* ---------- Statistiques de graphique : chiffres en grand ---------- */
+.gpx-chart-card-title { font-size: 15px; font-weight: 650; margin-bottom: 4px; letter-spacing: -0.01em; }
+.gpx-chart-card-stats { display: flex; flex-wrap: wrap; gap: 14px 36px; margin-bottom: 18px; }
+.gpx-chart-card-stats > span {
+  display: flex; flex-direction: column; gap: 2px; font-size: 13px; font-weight: 600; color: var(--muted);
+}
+.gpx-chart-card-stats b { font-size: 26px; font-weight: 700; color: var(--text); letter-spacing: -0.035em; font-variant-numeric: tabular-nums; line-height: 1.1; }
+
+/* ---------- Zones (FC / puissance) ---------- */
+.gpx-zone-bar-wrap { display: flex; flex-direction: column; gap: 14px; }
+.gpx-zone-row { display: grid; grid-template-columns: 120px 1fr 72px; align-items: center; gap: 14px; font-size: 14px; }
+.gpx-zone-name { color: var(--muted); font-weight: 500; }
+.gpx-zone-track { height: 10px; border-radius: var(--radius-pill); background: var(--surface2); overflow: hidden; }
+.gpx-zone-fill { height: 100%; border-radius: var(--radius-pill); }
+.gpx-zone-time { text-align: right; font-variant-numeric: tabular-nums; color: var(--text); font-weight: 650; }
+
+.gpx-power-zone-row { display: grid; grid-template-columns: 150px 96px 1fr 76px 56px; align-items: center; gap: 14px; font-size: 14px; }
+.gpx-power-zone-name { color: var(--text); font-weight: 600; }
+.gpx-power-zone-watts { color: var(--muted); font-variant-numeric: tabular-nums; }
+.gpx-power-zone-time { text-align: right; font-variant-numeric: tabular-nums; color: var(--text); font-weight: 650; }
+.gpx-power-zone-pct { text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); font-size: 13px; }
+@media (max-width: 560px) {
+  .gpx-zone-row { grid-template-columns: 1fr auto; grid-template-areas: "name time" "bar bar"; row-gap: 6px; }
+  .gpx-zone-row .gpx-zone-name { grid-area: name; }
+  .gpx-zone-row .gpx-zone-track { grid-area: bar; }
+  .gpx-zone-row .gpx-zone-time { grid-area: time; }
+  .gpx-power-zone-row {
+    grid-template-columns: 1fr auto; grid-template-areas: "name watts" "bar bar" "time pct"; row-gap: 6px;
+  }
+  .gpx-power-zone-name { grid-area: name; }
+  .gpx-power-zone-watts { grid-area: watts; text-align: right; }
+  .gpx-power-zone-row .gpx-zone-track { grid-area: bar; }
+  .gpx-power-zone-time { grid-area: time; text-align: left; }
+  .gpx-power-zone-pct { grid-area: pct; }
+}
+.gpx-power-efforts { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 12px; margin-bottom: 16px; }
+
+.gpx-hr-config { display: flex; align-items: center; gap: 10px; font-size: 13.5px; font-weight: 500; color: var(--muted); }
+.gpx-hr-config input { width: 72px; }
+
+/* ---------- Meilleurs efforts ---------- */
+.gpx-best-efforts { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+.gpx-effort-card { background: var(--surface2); border-radius: var(--radius-md); padding: 18px; }
+.gpx-effort-card-label { font-size: 13px; font-weight: 600; color: var(--muted); margin-bottom: 6px; }
+.gpx-effort-card-value { font-size: 28px; font-weight: 700; letter-spacing: -0.04em; font-variant-numeric: tabular-nums; }
+.gpx-effort-card-sub { font-size: 12.5px; color: var(--muted); margin-top: 4px; }
+.gpx-effort-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 28px; }
+@media (max-width: 860px) { .gpx-effort-grid { grid-template-columns: 1fr; } }
+
+/* ---------- Arrêts ---------- */
+.gpx-stats-grid.gpx-stats-grid-5 { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+.gpx-stop-list { display: flex; flex-direction: column; }
+.gpx-stop-item { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 4px 12px; font-size: 14px; padding: 12px 0; border-top: 1px solid var(--separator); }
+.gpx-stop-item span { color: var(--muted); }
+.gpx-toggle-row { display: flex; align-items: center; gap: 10px; margin-top: 16px; font-size: 14px; color: var(--text); cursor: pointer; }
+
+/* ---------- Paramètres ---------- */
+.gpx-params-grid { display: grid; grid-template-columns: 1fr; gap: 0; margin-bottom: 18px; }
+.gpx-param-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 14px 0;
+  border-top: 1px solid var(--separator);
+}
+.gpx-param-row:first-child { border-top: none; }
+.gpx-param-label { font-size: 15px; font-weight: 600; color: var(--text); }
+.gpx-param-control { display: inline-flex; align-items: center; gap: 8px; }
+.gpx-param-control input { width: 96px; text-align: right; font-variant-numeric: tabular-nums; font-weight: 650; }
+.gpx-param-unit { font-size: 13px; color: var(--muted); min-width: 22px; }
+.gpx-params-actions { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.gpx-params-hint { font-size: 13px; color: var(--muted); }
+

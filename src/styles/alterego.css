@@ -1,0 +1,52 @@
+/**
+ * Cycling OS — Alter Ego : niveau en anneau, challenges au premier plan, trophées lisibles sans esthétique de jeu mobile.
+ * Le seul accent chaud (ambre) est réservé à l'XP.
+ */
+.gpx-alterego-level { padding: 32px 36px; }
+.gpx-alterego-level-head { display: flex; align-items: center; justify-content: space-between; gap: 24px; }
+.gpx-alterego-level-title { font-size: clamp(28px, 4vw, 44px); font-weight: 750; letter-spacing: -0.045em; line-height: 1.05; }
+.gpx-alterego-level-xp { margin-top: 14px; font-size: 22px; font-weight: 700; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; color: var(--climb-ink); }
+.gpx-alterego-level-hint { margin-top: 4px; font-size: 14.5px; color: var(--muted); }
+.gpx-alterego-ring { --ring-size: 132px; --ring-track: var(--surface3); --ring-fill: var(--climb); }
+.gpx-alterego-ring .gpx-ring-value { color: var(--text); }
+@media (max-width: 680px) {
+  .gpx-alterego-level { padding: 24px 22px; }
+  .gpx-alterego-ring { --ring-size: 96px; }
+}
+
+.gpx-alterego-grid { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 20px; align-items: start; margin-bottom: 20px; }
+.gpx-alterego-main > .gpx-panel:last-child, .gpx-alterego-side > .gpx-panel:last-child { margin-bottom: 0; }
+@media (max-width: 960px) { .gpx-alterego-grid { grid-template-columns: 1fr; gap: 0; } .gpx-alterego-main > .gpx-panel:last-child, .gpx-alterego-side > .gpx-panel:last-child { margin-bottom: 14px; } }
+
+/* Profil actuel : lignes sur filets avec mini-barre */
+.gpx-alterego-profile-list { display: flex; flex-direction: column; }
+.gpx-alterego-profile-row { display: grid; grid-template-columns: minmax(0, 1fr) 72px 34px; align-items: center; gap: 12px; padding: 12px 0; border-top: 1px solid var(--separator); font-size: 15px; font-weight: 600; }
+.gpx-alterego-profile-row:first-child { border-top: none; padding-top: 4px; }
+.gpx-alterego-profile-row-label { display: flex; align-items: center; gap: 9px; color: var(--text); font-weight: 600; min-width: 0; }
+.gpx-alterego-profile-row-label svg { color: var(--muted); flex-shrink: 0; }
+.gpx-alterego-profile-bar { height: 6px; border-radius: var(--radius-pill); background: var(--surface3); overflow: hidden; display: block; }
+.gpx-alterego-profile-bar i { display: block; height: 100%; border-radius: var(--radius-pill); background: var(--speed); }
+.gpx-alterego-profile-value { text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+.gpx-alterego-note { margin-top: 12px; }
+.gpx-alterego-archetype { font-size: 24px; font-weight: 700; letter-spacing: -0.035em; margin-top: 0; }
+
+/* Challenges */
+.gpx-alterego-challenge { padding: 18px 0; border-top: 1px solid var(--separator); }
+.gpx-alterego-challenge:first-of-type { border-top: none; padding-top: 4px; }
+.gpx-alterego-challenge-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; font-size: 16px; font-weight: 650; letter-spacing: -0.01em; margin-bottom: 10px; }
+.gpx-alterego-challenge-done { padding: 12px 0; }
+.gpx-alterego-challenge-done .gpx-alterego-challenge-head { color: var(--speed-ink); font-size: 14.5px; margin-bottom: 0; font-weight: 600; }
+.gpx-alterego-challenge .gpx-profile-card-bar { height: 8px; margin: 0 0 8px; }
+.gpx-alterego-challenge .gpx-profile-card-bar-fill { background: var(--climb); }
+.gpx-alterego-xp-badge { font-size: 12.5px; font-weight: 700; color: var(--climb-ink); background: color-mix(in srgb, var(--climb) 15%, transparent); border-radius: var(--radius-pill); padding: 3px 10px; white-space: nowrap; }
+.gpx-alterego-subheading { font-size: 13px; font-weight: 650; color: var(--muted); margin: 18px 0 2px; padding-top: 18px; border-top: 1px solid var(--separator); }
+
+/* Trophées */
+.gpx-alterego-achievement-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; }
+.gpx-alterego-achievement { display: flex; align-items: center; gap: 12px; font-size: 14px; font-weight: 600; color: var(--faint); background: var(--surface2); border-radius: var(--radius-md); padding: 13px 14px; }
+.gpx-alterego-achievement > svg { flex-shrink: 0; }
+.gpx-alterego-achievement-unlocked { color: var(--text); background: color-mix(in srgb, var(--climb) 11%, var(--surface)); }
+.gpx-alterego-achievement-check {
+  width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; flex-shrink: 0;
+  background: var(--climb); color: #1c1200; font-size: 12px; font-weight: 800;
+}

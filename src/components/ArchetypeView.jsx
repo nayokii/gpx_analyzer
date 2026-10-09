@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 
 import { StorageSettings } from "./StorageSettings.jsx";
-import { SectionTitle } from "./UIPrimitives.jsx";
+import { SectionTitle, PageHead } from "./UIPrimitives.jsx";
 import { Reveal } from "./Reveal.jsx";
 import { useActivityRepository, useUnifiedActivities } from "./useActivityRepository.js";
 import { getCachedProfile, getCachedArchetypeMatch, getCachedReferenceRiders, getCachedArchetypeTimeline } from "../lib/derivedCache.js";
@@ -120,10 +120,11 @@ function ProfileUnderConstructionNote({ match, profile }) {
         {activityCount} sortie{activityCount > 1 ? "s" : ""} analysée{activityCount > 1 ? "s" : ""}
         {weeksSpan != null ? ` · ${weeksSpan} semaine${weeksSpan > 1 ? "s" : ""} couverte${weeksSpan > 1 ? "s" : ""}` : ""}
       </p>
-      <p className="gpx-empty-note" style={{ fontStyle: "normal", marginTop: 6 }}>{bodyText}</p>
+      <p className="gpx-empty-note">{bodyText}</p>
 
+      <div className="gpx-archetype-lists">
       {availableDims.length > 0 && (
-        <div style={{ marginTop: 10 }}>
+        <div className="gpx-archetype-block">
           <div className="gpx-profile-card-meta">Ce qui influence déjà ton profil :</div>
           <ul className="gpx-profile-evidence-list">
             {availableDims.map((d) => <li key={d}>{DIMENSION_LABELS[d]}</li>)}
@@ -131,7 +132,7 @@ function ProfileUnderConstructionNote({ match, profile }) {
         </div>
       )}
       {missingDims.length > 0 && (
-        <div style={{ marginTop: 6 }}>
+        <div className="gpx-archetype-block">
           <div className="gpx-profile-card-meta">Ce qui reste à documenter :</div>
           <ul className="gpx-profile-evidence-list">
             {missingDims.map((d) => <li key={d}>{DIMENSION_LABELS[d]}</li>)}
@@ -139,7 +140,9 @@ function ProfileUnderConstructionNote({ match, profile }) {
         </div>
       )}
 
-      <p className="gpx-empty-note" style={{ fontStyle: "normal", marginTop: 10 }}>
+      </div>
+
+      <p className="gpx-empty-note">
         L'archétype se précisera naturellement avec davantage de données.
       </p>
     </>
@@ -160,47 +163,55 @@ function DominantArchetypeSection({ match, userValues, profile }) {
   const headline = isUnderConstruction ? "Profil en construction" : match.combinedLabel;
 
   return (
-    <div className="gpx-panel">
+    <div className="gpx-panel gpx-archetype-hero">
       <SectionTitle icon={Fingerprint}>Ton profil cycliste</SectionTitle>
-      <div className="gpx-archetype-headline">{headline}</div>
-      {!hasResult ? (
-        isUnderConstruction ? (
-          <ProfileUnderConstructionNote match={match} profile={profile} />
-        ) : (
-          <>
-            <p className="gpx-empty-note">
-              Les dimensions disponibles ne se rapprochent pas assez nettement d'un style particulier pour l'instant.
+      <div className={"gpx-archetype-hero-grid" + (hasResult ? "" : " is-solo")}>
+        <div className="gpx-archetype-id">
+          <div className="gpx-archetype-headline">{headline}</div>
+          {!hasResult ? (
+            isUnderConstruction ? (
+              <ProfileUnderConstructionNote match={match} profile={profile} />
+            ) : (
+              <>
+                <p className="gpx-empty-note">
+                  Les dimensions disponibles ne se rapprochent pas assez nettement d'un style particulier pour l'instant.
+                </p>
+                {match.explanation.map((s, i) => (
+                  <p className="gpx-empty-note" key={i}>{s}</p>
+                ))}
+              </>
+            )
+          ) : (
+            <>
+              <div className="gpx-archetype-roles">
+                <span>Dominant : <b>{match.primary.name}</b></span>
+                <span>{match.secondary ? <>Secondaire : <b>{match.secondary.name}</b></> : "Pas de second archétype suffisamment proche pour l'instant"}</span>
+              </div>
+              <div className="gpx-profile-card-confidence">
+                Confiance : <b className={`gpx-confidence-${match.confidence.label}`}>{CONFIDENCE_LABELS[match.confidence.label] || match.confidence.label}</b>
+              </div>
+              {match.explanation.map((s, i) => (
+                <p className="gpx-empty-note gpx-archetype-explain" key={i}>{s}</p>
+              ))}
+              <p className="gpx-archetype-limits">
+                Limites : ce rapprochement ne compare que {usedDimCount} / {ARCHETYPE_DIMENSIONS.length} dimensions de style,
+                uniquement celles disponibles dans ton profil actuel — jamais un niveau de performance.
+              </p>
+            </>
+          )}
+          {!isUnderConstruction && match.insufficientDimensions.length > 0 && (
+            <p className="gpx-profile-card-meta">
+              Dimensions manquantes : {match.insufficientDimensions.map((d) => DIMENSION_LABELS[d]).join(", ")}.
             </p>
-            {match.explanation.map((s, i) => (
-              <p className="gpx-empty-note" key={i} style={{ fontStyle: "normal", marginTop: 4 }}>{s}</p>
-            ))}
-          </>
-        )
-      ) : (
-        <>
-          <div className="gpx-archetype-roles">
-            <span>Dominant : <b>{match.primary.name}</b></span>
-            <span>{match.secondary ? <>Secondaire : <b>{match.secondary.name}</b></> : "Pas de second archétype suffisamment proche pour l'instant"}</span>
+          )}
+        </div>
+        {hasResult && (
+          <div className="gpx-archetype-why">
+            <div className="gpx-alterego-subheading">Pourquoi ?</div>
+            <DimensionBars dims={ARCHETYPE_DIMENSIONS.filter((d) => userValues[d] != null)} vectorValues={userValues} influence={influence} />
           </div>
-          <div className="gpx-profile-card-confidence" style={{ marginTop: 6 }}>
-            Confiance : <b className={`gpx-confidence-${match.confidence.label}`}>{CONFIDENCE_LABELS[match.confidence.label] || match.confidence.label}</b>
-          </div>
-          <div className="gpx-alterego-subheading">Pourquoi ?</div>
-          <DimensionBars dims={ARCHETYPE_DIMENSIONS.filter((d) => userValues[d] != null)} vectorValues={userValues} influence={influence} />
-          {match.explanation.map((s, i) => (
-            <p className="gpx-empty-note" key={i} style={{ fontStyle: "normal", marginTop: i === 0 ? 10 : 4 }}>{s}</p>
-          ))}
-          <p className="gpx-profile-card-meta" style={{ marginTop: 8 }}>
-            Limites : ce rapprochement ne compare que {usedDimCount} / {ARCHETYPE_DIMENSIONS.length} dimensions de style,
-            uniquement celles disponibles dans ton profil actuel — jamais un niveau de performance.
-          </p>
-        </>
-      )}
-      {!isUnderConstruction && match.insufficientDimensions.length > 0 && (
-        <p className="gpx-profile-card-meta" style={{ marginTop: 8 }}>
-          Dimensions manquantes : {match.insufficientDimensions.map((d) => DIMENSION_LABELS[d]).join(", ")}.
-        </p>
-      )}
+        )}
+      </div>
     </div>
   );
 }
@@ -226,9 +237,9 @@ function RiderCard({ result }) {
       </button>
       {expanded && (
         <div className="gpx-archetype-rider-detail">
-          <p className="gpx-empty-note" style={{ fontStyle: "normal" }}>{rider.description}</p>
+          <p className="gpx-empty-note">{rider.description}</p>
           {result.explanation.map((s, i) => (
-            <p className="gpx-empty-note" key={i} style={{ fontStyle: "normal" }}>{s}</p>
+            <p className="gpx-empty-note" key={i}>{s}</p>
           ))}
           {missingDimensions.length > 0 && (
             <p className="gpx-profile-card-meta">Dimensions manquantes pour affiner : {missingDimensions.map((d) => DIMENSION_LABELS[d]).join(", ")}.</p>
@@ -257,14 +268,14 @@ function SimilarRidersSection({ results }) {
         <p className="gpx-empty-note">Pas encore assez de dimensions exploitables pour proposer un rapprochement fiable.</p>
       ) : (
         <>
-          <p className="gpx-empty-note" style={{ fontStyle: "normal", marginBottom: 10 }}>
+          <p className="gpx-empty-note gpx-archetype-intro">
             Comparaison de la structure du profil (quelles dimensions dominent), jamais du niveau de performance.
           </p>
           <div className="gpx-archetype-rider-grid">
             {visible.map((r) => <RiderCard key={r.rider.id} result={r} />)}
           </div>
           {results.length > VISIBLE_RIDERS_DEFAULT && (
-            <button className="gpx-btn-ghost" style={{ marginTop: 12 }} onClick={() => setShowAll((s) => !s)}>
+            <button className="gpx-btn-ghost gpx-archetype-more" onClick={() => setShowAll((s) => !s)}>
               {showAll ? "Réduire" : `Voir les autres profils (${results.length - VISIBLE_RIDERS_DEFAULT})`}
             </button>
           )}
@@ -334,25 +345,19 @@ export function ArchetypeView({ storage, onConnect, onReconnect, onBack, userSet
     <div className="gpx-dashboard">
       {/* Cascade d'apparition (Phase 5B) : groupes visuels via Reveal, 30 ms d'écart. Les bandeaux de limites/confiance restent affichés immédiatement. */}
       <Reveal>
-      <div className="gpx-header">
-        <div className="gpx-header-left">
-          <h1 className="gpx-ride-name">Archétype</h1>
-          <div className="gpx-ride-meta">
-            {profile ? (
-              <span>Basé sur {profile.activityCount} sortie{profile.activityCount > 1 ? "s" : ""}</span>
-            ) : ready ? (
-              <span>{summaries ? "Analyse de ton historique…" : "Chargement…"}</span>
-            ) : null}
-          </div>
-        </div>
-        <div className="gpx-header-actions">
-          <button className="gpx-btn-ghost" onClick={onBack}><ArrowLeft size={14} /> Retour</button>
-        </div>
-      </div>
+        <PageHead
+          title="Archétype"
+          meta={profile ? (
+            <span>Basé sur {profile.activityCount} sortie{profile.activityCount > 1 ? "s" : ""}</span>
+          ) : ready ? (
+            <span>{summaries ? "Analyse de ton historique…" : "Chargement…"}</span>
+          ) : null}
+          actions={<button className="gpx-btn-ghost" onClick={onBack}><ArrowLeft size={15} /> <span>Retour</span></button>}
+        />
       </Reveal>
 
       <Reveal delay={30}>
-        <div className="gpx-panel">
+        <div className="gpx-statusline">
           <StorageSettings storage={storage} onConnect={onConnect} onReconnect={onReconnect} />
         </div>
       </Reveal>

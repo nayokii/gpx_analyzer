@@ -27,6 +27,7 @@ import { useEffect, useRef, useState } from "react";
 import { Map as MapLibreMap, NavigationControl, Marker, Popup, LngLatBounds } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 
+import { resolveColor } from "../lib/theme.js";
 import { COLORS, SPEED_SCALE, GRADE_SCALE, HR_SCALE, ELE_SCALE, scaleColor } from "../lib/colors.js";
 import { decimate, fmtInt } from "../lib/utils.js";
 
@@ -53,7 +54,7 @@ function buildGradientStops(decimated, colorMode) {
   const raw = decimated.map((p) => {
     const progress = total > 0 ? Math.max(0, Math.min(1, p.distance / total)) : 0;
     const value = colorMode === "speed" ? p.speed : colorMode === "altitude" ? p.ele : colorMode === "hr" ? p.hr : p.grade;
-    const color = colorMode === "track" ? COLORS.speed : colorForMode(value, colorMode, decimated);
+    const color = colorMode === "track" ? resolveColor(COLORS.speed) : colorForMode(value, colorMode, decimated);
     return { progress, color };
   });
 
@@ -93,7 +94,7 @@ function rangeForMode(colorMode, decimated) {
 }
 
 function colorForMode(val, colorMode, decimated) {
-  if (val == null) return COLORS.textFaint;
+  if (val == null) return resolveColor(COLORS.textFaint);
   const [lo, hi] = rangeForMode(colorMode, decimated);
   const t = hi === lo ? 0 : (val - lo) / (hi - lo);
   const stops = colorMode === "speed" ? SPEED_SCALE : colorMode === "altitude" ? ELE_SCALE : colorMode === "hr" ? HR_SCALE : GRADE_SCALE;
@@ -106,7 +107,7 @@ function makeMarkerEl(fillColor) {
   el.style.height = "16px";
   el.style.borderRadius = "50%";
   el.style.background = fillColor;
-  el.style.border = `2px solid ${COLORS.bg}`;
+  el.style.border = `2px solid ${resolveColor(COLORS.bg)}`;
   el.style.boxShadow = "0 0 0 2px rgba(255,255,255,0.9)";
   return el;
 }
@@ -180,7 +181,7 @@ export function MapLibrePrototype({ analysis, height = 460 }) {
         source: sourceId,
         layout: { "line-cap": "round", "line-join": "round" },
         paint: {
-          "line-color": COLORS.bg,
+          "line-color": resolveColor(COLORS.bg),
           "line-opacity": 0.9,
           "line-width": ["interpolate", ["linear"], ["zoom"], 10, 5, 16, 9],
         },
@@ -208,8 +209,8 @@ export function MapLibrePrototype({ analysis, height = 460 }) {
     markersRef.current = [];
     const start = decimated[0];
     const end = decimated[decimated.length - 1];
-    markersRef.current.push(new Marker({ element: makeMarkerEl(COLORS.speed) }).setLngLat([start.lon, start.lat]).setPopup(new Popup({ closeButton: false }).setText("Départ")).addTo(map));
-    markersRef.current.push(new Marker({ element: makeMarkerEl(COLORS.effort) }).setLngLat([end.lon, end.lat]).setPopup(new Popup({ closeButton: false }).setText("Arrivée")).addTo(map));
+    markersRef.current.push(new Marker({ element: makeMarkerEl(resolveColor(COLORS.speed)) }).setLngLat([start.lon, start.lat]).setPopup(new Popup({ closeButton: false }).setText("Départ")).addTo(map));
+    markersRef.current.push(new Marker({ element: makeMarkerEl(resolveColor(COLORS.effort)) }).setLngLat([end.lon, end.lat]).setPopup(new Popup({ closeButton: false }).setText("Arrivée")).addTo(map));
 
     const bounds = coords.reduce((b, c) => b.extend(c), new LngLatBounds(coords[0], coords[0]));
     map.fitBounds(bounds, { padding: 40, duration: 0 });

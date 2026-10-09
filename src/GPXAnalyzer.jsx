@@ -28,10 +28,12 @@ import {
   fmtClock,
   fmtDateFull,
 } from "./lib/utils.js";
-import { COLORS, MAP_TILE_FILTER } from "./lib/colors.js";
+import { COLORS, CHART_TOOLTIP_STYLE } from "./lib/colors.js";
 import { generateSummary, generateHighlights } from "./lib/narrative.js";
 import { generateDemoPoints } from "./lib/demoData.js";
-import { StatCard, SectionTitle, CustomTooltip } from "./components/UIPrimitives.jsx";
+import { StatCard, SectionTitle, CustomTooltip, MetricGroup, SortControl } from "./components/UIPrimitives.jsx";
+import { AnimatedValue } from "./components/AnimatedValue.jsx";
+import { ElevationSilhouette } from "./components/ElevationSilhouette.jsx";
 import { ActiveIndicator, useActiveIndicator } from "./components/ActiveIndicator.jsx";
 import { AnalyticsView } from "./components/AnalyticsView.jsx";
 import { MapView } from "./components/MapView.jsx";
@@ -90,6 +92,29 @@ const DEFAULT_HR_ZONES = [
   { name: "Z4 Seuil", min: 80, max: 90, color: "#e8834a" },
   { name: "Z5 VO2max", min: 90, max: 999, color: "#e8543a" },
 ];
+
+/** Colonnes triables du tableau des montées (mêmes conditions de disponibilité que les en-têtes). */
+function climbSortColumns(analysis) {
+  return [
+    ["name", "Montée"], ["startDistance", "Km"], ["lengthKm", "Longueur"], ["gain", "D+"],
+    ["avgGrade", "Pente moy."], ["maxGrade", "Pente max"], ["duration", "Durée"],
+    ["avgSpeed", "Vitesse moy."], ["avgHR", "FC moy."], ["avgPower", "Puiss. moy."],
+  ].filter(([key]) =>
+    (key !== "avgHR" || analysis.hasHR) && (key !== "avgPower" || analysis.hasPower) &&
+    (key !== "duration" || analysis.hasTime) && (key !== "avgSpeed" || analysis.hasTime)
+  );
+}
+
+/** Colonnes triables du tableau des splits. */
+function splitSortColumns(analysis) {
+  return [
+    ["km", "Km"], ["time", "Temps"], ["avgSpeed", "Vitesse moy."], ["avgEle", "Altitude moy."], ["gain", "D+"],
+    ["avgHR", "FC moy."], ["avgCad", "Cadence moy."], ["avgPower", "Puissance moy."],
+  ].filter(([key]) =>
+    (key !== "avgHR" || analysis.hasHR) && (key !== "avgCad" || analysis.hasCad) &&
+    (key !== "avgPower" || analysis.hasPower) && (key !== "time" || analysis.hasTime)
+  );
+}
 
 export default function GPXAnalyzer() {
   const [mode, setMode] = useState("home"); // home | dashboard | historique | profil | alterego | archetype | tour
@@ -635,6 +660,9 @@ export default function GPXAnalyzer() {
   function toggleSort(state, setState, key) {
     setState((s) => (s.key === key ? { key, dir: -s.dir } : { key, dir: 1 }));
   }
+  // Contrôle mobile : choisir un critère repart en croissant ; le bouton inverse seulement le sens.
+  const sortKeyFor = (setState) => (key) => setState({ key, dir: 1 });
+  const sortDirFor = (setState) => () => setState((s) => ({ ...s, dir: -s.dir }));
 
   const TABS = [
     { key: "resume", label: "Résumé" },
@@ -652,693 +680,6 @@ export default function GPXAnalyzer() {
 
   return (
     <div className="gpx-app">
-      <style>{`
-        /* Reset UA par défaut (margin de 8px sur <body>, notamment) — sans lui, une
-           bande blanche apparaît sur les 4 côtés à toutes les tailles d'écran, la
-           couleur de fond de la page (blanche par défaut) restant visible autour de
-           .gpx-app qui ne la recouvre pas. */
-        html, body, #root { margin: 0; padding: 0; }
-        html, body { overflow-x: hidden; }
-        body { background: var(--bg, #0a0d0c); }
-        /* Les tokens (couleurs, rayons, durées, easing, fontes) vivent dans src/styles/tokens.css. */
-        .gpx-app {
-          background: var(--bg);
-          color: var(--text);
-          min-height: 100vh;
-          font-family: var(--font-sans);
-          -webkit-font-smoothing: antialiased;
-          position: relative;
-          isolation: isolate;
-        }
-        .gpx-app * { box-sizing: border-box; }
-        .gpx-app button { font-family: inherit; cursor: pointer; }
-        .gpx-app ::selection { background: var(--speed); color: #06110e; }
-
-        /* ---------- Navigation principale (persistante) ---------- */
-        .gpx-topbar {
-          position: sticky; top: 0; z-index: 40;
-          display: flex; align-items: center; gap: 18px;
-          padding: 10px 22px; background: var(--bgAlt); border-bottom: 1px solid var(--border);
-        }
-        .gpx-topbar-brand {
-          display: flex; align-items: center; gap: 8px; flex-shrink: 0;
-          background: none; border: none; color: var(--text); font-weight: 800; font-size: 14px; letter-spacing: -0.01em;
-        }
-        .gpx-topbar-brand-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--speed); box-shadow: 0 0 10px var(--speed); }
-        .gpx-topbar-brand-text { font-family: var(--font-mono); font-size: 13px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; }
-        .gpx-appnav { display: flex; gap: 4px; min-width: 0; }
-        .gpx-appnav-top { flex: 1; min-width: 0; }
-        .gpx-appnav-item {
-          display: flex; align-items: center; gap: 7px; padding: 8px 14px; border-radius: 10px;
-          border: none; background: none; color: var(--muted); font-size: 13px; font-weight: 700;
-          white-space: nowrap; transition: color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
-        }
-        .gpx-appnav-item:hover { color: var(--text); background: rgba(255,255,255,0.03); }
-        /* État actif unifié : texte/icône en accent + filet fin glissant (ActiveIndicator), plus de fond teinté. */
-        .gpx-appnav-item.active, .gpx-appnav-item.active:hover { color: var(--active); background: none; }
-        .gpx-appnav-top .gpx-active-indicator { bottom: -11px; }
-        .gpx-appnav-bottom .gpx-active-indicator { top: 0; }
-        .gpx-appnav-import { flex-shrink: 0; padding: 9px 16px; white-space: nowrap; }
-        .gpx-appnav-bottom { display: none; }
-        .gpx-context-strip {
-          display: flex; align-items: center; gap: 6px; padding: 10px 22px;
-          font-size: 12.5px; color: var(--faint); background: var(--bg); border-bottom: 1px solid var(--border);
-        }
-        .gpx-context-strip-active { color: var(--text); font-weight: 600; }
-        /* Tablette : resserre la nav pour que les 5 destinations + Importer tiennent sans passer à la nav basse (réservée au mobile, voir plus bas). */
-        @media (max-width: 900px) {
-          .gpx-topbar { gap: 10px; padding: 10px 16px; }
-          .gpx-topbar-brand-text { display: none; }
-          .gpx-appnav-item { padding: 8px 10px; font-size: 12.5px; }
-          .gpx-appnav-item span { display: none; }
-        }
-        @media (max-width: 680px) {
-          .gpx-appnav-top { display: none; }
-          .gpx-topbar { justify-content: space-between; }
-          .gpx-topbar-brand-text { display: inline; }
-          .gpx-appnav-import span { display: none; }
-          .gpx-topbar { padding: 10px 14px; }
-          .gpx-appnav-bottom {
-            display: flex; position: fixed; left: 0; right: 0; bottom: 0; z-index: 50;
-            background: var(--bgAlt); border-top: 1px solid var(--border);
-            padding: 6px 4px calc(6px + env(safe-area-inset-bottom, 0px)); justify-content: space-around;
-          }
-          .gpx-appnav-bottom .gpx-appnav-item {
-            flex: 1; flex-direction: column; gap: 2px; padding: 6px 2px; font-size: 10px; border-radius: 10px; white-space: normal;
-          }
-          .gpx-appnav-bottom .gpx-appnav-item span { display: block; }
-          .gpx-app { padding-bottom: 66px; }
-        }
-
-        /* ---------- Accueil (synthèse) ---------- */
-        .gpx-home-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; margin-bottom: 16px; }
-        .gpx-home-card {
-          text-align: left; background: var(--surface); border: 1px solid var(--border); border-radius: 18px;
-          padding: 16px; display: flex; flex-direction: column; gap: 6px; color: var(--text);
-          transition: border-color 0.15s ease, transform 0.15s ease;
-        }
-        .gpx-home-card:hover { border-color: var(--borderStrong); transform: translateY(-1px); }
-        .gpx-home-card-head { display: flex; align-items: center; justify-content: space-between; }
-        .gpx-home-card-title { display: flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
-        .gpx-home-card-arrow { color: var(--faint); }
-        .gpx-home-card:hover .gpx-home-card-arrow { color: var(--speed); }
-        .gpx-home-card-headline { font-size: 17px; font-weight: 800; letter-spacing: -0.01em; margin-top: 2px; }
-        .gpx-home-card-link { font-size: 12px; font-weight: 700; color: var(--speed); margin-top: 8px; }
-        .gpx-home-grid-pair { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
-        .gpx-home-import-compact { opacity: 0.9; }
-
-        /* Ton focus : bloc dominant de l'accueil — même recette de dégradé que .gpx-header, jamais un nouveau langage visuel. */
-        .gpx-focus-panel {
-          background: linear-gradient(135deg, var(--surface), var(--bgAlt));
-          border: 1px solid rgba(77,217,192,0.25);
-          padding: 22px 24px;
-        }
-        .gpx-focus-headline { font-size: 22px; font-weight: 800; letter-spacing: -0.01em; margin-top: 2px; }
-        .gpx-focus-desc { font-size: 13.5px; color: var(--muted); line-height: 1.5; margin: 6px 0 14px; max-width: 560px; }
-        .gpx-focus-bar { height: 10px; border-radius: 8px; background: var(--bg); overflow: hidden; }
-        .gpx-focus-bar-fill { height: 100%; border-radius: 8px; background: linear-gradient(90deg, var(--speed), var(--climb)); }
-        .gpx-focus-meta { display: flex; justify-content: space-between; align-items: center; font-size: 12.5px; color: var(--muted); margin-top: 8px; }
-        .gpx-focus-footer {
-          display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;
-          margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border);
-        }
-        .gpx-lastride-stats { display: flex; gap: 14px; flex-wrap: wrap; font-size: 13px; color: var(--text); font-weight: 600; margin-top: 8px; font-variant-numeric: tabular-nums; }
-
-        /* ---------- Landing ---------- */
-        .gpx-landing {
-          min-height: 100vh;
-          display: flex; flex-direction: column; align-items: center; justify-content: center;
-          padding: 32px 20px;
-          background:
-            radial-gradient(ellipse 900px 500px at 20% -10%, rgba(77,217,192,0.10), transparent 60%),
-            radial-gradient(ellipse 700px 500px at 100% 110%, rgba(244,183,64,0.08), transparent 60%),
-            var(--bg);
-        }
-        .gpx-landing-inner { max-width: 620px; width: 100%; text-align: center; }
-        .gpx-landing-eyebrow {
-          display: inline-flex; align-items: center; gap: 6px;
-          font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase;
-          color: var(--speed); font-weight: 700; margin-bottom: 18px;
-        }
-        .gpx-landing-title {
-          font-size: 40px; line-height: 1.08; font-weight: 800; letter-spacing: -0.02em;
-          margin: 0 0 12px 0;
-        }
-        .gpx-landing-title span { color: var(--speed); }
-        .gpx-landing-sub {
-          color: var(--muted); font-size: 15px; line-height: 1.6; max-width: 460px; margin: 0 auto 34px auto;
-        }
-        .gpx-upload-zone {
-          border: 1.5px dashed var(--borderStrong);
-          border-radius: 20px;
-          padding: 44px 24px;
-          background: rgba(255,255,255,0.015);
-          transition: all 0.2s ease;
-          cursor: pointer;
-        }
-        .gpx-upload-zone.drag { border-color: var(--speed); background: rgba(77,217,192,0.06); }
-        .gpx-upload-icon {
-          width: 56px; height: 56px; border-radius: 16px; margin: 0 auto 18px auto;
-          display: flex; align-items: center; justify-content: center;
-          background: rgba(77,217,192,0.12); color: var(--speed);
-        }
-        .gpx-upload-title { font-size: 16px; font-weight: 700; margin-bottom: 6px; }
-        .gpx-upload-sub { font-size: 13px; color: var(--muted); margin-bottom: 20px; }
-        .gpx-btn-primary {
-          background: var(--speed); color: #06140f; border: none; border-radius: 12px;
-          padding: 12px 22px; font-weight: 700; font-size: 14px;
-          display: inline-flex; align-items: center; gap: 8px;
-          transition: transform 0.15s ease, filter 0.15s ease;
-        }
-        .gpx-btn-primary:hover { filter: brightness(1.08); transform: translateY(-1px); }
-        .gpx-landing-demo { margin-top: 22px; }
-        .gpx-link-btn {
-          background: none; border: none; color: var(--muted); font-size: 13px;
-          text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--faint);
-        }
-        .gpx-link-btn:hover { color: var(--text); }
-        .gpx-error-box {
-          margin-top: 18px; padding: 12px 16px; border-radius: 12px;
-          background: rgba(232,84,58,0.1); border: 1px solid rgba(232,84,58,0.3);
-          color: #ffb3a5; font-size: 13px; display: flex; align-items: center; gap: 8px; text-align: left;
-        }
-        .gpx-landing-features {
-          display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 40px;
-        }
-        .gpx-landing-feature {
-          padding: 14px; border-radius: 14px; background: var(--surface); border: 1px solid var(--border);
-          font-size: 12px; color: var(--muted); text-align: left;
-        }
-        .gpx-landing-feature b { display: block; color: var(--text); font-size: 13px; margin-bottom: 3px; }
-
-        /* ---------- Dashboard shell ---------- */
-        .gpx-dashboard { max-width: 1180px; margin: 0 auto; padding: 20px 20px 80px 20px; }
-        .gpx-header {
-          display: flex; align-items: flex-start; justify-content: space-between; gap: 16px;
-          padding: 18px 22px 20px; border-radius: var(--radius-lg); margin-bottom: 16px;
-          background: var(--surface);
-          border: 1px solid var(--border);
-          flex-wrap: wrap;
-        }
-        /* Panneau héros : repères de coin statiques (8 filets de 1px, 10px de long), uniquement sur l'en-tête d'Analyse. */
-        .gpx-panel--hero { position: relative; }
-        .gpx-panel--hero::before {
-          content: ""; position: absolute; inset: -1px; pointer-events: none; border-radius: var(--radius-lg);
-          --corner: rgba(77,217,192,0.55);
-          background:
-            linear-gradient(var(--corner), var(--corner)) top left / 10px 1px no-repeat,
-            linear-gradient(var(--corner), var(--corner)) top left / 1px 10px no-repeat,
-            linear-gradient(var(--corner), var(--corner)) top right / 10px 1px no-repeat,
-            linear-gradient(var(--corner), var(--corner)) top right / 1px 10px no-repeat,
-            linear-gradient(var(--corner), var(--corner)) bottom left / 10px 1px no-repeat,
-            linear-gradient(var(--corner), var(--corner)) bottom left / 1px 10px no-repeat,
-            linear-gradient(var(--corner), var(--corner)) bottom right / 10px 1px no-repeat,
-            linear-gradient(var(--corner), var(--corner)) bottom right / 1px 10px no-repeat;
-        }
-        .gpx-hero-status {
-          flex-basis: 100%; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: -4px;
-          font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--faint);
-        }
-        .gpx-hero-status b { font-weight: 500; color: var(--muted); }
-        .gpx-hero-status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--speed); flex-shrink: 0; }
-        .gpx-hero-status-dot.demo { background: var(--climb); }
-        .gpx-hero-status-sep { color: var(--border); }
-        .gpx-hero-status-sensors { margin-left: auto; display: inline-flex; gap: 6px; }
-        .gpx-hero-status-sensors span { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 1px 5px; color: var(--muted); }
-        .gpx-demo-banner {
-          display: flex; align-items: center; gap: 8px;
-          background: rgba(244,183,64,0.12); border: 1px solid rgba(244,183,64,0.35);
-          color: var(--climb); font-size: 12.5px; font-weight: 600;
-          padding: 9px 14px; border-radius: 12px; margin-bottom: 14px;
-        }
-        .gpx-save-banner {
-          display: flex; align-items: center; gap: 8px;
-          background: rgba(77,217,192,0.12); border: 1px solid rgba(77,217,192,0.35);
-          color: var(--speed); font-size: 12.5px; font-weight: 600;
-          padding: 9px 14px; border-radius: 12px; margin-bottom: 14px;
-        }
-        .gpx-save-banner-error {
-          background: rgba(232,84,58,0.1); border-color: rgba(232,84,58,0.3); color: #ffb3a5;
-        }
-        .gpx-header-left { min-width: 0; }
-        .gpx-ride-name { font-size: 22px; font-weight: 800; letter-spacing: -0.01em; margin: 0 0 4px 0; word-break: break-word; }
-        .gpx-ride-meta { color: var(--muted); font-size: 13px; display: flex; gap: 14px; flex-wrap: wrap; }
-        .gpx-header-quickstats { display: flex; gap: 22px; flex-wrap: wrap; }
-        .gpx-qs { text-align: right; }
-        .gpx-qs-label { font-family: var(--font-mono); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--faint); margin-bottom: 4px; }
-        .gpx-qs-value { font-family: var(--font-mono); font-size: 20px; font-weight: 600; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
-        .gpx-qs-unit { font-size: 11px; font-weight: 500; letter-spacing: 0.04em; color: var(--faint); margin-left: 5px; }
-        .gpx-header-actions { display: flex; gap: 8px; align-items: center; }
-        .gpx-icon-btn {
-          width: 34px; height: 34px; border-radius: 10px; border: 1px solid var(--border);
-          background: var(--surface2); color: var(--muted);
-          display: flex; align-items: center; justify-content: center;
-        }
-        .gpx-icon-btn:hover { color: var(--text); border-color: var(--borderStrong); }
-        .gpx-btn-ghost {
-          border: 1px solid var(--border); background: var(--surface2); color: var(--text);
-          border-radius: 10px; padding: 9px 14px; font-size: 13px; font-weight: 600;
-          display: inline-flex; align-items: center; gap: 6px;
-        }
-        .gpx-btn-ghost:hover { border-color: var(--borderStrong); }
-
-        /* ---------- Nav tabs ---------- */
-        .gpx-nav {
-          display: flex; gap: 4px; margin-bottom: 20px; overflow-x: auto;
-          border-bottom: 1px solid var(--border); padding-bottom: 0;
-        }
-        .gpx-tab {
-          border: none; background: none; color: var(--muted); font-size: 13.5px; font-weight: 600;
-          padding: 11px 16px; border-bottom: var(--active-line) solid transparent; white-space: nowrap;
-          transition: color var(--dur-fast) var(--ease);
-        }
-        .gpx-tab:hover:not(:disabled) { color: var(--text); }
-        .gpx-tab.active { color: var(--active); }
-        .gpx-nav .gpx-active-indicator { bottom: 0; }
-        .gpx-tab:disabled { opacity: var(--disabled-opacity); cursor: not-allowed; }
-
-        /* ---------- Stats grid ---------- */
-        .gpx-stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 18px; }
-        /* Variante 5 colonnes ("Arrêts & pauses") : un style inline figeait
-           repeat(5,1fr) à toutes les tailles d'écran, illisible sur mobile (5
-           colonnes de ~60px). Sélecteur composé (spécificité supérieure à la
-           règle @media 860px de .gpx-stats-grid ci-dessous, qui ne doit PAS
-           s'appliquer ici — desktop/tablette n'ont jamais débordé en 5
-           colonnes) : ne réduit qu'en dessous de ~560px, seuil où 5 colonnes
-           deviennent réellement trop étroites. */
-        .gpx-stats-grid.gpx-stats-grid-5 { grid-template-columns: repeat(5, 1fr); }
-        @media (max-width: 560px) {
-          .gpx-stats-grid.gpx-stats-grid-5 { grid-template-columns: repeat(2, 1fr); }
-        }
-        /* StatCard instrument : micro-label mono, valeur dominante mono, unité séparée, l'accent sémantique tient dans un filet de 2px. */
-        .gpx-stat-card {
-          display: flex; flex-direction: column; gap: 6px; min-width: 0;
-          background: var(--surface); border: 1px solid var(--border); border-left: 2px solid var(--stat-accent, var(--speed));
-          border-radius: var(--radius-md); padding: 11px 14px 12px;
-        }
-        .gpx-stat-label {
-          display: flex; align-items: center; gap: 6px; min-width: 0;
-          font-family: var(--font-mono); font-size: 10.5px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted);
-        }
-        .gpx-stat-label > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .gpx-stat-label svg { flex-shrink: 0; color: var(--stat-accent, var(--speed)); opacity: 0.85; }
-        .gpx-stat-value {
-          display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap;
-          font-family: var(--font-mono); font-size: 24px; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1.05; letter-spacing: -0.02em;
-        }
-        .gpx-stat-unit { font-size: 11px; font-weight: 500; letter-spacing: 0.04em; color: var(--faint); }
-        .gpx-stat-sub { font-family: var(--font-mono); font-size: 10.5px; color: var(--faint); }
-
-        /* ---------- Panels ---------- */
-        .gpx-panel {
-          background: var(--surface); border: 1px solid var(--border); border-radius: 18px;
-          padding: 18px 20px; margin-bottom: 16px;
-        }
-        /* Variante instrument — opt-in via .gpx-view-analyse (Phase 2 : Analyse uniquement, avant propagation aux autres vues). */
-        .gpx-view-analyse .gpx-panel { border-radius: var(--radius-md); background: var(--surface); }
-        .gpx-view-analyse .gpx-section-title {
-          font-family: var(--font-mono); font-size: 11px; font-weight: 500; letter-spacing: 0.1em; color: var(--muted);
-          padding-bottom: 10px; border-bottom: 1px solid var(--border);
-        }
-        .gpx-view-analyse .gpx-section-title-left span { color: var(--muted); }
-        .gpx-view-analyse .gpx-section-title-left svg { width: 13px; height: 13px; }
-        .gpx-view-analyse .gpx-table th { font-family: var(--font-mono); font-weight: 500; letter-spacing: 0.1em; }
-        .gpx-view-analyse .gpx-table td { font-family: var(--font-mono); font-size: 12.5px; }
-        .gpx-view-analyse .gpx-leaflet-container,
-        .gpx-view-analyse .gpx-profile-wrap { border-radius: var(--radius-md); }
-        .gpx-view-analyse .gpx-tab { font-family: var(--font-mono); font-size: 12px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; }
-        .gpx-view-analyse .gpx-badge-best, .gpx-view-analyse .gpx-badge-worst, .gpx-view-analyse .gpx-badge-climb { border-radius: var(--radius-sm); font-family: var(--font-mono); }
-        .gpx-section-title {
-          display: flex; align-items: center; justify-content: space-between;
-          font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;
-          color: var(--text); margin-bottom: 14px;
-        }
-        .gpx-section-title-left { display: flex; align-items: center; gap: 7px; color: var(--speed); }
-        .gpx-section-title-left span { color: var(--text); }
-
-        /* ---------- Map (Leaflet) ---------- */
-        .gpx-map-block { position: relative; }
-        .gpx-map-toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; gap: 10px; flex-wrap: wrap; }
-        .gpx-map-modes { display: flex; gap: 6px; flex-wrap: wrap; }
-        /* Filtres : sélectionné = accent + bordure accent + teinte très légère ; non sélectionné = neutre ; désactivé = atténué.
-           Pas de filet glissant : un chip n'est pas une destination, c'est un état on/off. */
-        .gpx-chip {
-          border: 1px solid var(--border); background: var(--surface2); color: var(--muted);
-          border-radius: var(--radius-sm); padding: 6px 12px; font-size: 12px; font-weight: 600;
-          transition: color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
-        }
-        .gpx-chip:hover:not(:disabled):not(.gpx-chip-active) { color: var(--text); border-color: var(--borderStrong); }
-        .gpx-chip-active, .gpx-chip-active:hover { background: var(--active-tint); border-color: var(--active); color: var(--active); }
-        .gpx-chip:disabled { opacity: var(--disabled-opacity); cursor: not-allowed; }
-        .gpx-map-engine-toggle { display: inline-flex; gap: 4px; }
-        .gpx-leaflet-container {
-          position: relative; border-radius: 16px; overflow: hidden; background: var(--bgAlt);
-          border: 1px solid var(--border);
-        }
-        .gpx-leaflet-container .leaflet-container { background: var(--bgAlt); font-family: inherit; }
-        .gpx-leaflet-container .leaflet-tile-pane { filter: ${MAP_TILE_FILTER}; }
-        .gpx-leaflet-container .leaflet-popup-content-wrapper { background: #0e1211; color: var(--text); border-radius: 10px; }
-        .gpx-leaflet-container .leaflet-popup-content { font-size: 12.5px; }
-        .gpx-leaflet-container .leaflet-popup-tip { background: #0e1211; }
-        .gpx-leaflet-container a.leaflet-popup-close-button { color: var(--muted); }
-        .gpx-map-loading {
-          position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
-          color: var(--muted); font-size: 13px; z-index: 500; background: var(--bgAlt);
-        }
-        .gpx-map-tile-warning {
-          position: absolute; bottom: 10px; left: 10px; z-index: 500;
-          background: rgba(10,13,12,0.85); border: 1px solid var(--borderStrong); border-radius: 8px;
-          padding: 6px 10px; font-size: 11px; color: var(--muted);
-        }
-        .gpx-map-scale { margin-top: 10px; }
-        .gpx-map-scale-bar { height: 6px; border-radius: 6px; }
-        .gpx-map-scale-labels { display: flex; justify-content: space-between; font-size: 11px; color: var(--faint); margin-top: 4px; }
-        .gpx-profile-wrap { background: var(--surface2); border: 1px solid var(--border); border-radius: 14px; padding: 12px; }
-        .gpx-climb-inline-stats {
-          display: flex; align-items: center; gap: 14px; margin-top: 10px; padding: 8px 12px;
-          background: rgba(244,183,64,0.08); border: 1px solid rgba(244,183,64,0.3); border-radius: 10px;
-          font-size: 12.5px; color: var(--muted); flex-wrap: wrap;
-        }
-        .gpx-climb-inline-stats b { color: var(--climb); }
-        .gpx-climb-inline-stats .gpx-icon-btn { margin-left: auto; width: 26px; height: 26px; }
-
-        /* ---------- Tooltip ---------- */
-        .gpx-tooltip {
-          background: #0e1211; border: 1px solid var(--borderStrong); border-radius: 10px;
-          padding: 10px 12px; font-size: 12px; min-width: 130px; box-shadow: 0 8px 24px rgba(0,0,0,0.4);
-        }
-        .gpx-tooltip-main { font-weight: 800; margin-bottom: 6px; color: var(--speed); }
-        .gpx-tooltip-row { display: flex; justify-content: space-between; gap: 14px; color: var(--muted); padding: 1px 0; }
-        .gpx-tooltip-row b { color: var(--text); font-variant-numeric: tabular-nums; }
-
-        /* ---------- Tables ---------- */
-        .gpx-table-wrap { overflow-x: auto; }
-        .gpx-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-        .gpx-table th {
-          text-align: left; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.05em;
-          color: var(--faint); padding: 8px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; cursor: pointer;
-          user-select: none;
-        }
-        .gpx-table th:hover { color: var(--muted); }
-        .gpx-table td { padding: 9px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; font-variant-numeric: tabular-nums; }
-        .gpx-table tr:last-child td { border-bottom: none; }
-        .gpx-table tr.gpx-row-clickable:hover { background: rgba(255,255,255,0.02); cursor: pointer; }
-        /* Ligne sélectionnée : même vocabulaire que la nav (filet fin de 2px en accent), sans teinter toute la ligne. */
-        .gpx-table tr.gpx-row-selected { --active: var(--climb); }
-        .gpx-table tr.gpx-row-selected td:first-child { box-shadow: inset var(--active-line) 0 0 var(--active); }
-        .gpx-badge-best { background: rgba(77,217,192,0.15); color: var(--speed); border-radius: 6px; padding: 2px 6px; font-size: 10.5px; font-weight: 700; margin-left: 6px; }
-        .gpx-badge-worst { background: rgba(232,84,58,0.15); color: var(--effort); border-radius: 6px; padding: 2px 6px; font-size: 10.5px; font-weight: 700; margin-left: 6px; }
-        .gpx-badge-climb { background: rgba(244,183,64,0.15); color: var(--climb); border-radius: 6px; padding: 2px 6px; font-size: 10.5px; font-weight: 700; margin-left: 6px; }
-
-        /* ---------- Summary ---------- */
-        .gpx-summary-text { font-size: 15px; line-height: 1.65; color: var(--text); margin-bottom: 18px; }
-
-        .gpx-highlight-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-        .gpx-highlight-col-title { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
-        .gpx-highlight-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; }
-        .gpx-highlight-list li { font-size: 13px; color: var(--muted); padding-left: 16px; position: relative; line-height: 1.5; }
-        .gpx-highlight-list li::before { content: "—"; position: absolute; left: 0; color: var(--faint); }
-
-        /* ---------- Grid layouts ---------- */
-        .gpx-two-col { display: grid; grid-template-columns: 1.3fr 1fr; gap: 16px; }
-        .gpx-climb-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; margin-bottom: 16px; }
-        .gpx-climb-card {
-          background: var(--surface2); border: 1px solid var(--border); border-radius: 14px; padding: 14px 16px; cursor: pointer;
-          transition: border-color 0.15s ease;
-        }
-        .gpx-climb-card:hover { border-color: var(--borderStrong); }
-        /* Montée sélectionnée : accent "climb" + filet fin à gauche (même règle que les lignes de tableau). */
-        .gpx-climb-card.selected { --active: var(--climb); border-color: var(--borderStrong); box-shadow: inset var(--active-line) 0 0 var(--active); }
-        .gpx-climb-card-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
-        .gpx-climb-card-name { font-weight: 800; font-size: 14px; }
-        .gpx-climb-card-grade { font-size: 18px; font-weight: 800; color: var(--climb); font-variant-numeric: tabular-nums; }
-        .gpx-climb-card-meta { display: flex; gap: 12px; font-size: 12px; color: var(--muted); flex-wrap: wrap; }
-
-        .gpx-zone-bar-wrap { display: flex; flex-direction: column; gap: 8px; }
-        .gpx-zone-row { display: grid; grid-template-columns: 110px 1fr 60px; align-items: center; gap: 10px; font-size: 12px; }
-        .gpx-zone-name { color: var(--muted); }
-        .gpx-zone-track { height: 10px; border-radius: 6px; background: var(--surface2); overflow: hidden; }
-        .gpx-zone-fill { height: 100%; border-radius: 6px; }
-        .gpx-zone-time { text-align: right; font-variant-numeric: tabular-nums; color: var(--text); font-weight: 600; }
-
-        .gpx-power-zone-row { display: grid; grid-template-columns: 150px 90px 1fr 90px 50px; align-items: center; gap: 10px; font-size: 12px; }
-        .gpx-power-zone-name { color: var(--text); font-weight: 600; }
-        .gpx-power-zone-watts { color: var(--muted); font-variant-numeric: tabular-nums; }
-        .gpx-power-zone-time { text-align: right; font-variant-numeric: tabular-nums; color: var(--text); font-weight: 600; }
-        .gpx-power-zone-pct { text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); font-size: 11px; }
-        /* En dessous de ~480px, les 5 colonnes fixes (150+90+90+50px + gaps) dépassent
-           la largeur d'un téléphone : on repasse en grille 2 colonnes sur 3 lignes,
-           même contenu, sans troncature ni scroll horizontal. */
-        @media (max-width: 480px) {
-          .gpx-power-zone-row {
-            grid-template-columns: 1fr auto;
-            grid-template-areas: "name watts" "bar bar" "time pct";
-            row-gap: 4px;
-          }
-          .gpx-power-zone-name { grid-area: name; }
-          .gpx-power-zone-watts { grid-area: watts; text-align: right; }
-          .gpx-zone-track { grid-area: bar; }
-          .gpx-power-zone-time { grid-area: time; text-align: left; }
-          .gpx-power-zone-pct { grid-area: pct; }
-        }
-        .gpx-power-efforts { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 10px; margin-bottom: 16px; }
-        .gpx-power-source { display: inline-flex; align-items: center; gap: 4px; background: rgba(111,156,242,0.15); color: var(--info); border-radius: 6px; padding: 3px 8px; font-size: 11px; font-weight: 700; text-transform: none; letter-spacing: 0; }
-        .gpx-power-source-estimated { display: inline-flex; align-items: center; gap: 4px; background: rgba(244,183,64,0.18); color: var(--climb); border-radius: 6px; padding: 3px 8px; font-size: 11px; font-weight: 700; text-transform: none; letter-spacing: 0; }
-        .gpx-source-badge-strava { display: inline-block; margin-left: 8px; background: rgba(252,76,2,0.16); color: #fc7a45; border-radius: 6px; padding: 2px 7px; font-size: 10px; font-weight: 700; letter-spacing: 0.02em; vertical-align: middle; }
-
-        .gpx-hr-config { display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--muted); }
-        .gpx-hr-config input { width: 60px; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 5px 8px; color: var(--text); font-size: 12px; }
-
-        /* ---------- User settings ---------- */
-        .gpx-params-grid { display: grid; grid-template-columns: 1fr; gap: 12px; margin-bottom: 18px; }
-        .gpx-param-row {
-          display: flex; align-items: center; justify-content: space-between; gap: 14px;
-          background: var(--surface2); border: 1px solid var(--border); border-radius: 12px;
-          padding: 12px 16px;
-        }
-        .gpx-param-label { font-size: 13px; font-weight: 600; color: var(--text); }
-        .gpx-param-control { display: inline-flex; align-items: center; gap: 8px; }
-        .gpx-param-control input {
-          width: 90px; text-align: right;
-          background: var(--bg); border: 1px solid var(--border);
-          border-radius: 8px; padding: 7px 10px; color: var(--text); font-size: 13px;
-          font-variant-numeric: tabular-nums; font-weight: 700;
-        }
-        .gpx-param-control input:focus { outline: none; border-color: var(--speed); }
-        .gpx-param-unit { font-size: 12px; color: var(--muted); min-width: 18px; }
-        .gpx-params-actions { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
-        .gpx-params-hint { font-size: 12px; color: var(--faint); font-style: italic; }
-
-        .gpx-effort-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
-
-        .gpx-best-efforts { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 16px; }
-        .gpx-effort-card { background: var(--surface2); border: 1px solid var(--border); border-radius: 14px; padding: 14px; text-align: center; }
-        .gpx-effort-card-label { font-size: 11px; color: var(--faint); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; }
-        .gpx-effort-card-value { font-size: 20px; font-weight: 800; font-variant-numeric: tabular-nums; }
-        .gpx-effort-card-sub { font-size: 11px; color: var(--muted); margin-top: 3px; }
-
-        .gpx-stop-list { display: flex; flex-direction: column; gap: 8px; }
-        .gpx-stop-item { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 4px 12px; font-size: 13px; padding: 8px 10px; background: var(--surface2); border-radius: 10px; }
-        .gpx-stop-item span { color: var(--muted); }
-
-        .gpx-chart-card-title { font-size: 13px; font-weight: 700; margin-bottom: 4px; }
-        /* flex-wrap : sans lui, "Puissance normalisée 272 W" (et les lignes équivalentes
-           FC/cadence) forçait 3 items sur une seule ligne non wrappable, débordant sur
-           mobile (~375-414px) au lieu de passer à la ligne comme les autres rangées flex
-           de l'app (ex. .gpx-ride-meta, .gpx-lastride-stats). Aucun changement visuel sur
-           desktop/tablette : les items continuent de tenir sur une seule ligne. */
-        .gpx-chart-card-stats { display: flex; flex-wrap: wrap; gap: 8px 16px; font-size: 12px; color: var(--muted); margin-bottom: 12px; }
-        .gpx-chart-card-stats b { color: var(--text); }
-
-        .gpx-empty-note { font-size: 12.5px; color: var(--faint); font-style: italic; }
-
-        /* ---------- Stockage local & historique ---------- */
-        .gpx-storage-box {
-          display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
-          font-size: 13px; color: var(--muted);
-          background: var(--surface2); border: 1px solid var(--border); border-radius: 12px;
-          padding: 12px 14px;
-        }
-        .gpx-storage-box svg { flex-shrink: 0; color: var(--info); }
-        .gpx-storage-box.gpx-storage-ok svg { color: var(--speed); }
-        .gpx-storage-box.gpx-storage-warn { border-color: rgba(244,183,64,0.35); background: rgba(244,183,64,0.08); }
-        .gpx-storage-box.gpx-storage-warn svg { color: var(--climb); }
-        .gpx-storage-box .gpx-btn-ghost, .gpx-storage-box .gpx-link-btn { margin-left: auto; }
-
-        /* ---------- Cloud (Phase 11A) ---------- */
-        .gpx-cloud-form { display: flex; flex-direction: column; gap: 10px; max-width: 320px; }
-        .gpx-cloud-field { display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; color: var(--muted); }
-        .gpx-cloud-field input {
-          background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
-          padding: 9px 12px; color: var(--text); font-size: 13.5px; width: 100%;
-        }
-        .gpx-cloud-field input:focus { outline: none; border-color: var(--speed); }
-        .gpx-cloud-form-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 4px; }
-        .gpx-cloud-activity-list { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; max-height: 260px; overflow-y: auto; }
-        .gpx-cloud-activity-row {
-          display: flex; align-items: center; justify-content: space-between; gap: 10px;
-          background: var(--surface2); border: 1px solid var(--border); border-radius: 10px;
-          padding: 9px 12px; font-size: 12.5px;
-        }
-        .gpx-cloud-activity-name { font-weight: 600; color: var(--text); }
-        .gpx-cloud-count { font-size: 22px; font-weight: 800; color: var(--text); }
-
-        .gpx-history-toolbar { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 16px; align-items: center; }
-        .gpx-history-search {
-          display: flex; align-items: center; gap: 8px; flex: 1; min-width: 200px;
-          background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; padding: 8px 12px;
-          color: var(--faint);
-        }
-        .gpx-history-search input { background: none; border: none; color: var(--text); font-size: 13px; width: 100%; outline: none; }
-        .gpx-history-daterange { display: flex; align-items: center; gap: 8px; color: var(--faint); font-size: 12px; }
-        .gpx-history-daterange input {
-          background: var(--surface2); border: 1px solid var(--border); border-radius: 8px;
-          padding: 6px 8px; color: var(--text); font-size: 12.5px;
-        }
-        .gpx-history-selection-bar {
-          display: flex; align-items: center; gap: 14px; margin-top: 16px; padding: 10px 14px;
-          background: rgba(244,183,64,0.08); border: 1px solid rgba(244,183,64,0.3); border-radius: 10px;
-          font-size: 13px; color: var(--text); flex-wrap: wrap;
-        }
-
-        /* ---------- Profil cycliste ---------- */
-        .gpx-profile-banner {
-          display: flex; align-items: center; gap: 8px;
-          background: rgba(111,156,242,0.12); border: 1px solid rgba(111,156,242,0.3);
-          color: var(--info); font-size: 12.5px; font-weight: 600;
-          padding: 9px 14px; border-radius: 12px; margin-bottom: 14px;
-        }
-        .gpx-profile-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
-        .gpx-profile-card {
-          background: var(--surface2); border: 1px solid var(--border); border-radius: 16px; padding: 16px;
-          display: flex; flex-direction: column; gap: 6px;
-        }
-        .gpx-profile-card-head {
-          display: flex; align-items: center; gap: 7px; color: var(--muted);
-          font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em;
-        }
-        .gpx-profile-card-value { font-size: 32px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1; margin-top: 2px; }
-        .gpx-profile-card-value-empty { color: var(--faint); }
-        /* Score interpolé (Phase 5C) : monospace = largeur de chaque chiffre identique, le "/100" ne bouge pas pendant la transition. Limité au nombre animé : Tour/Alter Ego gardent leur rendu. */
-        .gpx-profile-card-value .gpx-av { font-family: var(--font-mono); font-weight: 700; letter-spacing: -0.02em; }
-        .gpx-profile-card-value-scale { font-size: 13px; font-weight: 600; color: var(--faint); margin-left: 2px; }
-        .gpx-profile-card-bar { height: 8px; border-radius: 6px; background: var(--bg); overflow: hidden; margin-top: 2px; }
-        .gpx-profile-card-bar-fill { height: 100%; border-radius: 6px; background: var(--speed); }
-        .gpx-profile-card-status { font-size: 12.5px; color: var(--muted); font-weight: 600; }
-        .gpx-profile-card-hint { font-size: 11px; color: var(--faint); font-style: italic; }
-        .gpx-profile-card-confidence { font-size: 12px; color: var(--muted); }
-        .gpx-profile-card-trend { font-size: 11.5px; color: var(--speed); margin-top: 2px; }
-        .gpx-profile-card-confidence b.gpx-confidence-low { color: var(--climb); }
-        .gpx-profile-card-confidence b.gpx-confidence-medium { color: var(--info); }
-        .gpx-profile-card-confidence b.gpx-confidence-high { color: var(--speed); }
-        .gpx-profile-card-meta { font-size: 11.5px; color: var(--faint); }
-        .gpx-profile-evidence-toggle { margin-top: 2px; text-align: left; }
-        .gpx-profile-evidence-list { list-style: none; padding: 0; margin: 8px 0 0 0; display: flex; flex-direction: column; gap: 6px; }
-        .gpx-profile-evidence-list li { font-size: 12px; color: var(--muted); padding-left: 14px; position: relative; line-height: 1.5; }
-        .gpx-profile-evidence-list li::before { content: "•"; position: absolute; left: 0; color: var(--faint); }
-        .gpx-profile-evidence-list li.gpx-row-clickable:hover { color: var(--text); cursor: pointer; }
-        .gpx-profile-dataquality-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; }
-        .gpx-profile-dataquality-row {
-          display: flex; justify-content: space-between; align-items: center; font-size: 13px;
-          background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; padding: 9px 12px;
-        }
-        .gpx-profile-dq-ok { color: var(--speed); font-weight: 700; }
-        .gpx-profile-dq-missing { color: var(--faint); }
-        .gpx-profile-dq-note { color: var(--climb); font-weight: 600; }
-        .gpx-profile-dimension-select {
-          background: var(--surface2); border: 1px solid var(--border); border-radius: 8px;
-          color: var(--text); font-size: 12.5px; padding: 6px 10px;
-        }
-        .gpx-profile-about { font-size: 13px; color: var(--muted); line-height: 1.7; }
-
-        /* ---------- Alter Ego ---------- */
-        .gpx-alterego-level { display: flex; flex-direction: column; gap: 8px; }
-        .gpx-alterego-level-head { display: flex; align-items: flex-start; justify-content: space-between; }
-        .gpx-alterego-level-title { font-size: 20px; font-weight: 800; letter-spacing: -0.01em; }
-        .gpx-alterego-level-xp { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; margin-top: 2px; }
-        .gpx-alterego-trophy { color: var(--climb); flex-shrink: 0; }
-        .gpx-alterego-level-bar { height: 12px; border-radius: 8px; background: var(--bg); overflow: hidden; }
-        .gpx-alterego-level-bar-fill { height: 100%; border-radius: 8px; background: linear-gradient(90deg, var(--speed), var(--climb)); }
-        .gpx-alterego-profile-list { display: flex; flex-direction: column; gap: 6px; }
-        .gpx-alterego-profile-row {
-          display: flex; align-items: center; justify-content: space-between; font-size: 13px;
-          padding: 8px 10px; background: var(--surface2); border: 1px solid var(--border); border-radius: 10px;
-          font-variant-numeric: tabular-nums; font-weight: 700;
-        }
-        .gpx-alterego-profile-row-label { display: flex; align-items: center; gap: 7px; color: var(--muted); font-weight: 600; }
-        .gpx-alterego-challenge { padding: 10px 0; border-bottom: 1px solid var(--border); }
-        .gpx-alterego-challenge:last-child { border-bottom: none; }
-        .gpx-alterego-challenge-head { display: flex; justify-content: space-between; align-items: center; font-size: 13px; font-weight: 600; margin-bottom: 6px; }
-        .gpx-alterego-challenge-done .gpx-alterego-challenge-head { color: var(--speed); }
-        .gpx-alterego-xp-badge { font-size: 11px; font-weight: 700; color: var(--climb); background: rgba(244,183,64,0.12); border-radius: 6px; padding: 2px 7px; white-space: nowrap; }
-        .gpx-alterego-subheading { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--faint); margin: 12px 0 4px; }
-        .gpx-alterego-achievement-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px; }
-        .gpx-alterego-achievement {
-          display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--faint);
-          background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; padding: 9px 12px;
-        }
-        .gpx-alterego-achievement-unlocked { color: var(--text); border-color: rgba(77,217,192,0.35); }
-        .gpx-alterego-achievement-check { color: var(--speed); font-weight: 800; }
-
-        /* ---------- Archétype ---------- */
-        .gpx-archetype-headline { font-size: 26px; font-weight: 800; letter-spacing: -0.01em; margin-top: 4px; }
-        .gpx-archetype-roles { display: flex; gap: 18px; flex-wrap: wrap; font-size: 12.5px; color: var(--muted); margin-top: 8px; }
-        .gpx-archetype-roles b { color: var(--text); }
-        .gpx-archetype-bars { display: flex; flex-direction: column; gap: 8px; margin: 10px 0; }
-        .gpx-archetype-bar-row { display: grid; grid-template-columns: 90px 1fr 32px; align-items: center; gap: 10px; font-size: 12.5px; }
-        .gpx-archetype-bar-label { color: var(--muted); }
-        .gpx-archetype-bar-value { text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; }
-        .gpx-archetype-bar-influence { grid-column: 1 / -1; font-size: 11px; color: var(--muted); margin-top: -4px; }
-        .gpx-archetype-rider-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
-        .gpx-archetype-rider-card { background: var(--surface2); border: 1px solid var(--border); border-radius: 16px; padding: 16px; }
-        .gpx-archetype-rider-head { display: flex; flex-direction: column; gap: 2px; margin-bottom: 4px; }
-        .gpx-archetype-rider-name { font-weight: 800; font-size: 14.5px; }
-        .gpx-archetype-rider-similarity { font-size: 12px; font-weight: 700; color: var(--speed); margin-bottom: 8px; }
-        .gpx-archetype-rider-detail { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 6px; }
-        .gpx-archetype-rider-sources { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 4px; }
-        .gpx-archetype-timeline { display: flex; flex-direction: column; gap: 8px; }
-        .gpx-archetype-timeline-row { display: flex; justify-content: space-between; align-items: center; font-size: 13px; padding: 8px 10px; background: var(--surface2); border-radius: 10px; }
-
-        /* ---------- Tour Simulator (Phase 10B) ---------- */
-        .gpx-tour-hero {
-          background: linear-gradient(135deg, var(--surface), var(--bgAlt));
-          border: 1px solid rgba(77,217,192,0.25);
-        }
-        .gpx-tour-divider { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
-        .gpx-tour-route-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 10px; }
-        .gpx-tour-stage-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; }
-        .gpx-tour-stage-row {
-          display: grid; grid-template-columns: 32px 1fr auto; align-items: center; gap: 12px;
-          background: var(--surface2); border: 1px solid var(--border); border-radius: 12px; padding: 10px 14px;
-        }
-        .gpx-tour-stage-number { font-size: 13px; font-weight: 800; color: var(--faint); font-variant-numeric: tabular-nums; }
-        .gpx-tour-stage-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-        .gpx-tour-stage-type { font-size: 13px; font-weight: 700; letter-spacing: 0.02em; }
-        .gpx-tour-dots { display: inline-flex; gap: 3px; align-items: center; }
-        .gpx-tour-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--border); }
-        .gpx-tour-dot-filled { background: var(--climb); }
-        .gpx-tour-difficulty-label { display: inline-flex; align-items: center; gap: 6px; }
-        .gpx-tour-weight { color: var(--speed); font-weight: 700; letter-spacing: 0.02em; }
-        .gpx-tour-fatigue-fill { background: var(--climb); }
-        .gpx-tour-progress { margin-bottom: 14px; }
-        .gpx-tour-progress-bar { height: 10px; border-radius: 8px; background: var(--surface2); border: 1px solid var(--border); overflow: hidden; margin-top: 4px; }
-        .gpx-tour-progress-bar-fill { height: 100%; border-radius: 8px; background: linear-gradient(90deg, var(--speed), var(--climb)); transition: width 0.2s ease; }
-        .gpx-tour-finish-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 18px; }
-
-        @media (max-width: 860px) {
-          .gpx-stats-grid { grid-template-columns: repeat(2, 1fr); }
-          .gpx-two-col { grid-template-columns: 1fr; }
-          .gpx-highlight-grid { grid-template-columns: 1fr; }
-          .gpx-effort-grid { grid-template-columns: 1fr; }
-          .gpx-header { flex-direction: column; }
-          .gpx-header-quickstats { width: 100%; justify-content: space-between; gap: 10px; }
-          .gpx-landing-title { font-size: 30px; }
-          .gpx-landing-features { grid-template-columns: 1fr; }
-        }
-        @media print {
-          .gpx-nav, .gpx-header-actions, .gpx-topbar, .gpx-appnav-bottom, .gpx-context-strip { display: none !important; }
-        }
-      `}</style>
 
       <AppNav active={activeNavSection} onNavigate={navigateToSection} onImport={() => fileInputRef.current && fileInputRef.current.click()} />
       <input ref={fileInputRef} type="file" accept={getAcceptString()} style={{ display: "none" }} onChange={handleInputChange} />
@@ -1371,37 +712,51 @@ export default function GPXAnalyzer() {
               <Sparkles size={14} /> Données de démonstration — fictives, générées uniquement pour illustrer l'interface.
             </div>
           )}
-          <div className="gpx-header gpx-panel--hero">
-            <div className="gpx-hero-status" aria-label="État de l'analyse">
-              <span className={"gpx-hero-status-dot" + (isDemo ? " demo" : "")} />
-              <span>Analysis / <b>{isDemo ? "Demo" : "Activity"}</b></span>
-              {fileName && fileName.includes(".") && (<><span className="gpx-hero-status-sep">|</span><span>Source / <b>{fileName.split(".").pop()}</b></span></>)}
-              {saveStatus && saveStatus.ok && (<><span className="gpx-hero-status-sep">|</span><span><b>Saved</b></span></>)}
-              <span className="gpx-hero-status-sensors">
-                {analysis.hasEle && <span>ELE</span>}
-                {analysis.hasHR && <span>HR</span>}
-                {analysis.hasCad && <span>CAD</span>}
-                {analysis.hasPower && <span>PWR</span>}
-              </span>
-            </div>
-            <div className="gpx-header-left">
-              <h1 className="gpx-ride-name">{rideName || "Sortie vélo"}</h1>
-              <div className="gpx-ride-meta">
+          <header className={"gpx-hero" + (analysis.hasEle ? " has-relief" : "")}>
+            <ElevationSilhouette points={chartData} />
+            <div className="gpx-hero-top">
+              <div className="gpx-hero-eyebrow">
                 {analysis.startTime && <span>{fmtDateFull(analysis.startTime)}</span>}
                 {analysis.startTime && <span>{fmtClock(analysis.startTime)}{analysis.endTime ? ` → ${fmtClock(analysis.endTime)}` : ""}</span>}
-                {fileName && <span>{fileName}</span>}
+              </div>
+              <div className="gpx-header-actions">
+                <button className="gpx-icon-btn" title="Exporter (PDF)" aria-label="Exporter en PDF" onClick={exportPDF}><Download size={17} /></button>
+                <button className="gpx-btn-ghost" onClick={resetAll}><RefreshCw size={15} /> <span>Nouvelle sortie</span></button>
               </div>
             </div>
-            <div className="gpx-header-quickstats">
-              <div className="gpx-qs"><div className="gpx-qs-label">Distance</div><div className="gpx-qs-value">{fmt1(analysis.totalDistanceKm)}<span className="gpx-qs-unit">km</span></div></div>
-              <div className="gpx-qs"><div className="gpx-qs-label">Durée</div><div className="gpx-qs-value">{fmtDuration(analysis.totalTimeSec)}</div></div>
-              {analysis.hasEle && <div className="gpx-qs"><div className="gpx-qs-label">D+</div><div className="gpx-qs-value">{fmtInt(analysis.elevGain)}<span className="gpx-qs-unit">m</span></div></div>}
+            <h1 className="gpx-ride-name">{rideName || "Sortie vélo"}</h1>
+            <div className="gpx-hero-badges" aria-label="Source et capteurs">
+              <span className={"gpx-hero-badge" + (isDemo ? " is-demo" : "")}>{isDemo ? "Démonstration" : "Sortie importée"}</span>
+              {fileName && fileName.includes(".") && <span className="gpx-hero-badge">{fileName.split(".").pop().toUpperCase()}</span>}
+              {analysis.hasEle && <span className="gpx-hero-badge" style={{ "--badge-accent": COLORS.climb }}><i />Altitude</span>}
+              {analysis.hasHR && <span className="gpx-hero-badge" style={{ "--badge-accent": COLORS.effort }}><i />Fréquence cardiaque</span>}
+              {analysis.hasCad && <span className="gpx-hero-badge" style={{ "--badge-accent": COLORS.info }}><i />Cadence</span>}
+              {analysis.hasPower && <span className="gpx-hero-badge" style={{ "--badge-accent": COLORS.info }}><i />Puissance</span>}
+              {saveStatus && saveStatus.ok && <span className="gpx-hero-badge is-ok">Enregistrée</span>}
             </div>
-            <div className="gpx-header-actions">
-              <button className="gpx-icon-btn" title="Exporter (PDF)" onClick={exportPDF}><Download size={15} /></button>
-              <button className="gpx-btn-ghost" onClick={resetAll}><RefreshCw size={14} /> Nouvelle sortie</button>
+            <div className="gpx-hero-metrics">
+              <div className="gpx-hero-metric" style={{ "--metric-accent": COLORS.speed }}>
+                <div className="gpx-hero-metric-label"><i />Distance</div>
+                <div className="gpx-hero-metric-value"><AnimatedValue value={fmt1(analysis.totalDistanceKm)} /><span className="gpx-hero-metric-unit">km</span></div>
+              </div>
+              <div className="gpx-hero-metric" style={{ "--metric-accent": COLORS.info }}>
+                <div className="gpx-hero-metric-label"><i />Durée</div>
+                <div className="gpx-hero-metric-value"><AnimatedValue value={fmtDuration(analysis.totalTimeSec)} /></div>
+              </div>
+              {analysis.hasEle && (
+                <div className="gpx-hero-metric" style={{ "--metric-accent": COLORS.climb }}>
+                  <div className="gpx-hero-metric-label"><i />Dénivelé +</div>
+                  <div className="gpx-hero-metric-value"><AnimatedValue value={fmtInt(analysis.elevGain)} /><span className="gpx-hero-metric-unit">m</span></div>
+                </div>
+              )}
+              {analysis.hasTime && (
+                <div className="gpx-hero-metric" style={{ "--metric-accent": COLORS.speed }}>
+                  <div className="gpx-hero-metric-label"><i />Vitesse moy.</div>
+                  <div className="gpx-hero-metric-value"><AnimatedValue value={fmt1(analysis.avgSpeedKmh)} /><span className="gpx-hero-metric-unit">km/h</span></div>
+                </div>
+              )}
             </div>
-          </div>
+          </header>
 
           {saveStatus && (
             <div className={"gpx-save-banner" + (saveStatus.ok ? "" : " gpx-save-banner-error")}>
@@ -1421,35 +776,72 @@ export default function GPXAnalyzer() {
           {/* ---------------- RÉSUMÉ ---------------- */}
           {activeTab === "resume" && (
             <>
-              <div className="gpx-stats-grid">
-                <StatCard icon={Route} label="Distance" value={fmt1(analysis.totalDistanceKm)} unit="km" accent={COLORS.speed} />
-                <StatCard icon={Clock} label="Temps total" value={fmtDuration(analysis.totalTimeSec)} accent={COLORS.info} />
-                <StatCard icon={Timer} label="Temps en mouvement" value={fmtDuration(analysis.movingTimeSec)} accent={COLORS.info} />
-                <StatCard icon={Gauge} label="Vitesse moyenne" value={fmt1(analysis.avgSpeedKmh)} unit="km/h" accent={COLORS.speed} />
-                <StatCard icon={Zap} label="Vitesse maximale" value={fmt1(analysis.maxSpeedKmh)} unit="km/h" accent={COLORS.speed} />
-                <StatCard icon={TrendingUp} label="Dénivelé positif" value={"+" + fmtInt(analysis.elevGain)} unit="m" accent={COLORS.climb} />
-                <StatCard icon={TrendingUp} label="Dénivelé négatif" value={"-" + fmtInt(analysis.elevLoss)} unit="m" accent={COLORS.climb} />
-                <StatCard icon={Mountain} label="Altitude maximale" value={fmtInt(analysis.maxEle)} unit="m" accent={COLORS.climb} />
-                <StatCard icon={Mountain} label="Altitude minimale" value={fmtInt(analysis.minEle)} unit="m" accent={COLORS.climb} />
-              </div>
-
-              <div className="gpx-panel">
+              <section className="gpx-panel gpx-stage">
                 <SectionTitle icon={MapPin}>Tracé</SectionTitle>
-                <MapView analysis={analysis} colorMode={mapColorMode} setColorMode={setMapColorMode} selectedClimb={selectedClimb} height={380} />
+                <MapView
+                  analysis={analysis}
+                  colorMode={mapColorMode}
+                  setColorMode={setMapColorMode}
+                  selectedClimb={selectedClimb}
+                  height="clamp(300px, 46vh, 460px)"
+                  decimated={chartData}
+                  hoverIdx={hoverIdx}
+                  onHoverIndex={setHoverIdx}
+                />
+                <div className="gpx-stage-profile">
+                  <ProfileChart
+                    analysis={analysis}
+                    decimated={chartData}
+                    metric={profileMetric}
+                    setMetric={setProfileMetric}
+                    hoverIdx={hoverIdx}
+                    setHoverIdx={setHoverIdx}
+                    selectedClimb={selectedClimb}
+                    onSelectClimb={setSelectedClimb}
+                    height={190}
+                  />
+                </div>
+              </section>
+
+              <div className="gpx-panel">
+                <div className="gpx-metric-groups">
+                  <MetricGroup
+                    title="Vitesse" accent={COLORS.speed}
+                    hero={{ value: fmt1(analysis.avgSpeedKmh), unit: "km/h" }}
+                    rows={[{ label: "Maximale", value: fmt1(analysis.maxSpeedKmh), unit: "km/h" }]}
+                  />
+                  <MetricGroup
+                    title="Dénivelé" accent={COLORS.climb}
+                    hero={{ value: analysis.hasEle ? "+" + fmtInt(analysis.elevGain) : "—", unit: "m" }}
+                    rows={[
+                      { label: "Négatif", value: analysis.hasEle ? "-" + fmtInt(analysis.elevLoss) : "—", unit: "m" },
+                      { label: "Altitude maximale", value: analysis.hasEle ? fmtInt(analysis.maxEle) : "—", unit: "m" },
+                      { label: "Altitude minimale", value: analysis.hasEle ? fmtInt(analysis.minEle) : "—", unit: "m" },
+                    ]}
+                  />
+                  <MetricGroup
+                    title="Temps" accent={COLORS.info}
+                    hero={{ value: fmtDuration(analysis.totalTimeSec) }}
+                    rows={[
+                      { label: "En mouvement", value: fmtDuration(analysis.movingTimeSec) },
+                      { label: "Distance", value: fmt1(analysis.totalDistanceKm), unit: "km" },
+                    ]}
+                  />
+                </div>
               </div>
 
               <div className="gpx-panel">
-                <SectionTitle icon={Sparkles}>Analyse de la sortie</SectionTitle>
+                <SectionTitle icon={Sparkles}>Lecture de la sortie</SectionTitle>
                 <p className="gpx-summary-text">{summaryText}</p>
                 <div className="gpx-highlight-grid">
-                  <div>
-                    <div className="gpx-highlight-col-title" style={{ color: COLORS.speed }}><TrendingUp size={13} /> Points forts</div>
+                  <div className="gpx-highlight-col is-strong">
+                    <div className="gpx-highlight-col-title"><TrendingUp size={15} color="var(--speed-ink)" /> Points forts</div>
                     {highlights.strengths.length ? (
                       <ul className="gpx-highlight-list">{highlights.strengths.map((s, i) => <li key={i}>{s}</li>)}</ul>
                     ) : <div className="gpx-empty-note">Pas assez de données pour dégager des points forts.</div>}
                   </div>
-                  <div>
-                    <div className="gpx-highlight-col-title" style={{ color: COLORS.climb }}><Flame size={13} /> Points remarquables</div>
+                  <div className="gpx-highlight-col is-notable">
+                    <div className="gpx-highlight-col-title"><Flame size={15} color="var(--climb-ink)" /> Points remarquables</div>
                     {highlights.notable.length ? (
                       <ul className="gpx-highlight-list">{highlights.notable.map((s, i) => <li key={i}>{s}</li>)}</ul>
                     ) : <div className="gpx-empty-note">Rien de particulier détecté sur cette sortie.</div>}
@@ -1482,9 +874,7 @@ export default function GPXAnalyzer() {
                                 <td><b>{b.label}</b></td>
                                 <td>
                                   {fmt1(b.distance)} km
-                                  <div style={{ height: 4, borderRadius: 2, background: "var(--surface2)", marginTop: 4, overflow: "hidden" }}>
-                                    <div style={{ width: `${distPct}%`, height: "100%", background: "var(--climb)" }} />
-                                  </div>
+                                  <div className="gpx-grade-bar"><div style={{ width: `${distPct}%` }} /></div>
                                 </td>
                                 <td>{fmtDuration(b.time)}</td>
                                 <td>{timePct.toFixed(1)} %</td>
@@ -1639,7 +1029,7 @@ export default function GPXAnalyzer() {
                             <CartesianGrid stroke={COLORS.border} />
                             <XAxis type="number" dataKey="speed" name="Vitesse" unit=" km/h" stroke={COLORS.textMuted} fontSize={11} />
                             <YAxis type="number" dataKey="hr" name="FC" unit=" bpm" stroke={COLORS.textMuted} fontSize={11} />
-                            <Tooltip cursor={{ strokeDasharray: "3 3" }} contentStyle={{ background: "#0e1211", border: `1px solid ${COLORS.borderStrong}`, borderRadius: 10, fontSize: 12 }} />
+                            <Tooltip cursor={{ strokeDasharray: "3 3" }} contentStyle={CHART_TOOLTIP_STYLE} />
                             <Scatter data={chartData.filter((d) => d.speed != null && d.hr != null)} fill={COLORS.effort} opacity={0.55} />
                           </ScatterChart>
                         </ResponsiveContainer>
@@ -1653,7 +1043,7 @@ export default function GPXAnalyzer() {
                             <CartesianGrid stroke={COLORS.border} />
                             <XAxis type="number" dataKey="ele" name="Altitude" unit=" m" stroke={COLORS.textMuted} fontSize={11} />
                             <YAxis type="number" dataKey="hr" name="FC" unit=" bpm" stroke={COLORS.textMuted} fontSize={11} />
-                            <Tooltip cursor={{ strokeDasharray: "3 3" }} contentStyle={{ background: "#0e1211", border: `1px solid ${COLORS.borderStrong}`, borderRadius: 10, fontSize: 12 }} />
+                            <Tooltip cursor={{ strokeDasharray: "3 3" }} contentStyle={CHART_TOOLTIP_STYLE} />
                             <Scatter data={chartData.filter((d) => d.ele != null && d.hr != null)} fill={COLORS.climb} opacity={0.55} />
                           </ScatterChart>
                         </ResponsiveContainer>
@@ -1667,7 +1057,7 @@ export default function GPXAnalyzer() {
                             <CartesianGrid stroke={COLORS.border} />
                             <XAxis type="number" dataKey="power" name="Puissance" unit=" W" stroke={COLORS.textMuted} fontSize={11} />
                             <YAxis type="number" dataKey="hr" name="FC" unit=" bpm" stroke={COLORS.textMuted} fontSize={11} />
-                            <Tooltip cursor={{ strokeDasharray: "3 3" }} contentStyle={{ background: "#0e1211", border: `1px solid ${COLORS.borderStrong}`, borderRadius: 10, fontSize: 12 }} />
+                            <Tooltip cursor={{ strokeDasharray: "3 3" }} contentStyle={CHART_TOOLTIP_STYLE} />
                             <Scatter data={chartData.filter((d) => d.power != null && d.hr != null)} fill={COLORS.info} opacity={0.55} />
                           </ScatterChart>
                         </ResponsiveContainer>
@@ -1681,7 +1071,7 @@ export default function GPXAnalyzer() {
                             <CartesianGrid stroke={COLORS.border} />
                             <XAxis type="number" dataKey="power" name="Puissance" unit=" W" stroke={COLORS.textMuted} fontSize={11} />
                             <YAxis type="number" dataKey="speed" name="Vitesse" unit=" km/h" stroke={COLORS.textMuted} fontSize={11} />
-                            <Tooltip cursor={{ strokeDasharray: "3 3" }} contentStyle={{ background: "#0e1211", border: `1px solid ${COLORS.borderStrong}`, borderRadius: 10, fontSize: 12 }} />
+                            <Tooltip cursor={{ strokeDasharray: "3 3" }} contentStyle={CHART_TOOLTIP_STYLE} />
                             <Scatter data={chartData.filter((d) => d.power != null && d.speed != null)} fill={COLORS.speed} opacity={0.55} />
                           </ScatterChart>
                         </ResponsiveContainer>
@@ -1742,20 +1132,18 @@ export default function GPXAnalyzer() {
 
               <div className="gpx-panel">
                 <SectionTitle icon={Mountain} right={<span style={{ fontSize: 11, color: COLORS.textFaint, fontWeight: 500, textTransform: "none" }}>Cliquez sur une ligne pour la localiser</span>}>Tableau des montées</SectionTitle>
+                <SortControl
+                  label="Trier les montées" columns={climbSortColumns(analysis)} sort={climbSort}
+                  onSortKey={sortKeyFor(setClimbSort)} onToggleDir={sortDirFor(setClimbSort)}
+                />
                 <div className="gpx-table-wrap">
-                  <table className="gpx-table">
+                  <table className="gpx-table gpx-table--stack">
                     <thead>
                       <tr>
-                        {[
-                          ["name", "Montée"], ["startDistance", "Km"], ["lengthKm", "Longueur"], ["gain", "D+"],
-                          ["avgGrade", "Pente moy."], ["maxGrade", "Pente max"], ["duration", "Durée"],
-                          ["avgSpeed", "Vitesse moy."], ["avgHR", "FC moy."], ["avgPower", "Puiss. moy."],
-                        ].map(([key, label]) => (
-                          (key !== "avgHR" || analysis.hasHR) && (key !== "avgPower" || analysis.hasPower) && (key !== "duration" || analysis.hasTime) && (key !== "avgSpeed" || analysis.hasTime) ? (
-                            <th key={key} onClick={() => toggleSort(climbSort, setClimbSort, key)}>
-                              {label} {climbSort.key === key ? (climbSort.dir === 1 ? "↑" : "↓") : ""}
-                            </th>
-                          ) : null
+                        {climbSortColumns(analysis).map(([key, label]) => (
+                          <th key={key} onClick={() => toggleSort(climbSort, setClimbSort, key)}>
+                            {label} {climbSort.key === key ? (climbSort.dir === 1 ? "↑" : "↓") : ""}
+                          </th>
                         ))}
                       </tr>
                     </thead>
@@ -1763,15 +1151,15 @@ export default function GPXAnalyzer() {
                       {sortRows(analysis.climbs, climbSort).map((c) => (
                         <tr key={c.id} className={"gpx-row-clickable" + (selectedClimb && selectedClimb.id === c.id ? " gpx-row-selected" : "")} onClick={() => setSelectedClimb(selectedClimb && selectedClimb.id === c.id ? null : c)}>
                           <td>{c.name}</td>
-                          <td>{fmt1(c.startDistance)}</td>
-                          <td>{fmt1(c.lengthKm)} km</td>
-                          <td>+{fmtInt(c.gain)} m</td>
-                          <td>{fmt1(c.avgGrade)}%</td>
-                          <td>{fmt1(c.maxGrade)}%</td>
-                          {analysis.hasTime && <td>{fmtDuration(c.duration)}</td>}
-                          {analysis.hasTime && <td>{fmt1(c.avgSpeed)} km/h</td>}
-                          {analysis.hasHR && <td>{fmtInt(c.avgHR)} bpm</td>}
-                          {analysis.hasPower && <td>{fmtInt(c.avgPower)} W</td>}
+                          <td data-label="Km">{fmt1(c.startDistance)}</td>
+                          <td data-label="Longueur">{fmt1(c.lengthKm)} km</td>
+                          <td data-label="D+">+{fmtInt(c.gain)} m</td>
+                          <td data-label="Pente moy.">{fmt1(c.avgGrade)}%</td>
+                          <td data-label="Pente max">{fmt1(c.maxGrade)}%</td>
+                          {analysis.hasTime && <td data-label="Durée">{fmtDuration(c.duration)}</td>}
+                          {analysis.hasTime && <td data-label="Vitesse moy.">{fmt1(c.avgSpeed)} km/h</td>}
+                          {analysis.hasHR && <td data-label="FC moy.">{fmtInt(c.avgHR)} bpm</td>}
+                          {analysis.hasPower && <td data-label="Puiss. moy.">{fmtInt(c.avgPower)} W</td>}
                         </tr>
                       ))}
                     </tbody>
@@ -1806,7 +1194,7 @@ export default function GPXAnalyzer() {
                       <YAxis stroke={COLORS.textMuted} fontSize={11} width={40} />
                       <Tooltip content={<CustomTooltip hasHR={analysis.hasHR} hasCad={analysis.hasCad} hasPower={analysis.hasPower} />} />
                       <Area type="monotone" dataKey="ele" stroke={COLORS.climb} fill="url(#gpxEleGrad2)" strokeWidth={2} isAnimationActive={false} />
-                      <Brush dataKey="distance" height={22} stroke={COLORS.climb} fill={COLORS.surface2} tickFormatter={(v) => fmt1(v)} travellerWidth={8} />
+                      <Brush dataKey="distance" height={22} stroke="var(--borderStrong)" fill={COLORS.surface2} tickFormatter={(v) => fmt1(v)} travellerWidth={8} />
                     </AreaChart>
                   </ResponsiveContainer>
                 </div>
@@ -1832,7 +1220,7 @@ export default function GPXAnalyzer() {
                       <YAxis stroke={COLORS.textMuted} fontSize={11} width={40} />
                       <Tooltip content={<CustomTooltip hasHR={analysis.hasHR} hasCad={analysis.hasCad} hasPower={analysis.hasPower} />} />
                       <Area type="monotone" dataKey="speed" stroke={COLORS.speed} fill="url(#gpxSpeedGrad)" strokeWidth={2} isAnimationActive={false} />
-                      <Brush dataKey="distance" height={22} stroke={COLORS.speed} fill={COLORS.surface2} tickFormatter={(v) => fmt1(v)} travellerWidth={8} />
+                      <Brush dataKey="distance" height={22} stroke="var(--borderStrong)" fill={COLORS.surface2} tickFormatter={(v) => fmt1(v)} travellerWidth={8} />
                     </AreaChart>
                   </ResponsiveContainer>
                 </div>
@@ -1990,7 +1378,7 @@ export default function GPXAnalyzer() {
                           <XAxis dataKey="label" stroke={COLORS.textMuted} fontSize={11} interval={0} />
                           <YAxis stroke={COLORS.textMuted} fontSize={11} width={50} />
                           <Tooltip
-                            contentStyle={{ background: "#0e1211", border: "1px solid " + COLORS.borderStrong, borderRadius: 10, fontSize: 12 }}
+                            contentStyle={CHART_TOOLTIP_STYLE}
                             formatter={(v) => v == null ? "—" : [`${fmtInt(v)} W`, "Puissance"]}
                             labelFormatter={(l) => "Durée : " + l}
                           />
@@ -2074,43 +1462,35 @@ export default function GPXAnalyzer() {
           {activeTab === "splits" && (
             <div className="gpx-panel">
               <SectionTitle icon={Clock}>Splits</SectionTitle>
-              <div className="gpx-splits-container">
+              {analysis.splits.length > 0 && (
+                <SortControl
+                  label="Trier les splits" columns={splitSortColumns(analysis)} sort={splitSort}
+                  onSortKey={sortKeyFor(setSplitSort)} onToggleDir={sortDirFor(setSplitSort)}
+                />
+              )}
+              <div className="gpx-splits-container gpx-table-wrap">
                 {analysis.splits.length > 0 ? (
-                  <table className="gpx-table">
+                  <table className="gpx-table gpx-table--stack gpx-table--labeled">
                     <thead>
                       <tr>
-                        {[
-                          ["km", "Km"],
-                          ["time", "Temps"],
-                          ["avgSpeed", "Vitesse moy."],
-                          ["avgEle", "Altitude moy."],
-                          ["gain", "D+"],
-                          ["avgHR", "FC moy."],
-                          ["avgCad", "Cadence moy."],
-                          ["avgPower", "Puissance moy."],
-                        ].map(([key, label]) => (
-                          (key !== "avgHR" || analysis.hasHR) &&
-                          (key !== "avgCad" || analysis.hasCad) &&
-                          (key !== "avgPower" || analysis.hasPower) &&
-                          (key !== "time" || analysis.hasTime) ? (
-                            <th key={key} onClick={() => toggleSort(splitSort, setSplitSort, key)}>
-                              {label} {splitSort.key === key ? (splitSort.dir === 1 ? "↑" : "↓") : ""}
-                            </th>
-                          ) : null
+                        {splitSortColumns(analysis).map(([key, label]) => (
+                          <th key={key} onClick={() => toggleSort(splitSort, setSplitSort, key)}>
+                            {label} {splitSort.key === key ? (splitSort.dir === 1 ? "↑" : "↓") : ""}
+                          </th>
                         ))}
                       </tr>
                     </thead>
                     <tbody>
                       {sortRows(analysis.splits, splitSort).map((s, i) => (
                         <tr key={i} className="gpx-row-clickable">
-                          <td>{fmt1(s.km)}</td>
-                          {analysis.hasTime && <td>{fmtDuration(s.time)}</td>}
-                          <td>{fmt1(s.avgSpeed)} km/h</td>
-                          <td>{fmtInt(s.avgEle)} m</td>
-                          <td>+{fmtInt(s.gain)} m</td>
-                          {analysis.hasHR && <td>{fmtInt(s.avgHR)} bpm</td>}
-                          {analysis.hasCad && <td>{fmtInt(s.avgCad)} rpm</td>}
-                          {analysis.hasPower && <td>{fmtInt(s.avgPower)} W</td>}
+                          <td data-label="Km">{fmt1(s.km)}</td>
+                          {analysis.hasTime && <td data-label="Temps">{fmtDuration(s.time)}</td>}
+                          <td data-label="Vitesse moy.">{fmt1(s.avgSpeed)} km/h</td>
+                          <td data-label="Altitude moy.">{fmtInt(s.avgEle)} m</td>
+                          <td data-label="D+">+{fmtInt(s.gain)} m</td>
+                          {analysis.hasHR && <td data-label="FC moy.">{fmtInt(s.avgHR)} bpm</td>}
+                          {analysis.hasCad && <td data-label="Cadence moy.">{fmtInt(s.avgCad)} rpm</td>}
+                          {analysis.hasPower && <td data-label="Puissance moy.">{fmtInt(s.avgPower)} W</td>}
                         </tr>
                       ))}
                     </tbody>

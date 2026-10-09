@@ -19,7 +19,7 @@ import { ArrowLeft, RefreshCw, Unplug, CheckCircle2, AlertCircle, Bike } from "l
 
 import { StorageSettings } from "./StorageSettings.jsx";
 import { CloudAccountPanel } from "./CloudAccountPanel.jsx";
-import { SectionTitle } from "./UIPrimitives.jsx";
+import { SectionTitle, PageHead } from "./UIPrimitives.jsx";
 import { listActivities } from "../lib/storage/activityStore.js";
 import {
   buildAuthorizeUrl,
@@ -114,15 +114,11 @@ export function DataSourcesView({ storage, onConnect, onReconnect, onDisconnectS
 
   return (
     <div className="gpx-dashboard">
-      <div className="gpx-header">
-        <div className="gpx-header-left">
-          <h1 className="gpx-ride-name">Sources de données</h1>
-          <div className="gpx-ride-meta"><span>Stockage local et import automatique des sorties</span></div>
-        </div>
-        <div className="gpx-header-actions">
-          <button className="gpx-btn-ghost" onClick={onBack}><ArrowLeft size={14} /> Retour</button>
-        </div>
-      </div>
+      <PageHead
+        title="Sources de données"
+        meta={<span>Stockage local et import automatique des sorties</span>}
+        actions={<button className="gpx-btn-ghost" onClick={onBack}><ArrowLeft size={15} /> <span>Retour</span></button>}
+      />
 
       <div className="gpx-panel">
         <SectionTitle>Stockage local</SectionTitle>

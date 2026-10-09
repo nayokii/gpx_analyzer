@@ -1,0 +1,58 @@
+/**
+ * Cycling OS — Profil : dimensions en colonnes sur filets, confiance et limites de données bien distinctes.
+ */
+.gpx-two-up { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; margin-bottom: 20px; align-items: stretch; }
+.gpx-two-up > .gpx-panel { margin-bottom: 0; }
+@media (max-width: 860px) { .gpx-two-up { grid-template-columns: 1fr; gap: 14px; margin-bottom: 14px; } }
+.gpx-panel--quiet { background: transparent; box-shadow: none; padding-left: 4px; padding-right: 4px; }
+.gpx-panel--quiet .gpx-section-title { font-size: 15px; color: var(--muted); }
+
+/* Qualité des données : pastilles de capteurs */
+.gpx-profile-dataquality-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+.gpx-profile-dataquality-row {
+  display: inline-flex; align-items: center; gap: 10px; padding: 8px 16px; border-radius: var(--radius-pill);
+  background: var(--surface2); font-size: 14px; font-weight: 600;
+}
+.gpx-profile-dq-ok { color: var(--speed-ink); font-weight: 700; }
+.gpx-profile-dq-missing { color: var(--faint); font-weight: 600; }
+.gpx-profile-dq-note { color: var(--climb-ink); font-weight: 700; }
+
+/* Dimensions : colonnes séparées par des filets, pas de cartes imbriquées */
+.gpx-profile-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 0 44px; }
+.gpx-profile-card { display: flex; flex-direction: column; gap: 6px; padding: 24px 0 26px; border-top: 1px solid var(--separator); min-width: 0; }
+.gpx-profile-card-head { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 650; color: var(--muted); }
+.gpx-profile-card-head svg { color: var(--dim-accent, var(--speed)); width: 16px; height: 16px; }
+.gpx-profile-card-value { font-size: 56px; font-weight: 700; line-height: 1; letter-spacing: -0.05em; font-variant-numeric: tabular-nums; margin-top: 6px; }
+.gpx-profile-card-value .gpx-av { font-family: inherit; font-weight: 700; letter-spacing: -0.05em; }
+.gpx-profile-card-value-empty { color: var(--faint); }
+.gpx-profile-card-value-scale { font-size: 16px; font-weight: 600; letter-spacing: 0; color: var(--faint); margin-left: 4px; }
+.gpx-profile-card-bar { height: 7px; border-radius: var(--radius-pill); background: var(--surface3); overflow: hidden; margin: 8px 0 4px; }
+.gpx-profile-card-bar-fill { height: 100%; border-radius: var(--radius-pill); background: var(--dim-accent, var(--speed)); transition: width var(--dur-slow) var(--ease); }
+.gpx-profile-card-status { font-size: 15px; font-weight: 650; color: var(--muted); }
+.gpx-profile-card-hint { font-size: 12.5px; color: var(--muted); line-height: 1.4; font-style: normal; }
+/* Limites de données : bien distinctes d'un score mesuré */
+.gpx-profile-card-limit { align-self: flex-start; padding: 3px 10px; border-radius: var(--radius-pill); background: color-mix(in srgb, var(--climb) 14%, transparent); color: var(--climb-ink); font-weight: 600; }
+.gpx-profile-card-confidence { display: flex; align-items: center; gap: 8px; font-size: 13.5px; color: var(--muted); margin-top: 4px; }
+.gpx-profile-card-confidence b { display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px; border-radius: var(--radius-pill); font-weight: 650; background: var(--surface2); }
+.gpx-profile-card-confidence b::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.gpx-profile-card-confidence b.gpx-confidence-low { color: var(--climb-ink); background: color-mix(in srgb, var(--climb) 14%, transparent); }
+.gpx-profile-card-confidence b.gpx-confidence-medium { color: var(--info-ink); background: color-mix(in srgb, var(--info) 13%, transparent); }
+.gpx-profile-card-confidence b.gpx-confidence-high { color: var(--speed-ink); background: color-mix(in srgb, var(--speed) 14%, transparent); }
+.gpx-profile-card-trend { font-size: 13px; font-weight: 600; color: var(--muted); }
+.gpx-profile-card-meta { font-size: 13px; color: var(--muted); }
+.gpx-profile-evidence-toggle { margin-top: 6px; text-align: left; align-self: flex-start; }
+.gpx-profile-evidence-list { list-style: none; padding: 0; margin: 10px 0 0; display: flex; flex-direction: column; gap: 8px; }
+.gpx-profile-evidence-list li { font-size: 13.5px; color: var(--muted); padding-left: 16px; position: relative; line-height: 1.5; }
+.gpx-profile-evidence-list li::before { content: ""; position: absolute; left: 0; top: 0.65em; width: 6px; height: 6px; border-radius: 50%; background: var(--faint); }
+.gpx-profile-evidence-list li.gpx-row-clickable:hover { color: var(--text); cursor: pointer; }
+.gpx-profile-evidence-list li b { color: var(--text); font-weight: 650; }
+.gpx-profile-dimension-select { border-radius: var(--radius-pill) !important; padding: 8px 14px !important; font-weight: 600; }
+.gpx-profile-about { font-size: 14px; color: var(--muted); line-height: 1.7; max-width: 52em; margin: 0; }
+.gpx-confidence-low { color: var(--climb-ink); }
+.gpx-confidence-medium { color: var(--info-ink); }
+.gpx-confidence-high { color: var(--speed-ink); }
+@media (max-width: 680px) {
+  .gpx-profile-grid { grid-template-columns: 1fr 1fr; gap: 0 22px; }
+  .gpx-profile-card-value { font-size: 44px; }
+}
+@media (max-width: 440px) { .gpx-profile-grid { grid-template-columns: 1fr; } }

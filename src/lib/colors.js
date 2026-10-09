@@ -1,30 +1,54 @@
 /**
- * Design tokens et échelles de couleurs
+ * Couleurs métier de Cycling OS.
  *
- * Palette inspirée d'une montée nocturne sur un ordinateur de bord de vélo : près du
- * noir basaltique, avec un fond vert foncé stylisant le relief guadeloupéen et un
- * accent bleu-vert pour la vitesse/motion, un jaune doux pour la montée, un corail
- * chaud pour l'effort (FC/puissance).
+ * Les valeurs de COLORS sont des références `var(--…)` définies dans styles/tokens.css (thème clair par
+ * défaut, thème sombre via prefers-color-scheme) : elles se résolvent d'elles-mêmes dans les styles
+ * inline et les attributs SVG (Recharts). Les dessins qui exigent une couleur concrète (canvas,
+ * Leaflet) passent par `resolveColor` de lib/theme.js.
+ *
+ * Sémantique : vitesse = turquoise, dénivelé = ambre, effort/FC = corail, puissance/cadence = indigo.
  */
 
 export const COLORS = {
-  bg: "#0a0d0c",
-  bgAlt: "#0e1211",
-  surface: "#141917",
-  surface2: "#1a201d",
-  border: "rgba(237, 239, 236, 0.08)",
-  borderStrong: "rgba(237, 239, 236, 0.16)",
-  text: "#eef1ee",
-  textMuted: "#8b948e",
-  textFaint: "#5c645f",
-  speed: "#4dd9c0",
-  speedDim: "#2a5c53",
-  climb: "#f4b740",
-  climbDim: "#5c4a20",
-  effort: "#e8543a",
-  effortDim: "#5c2c22",
-  alert: "#ff5470",
-  info: "#6f9cf2",
+  bg: "var(--bg)",
+  bgAlt: "var(--bgAlt)",
+  surface: "var(--surface)",
+  surface2: "var(--surface2)",
+  border: "var(--border)",
+  borderStrong: "var(--borderStrong)",
+  text: "var(--text)",
+  textMuted: "var(--muted)",
+  textFaint: "var(--faint)",
+  speed: "var(--speed)",
+  speedDim: "color-mix(in srgb, var(--speed) 45%, var(--surface))",
+  climb: "var(--climb)",
+  climbDim: "color-mix(in srgb, var(--climb) 45%, var(--surface))",
+  effort: "var(--effort)",
+  effortDim: "color-mix(in srgb, var(--effort) 45%, var(--surface))",
+  alert: "var(--alert)",
+  info: "var(--info)",
+};
+
+/**
+ * Axes Recharts : sans filet ni graduation, texte discret et lisible (11 px) — réutilisé par tous les petits graphiques.
+ */
+export const CHART_AXIS = {
+  stroke: COLORS.textMuted,
+  fontSize: 11,
+  tickLine: false,
+  axisLine: false,
+};
+
+/**
+ * Style d'infobulle Recharts : suit le thème (surface + ombre), sans bordure décorative.
+ */
+export const CHART_TOOLTIP_STYLE = {
+  background: "var(--surface)",
+  border: "none",
+  borderRadius: 14,
+  boxShadow: "var(--shadow-pop)",
+  fontSize: 13,
+  color: "var(--text)",
 };
 
 /**
@@ -39,10 +63,10 @@ export const COLORS = {
  * froid → chaud (faible → élevé). HR_SCALE ne présente pas ce risque et n'a
  * pas été modifiée.
  */
-export const SPEED_SCALE = ["#4a3a8f", "#4dd9c0", "#c8e86a", "#f4b740", "#e8543a"];
-export const GRADE_SCALE = ["#4a3a8f", "#4dd9c0", "#8b948e", "#f4b740", "#e8543a"];
+export const SPEED_SCALE = ["#6a5acd", "#4dd9c0", "#c8e86a", "#f4b740", "#e8543a"];
+export const GRADE_SCALE = ["#6a5acd", "#4dd9c0", "#8b948e", "#f4b740", "#e8543a"];
 export const HR_SCALE = ["#4dd9c0", "#c8e86a", "#f4b740", "#e8543a", "#c22b1c"];
-export const ELE_SCALE = ["#1c1a2e", "#4a3a8f", "#9b5fc0", "#f4b740", "#c96b3a"];
+export const ELE_SCALE = ["#4b45a8", "#7a52c4", "#b05fb8", "#f4b740", "#e8734a"];
 
 /**
  * Tokens dédiés à la lisibilité des tracés/marqueurs sur fond de carte
@@ -55,7 +79,7 @@ export const ELE_SCALE = ["#1c1a2e", "#4a3a8f", "#9b5fc0", "#f4b740", "#c96b3a"]
  * tracé (FC, puissance, cadence, comparaison...) doit réutiliser ces mêmes
  * tokens pour rester visuellement cohérent.
  */
-export const MAP_HALO_COLOR = COLORS.bg;
+export const MAP_HALO_COLOR = "var(--map-halo)";
 export const MAP_HALO_OPACITY = 0.92;
 export const MAP_MARKER_RING_COLOR = "#ffffff";
 
@@ -65,7 +89,7 @@ export const MAP_MARKER_RING_COLOR = "#ffffff";
  * de carte reste identifiable pour se repérer sans jamais concurrencer
  * visuellement le tracé et les données analytiques posées par-dessus.
  */
-export const MAP_TILE_FILTER = "saturate(0.5) brightness(1.06) contrast(0.95)";
+export const MAP_TILE_FILTER = "var(--map-tile-filter)"; // défini par thème dans styles/tokens.css
 
 /**
  * Interpole linéairement entre deux couleurs hexadécimales

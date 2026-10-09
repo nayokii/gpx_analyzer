@@ -47,7 +47,7 @@ import {
 } from "lucide-react";
 
 import { StorageSettings } from "./StorageSettings.jsx";
-import { SectionTitle } from "./UIPrimitives.jsx";
+import { SectionTitle, PageHead } from "./UIPrimitives.jsx";
 import { useActivityRepository, useUnifiedActivities } from "./useActivityRepository.js";
 import { getCachedProfile } from "../lib/derivedCache.js";
 import { ARCHETYPE_DIMENSIONS } from "../lib/archetypes/archetypes.js";
@@ -162,7 +162,7 @@ function TourProgressBar({ current, total }) {
   return (
     <div className="gpx-tour-progress" role="progressbar" aria-valuenow={donePct} aria-valuemin={0} aria-valuemax={100} aria-label="Progression du Tour">
       <div className="gpx-profile-card-meta">Étape {Math.min(current + 1, total)} / {total}</div>
-      <div className="gpx-tour-progress-bar"><div className="gpx-tour-progress-bar-fill" style={{ width: `${donePct}%` }} /></div>
+      <div className="gpx-tour-progress-bar" style={{ "--n": total }}><div className="gpx-tour-progress-bar-fill" style={{ width: `${donePct}%` }} /></div>
     </div>
   );
 }
@@ -179,26 +179,28 @@ function ColdStartSection({ activityCount, profile, onViewProfile }) {
     <div className="gpx-panel gpx-tour-hero">
       <SectionTitle icon={Flag}>Tour Simulator</SectionTitle>
       <div className="gpx-focus-headline">Construis ton profil de coureur à travers tes sorties.</div>
-      <p className="gpx-profile-card-meta" style={{ marginTop: 10 }}>
+      <p className="gpx-profile-card-meta gpx-tour-count">
         {activityCount} sortie{activityCount > 1 ? "s" : ""} analysée{activityCount > 1 ? "s" : ""}
       </p>
-      {documented.length > 0 && (
-        <div style={{ marginTop: 14 }}>
-          <div className="gpx-profile-card-meta">Ton profil commence déjà à documenter :</div>
-          <ul className="gpx-profile-evidence-list">
-            {documented.map((d) => <li key={d}>{DIMENSION_META[d].label}</li>)}
-          </ul>
-        </div>
-      )}
-      {undocumented.length > 0 && (
-        <div style={{ marginTop: 10 }}>
-          <div className="gpx-profile-card-meta">Encore peu documenté :</div>
-          <ul className="gpx-profile-evidence-list">
-            {undocumented.map((d) => <li key={d}>{DIMENSION_META[d].label}</li>)}
-          </ul>
-        </div>
-      )}
-      <button className="gpx-btn-ghost" style={{ marginTop: 16 }} onClick={onViewProfile}>Voir mon profil</button>
+      <div className="gpx-archetype-lists">
+        {documented.length > 0 && (
+          <div className="gpx-archetype-block">
+            <div className="gpx-profile-card-meta">Ton profil commence déjà à documenter :</div>
+            <ul className="gpx-profile-evidence-list">
+              {documented.map((d) => <li key={d}>{DIMENSION_META[d].label}</li>)}
+            </ul>
+          </div>
+        )}
+        {undocumented.length > 0 && (
+          <div className="gpx-archetype-block">
+            <div className="gpx-profile-card-meta">Encore peu documenté :</div>
+            <ul className="gpx-profile-evidence-list">
+              {undocumented.map((d) => <li key={d}>{DIMENSION_META[d].label}</li>)}
+            </ul>
+          </div>
+        )}
+      </div>
+      <button className="gpx-btn-ghost gpx-tour-cta" onClick={onViewProfile}>Voir mon profil</button>
     </div>
   );
 }
@@ -230,7 +232,7 @@ function RouteOverviewSection({ stages, onStart }) {
           );
         })}
       </ol>
-      <button className="gpx-btn-primary" style={{ marginTop: 16 }} onClick={onStart}>
+      <button className="gpx-btn-primary gpx-tour-cta" onClick={onStart}>
         <Play size={15} /> Commencer
       </button>
     </div>
@@ -280,7 +282,7 @@ function TourProfileSummary({ profile, onViewProfile }) {
           <TourDimensionCard key={key} dimKey={key} dim={profile.dimensions[key]} />
         ))}
       </div>
-      {anyMissing && <p className="gpx-empty-note" style={{ marginTop: 10 }}>Profil encore en construction.</p>}
+      {anyMissing && <p className="gpx-empty-note gpx-tour-note">Profil encore en construction.</p>}
     </div>
   );
 }
@@ -297,88 +299,94 @@ function StageScreen({ stage, result, nextFatigueBefore, stageIndex, totalStages
     revealed && result.fatigueAfter != null && nextFatigueBefore != null ? pct(nextFatigueBefore) - pct(result.fatigueAfter) : null;
 
   return (
-    <div className="gpx-panel" aria-label={`Étape ${stageIndex + 1} sur ${totalStages}`}>
-      <div className="gpx-archetype-headline" style={{ fontSize: 22 }}>{(type ? type.label : stage.type).toUpperCase()}</div>
-      <div className="gpx-ride-meta" style={{ marginTop: 6 }}>
-        <span>{Math.round(stage.distanceKm)} km</span>
-        <span className="gpx-tour-difficulty-label">Difficulté <DifficultyDots value={stage.difficulty} /></span>
+    <div className="gpx-panel gpx-tour-stage" aria-label={`Étape ${stageIndex + 1} sur ${totalStages}`}>
+      <div className="gpx-tour-stage-head">
+        <div className="gpx-archetype-headline gpx-tour-stage-title">{(type ? type.label : stage.type).toUpperCase()}</div>
+        <div className="gpx-ride-meta">
+          <span>{Math.round(stage.distanceKm)} km</span>
+          <span className="gpx-tour-difficulty-label">Difficulté <DifficultyDots value={stage.difficulty} /></span>
+        </div>
       </div>
 
-      <hr className="gpx-tour-divider" />
-      <SectionTitle icon={Info}>Affinité avec ton profil</SectionTitle>
-      {result.affinity == null ? (
-        <>
-          <div className="gpx-profile-card-value gpx-profile-card-value-empty">—</div>
-          <div className="gpx-profile-card-status">Données insuffisantes</div>
-        </>
-      ) : (
-        <>
-          <div className="gpx-profile-card-value">
-            {result.affinity}
-            <span className="gpx-profile-card-value-scale">/100</span>
+      <div className="gpx-tour-stage-grid">
+        <div className="gpx-tour-col">
+          <SectionTitle icon={Info}>Affinité avec ton profil</SectionTitle>
+          {result.affinity == null ? (
+            <>
+              <div className="gpx-profile-card-value gpx-profile-card-value-empty">—</div>
+              <div className="gpx-profile-card-status">Données insuffisantes</div>
+            </>
+          ) : (
+            <>
+              <div className="gpx-profile-card-value">
+                {result.affinity}
+                <span className="gpx-profile-card-value-scale">/100</span>
+              </div>
+              <div className="gpx-profile-card-status">{result.category}</div>
+            </>
+          )}
+
+          <div className="gpx-tour-sub">
+            <SectionTitle icon={Zap}>Ce qui compte</SectionTitle>
+            {result.keyFactors.length === 0 ? (
+              <p className="gpx-empty-note">Pas encore assez de dimensions documentées pour cette étape.</p>
+            ) : (
+              <ul className="gpx-profile-evidence-list">
+                {result.keyFactors.map((d, i) => (
+                  <li key={d}>{DIMENSION_META[d].label} <span className="gpx-tour-weight">{"+".repeat(3 - i)}</span></li>
+                ))}
+              </ul>
+            )}
+            <p className="gpx-empty-note gpx-tour-note">{stageExplanation(result)}</p>
           </div>
-          <div className="gpx-profile-card-status">{result.category}</div>
-        </>
-      )}
 
-      <hr className="gpx-tour-divider" />
-      <SectionTitle icon={Zap}>Ce qui compte</SectionTitle>
-      {result.keyFactors.length === 0 ? (
-        <p className="gpx-empty-note">Pas encore assez de dimensions documentées pour cette étape.</p>
-      ) : (
-        <ul className="gpx-profile-evidence-list">
-          {result.keyFactors.map((d, i) => (
-            <li key={d}>{DIMENSION_META[d].label} <span className="gpx-tour-weight">{"+".repeat(3 - i)}</span></li>
-          ))}
-        </ul>
-      )}
-      <p className="gpx-empty-note" style={{ fontStyle: "normal", marginTop: 8 }}>{stageExplanation(result)}</p>
+          {result.missingDimensions.length > 0 && (
+            <div className="gpx-tour-sub">
+              <div className="gpx-alterego-subheading">Ce qui reste à documenter</div>
+              <ul className="gpx-profile-evidence-list">
+                {result.missingDimensions.map((d) => <li key={d}>{DIMENSION_META[d].label}</li>)}
+              </ul>
+            </div>
+          )}
+        </div>
 
-      {result.missingDimensions.length > 0 && (
-        <>
-          <div className="gpx-alterego-subheading">Ce qui reste à documenter</div>
-          <ul className="gpx-profile-evidence-list">
-            {result.missingDimensions.map((d) => <li key={d}>{DIMENSION_META[d].label}</li>)}
-          </ul>
-        </>
-      )}
+        <div className="gpx-tour-col">
+          <SectionTitle icon={Flame}>{revealed ? "Fatigue" : "Fatigue simulée"}</SectionTitle>
+          <div className="gpx-profile-card-status gpx-tour-fatigue-label">{fatigueLabel(result.fatigueBefore)}</div>
+          <div className="gpx-profile-card-bar">
+            <div className="gpx-profile-card-bar-fill gpx-tour-fatigue-fill" style={{ width: `${pct(result.fatigueBefore) ?? 0}%` }} />
+          </div>
 
-      <hr className="gpx-tour-divider" />
-      <SectionTitle icon={Flame}>{revealed ? "Fatigue" : "Fatigue simulée"}</SectionTitle>
-      <div className="gpx-profile-card-status">{fatigueLabel(result.fatigueBefore)}</div>
-      <div className="gpx-profile-card-bar">
-        <div className="gpx-profile-card-bar-fill gpx-tour-fatigue-fill" style={{ width: `${pct(result.fatigueBefore) ?? 0}%` }} />
+          {!revealed ? (
+            <button className="gpx-btn-primary gpx-tour-cta" onClick={onSimulate}>
+              <Play size={15} /> Simuler l'étape
+            </button>
+          ) : (
+            <div className="gpx-tour-sub">
+              <div className="gpx-archetype-headline gpx-tour-done">Étape terminée</div>
+              <div className="gpx-alterego-profile-row gpx-tour-result-row">
+                <span className="gpx-alterego-profile-row-label">Performance simulée</span>
+                <span>{PERFORMANCE_BAND_LABELS[result.performanceBand] || result.performanceBand}</span>
+              </div>
+              {fatigueDelta != null && (
+                <div className="gpx-alterego-profile-row gpx-tour-result-row">
+                  <span className="gpx-alterego-profile-row-label">Fatigue</span>
+                  <span>{fatigueDelta >= 0 ? "+" : ""}{fatigueDelta}</span>
+                </div>
+              )}
+              {recoveryDelta != null && (
+                <div className="gpx-alterego-profile-row gpx-tour-result-row">
+                  <span className="gpx-alterego-profile-row-label">Récupération avant la prochaine étape</span>
+                  <span>{recoveryDelta}</span>
+                </div>
+              )}
+              <button className="gpx-btn-primary gpx-tour-cta" onClick={onNext}>
+                {isLast ? "Voir le résumé du Tour" : "Étape suivante"} <ChevronRight size={15} />
+              </button>
+            </div>
+          )}
+        </div>
       </div>
-
-      {!revealed ? (
-        <button className="gpx-btn-primary" style={{ marginTop: 18 }} onClick={onSimulate}>
-          <Play size={15} /> Simuler l'étape
-        </button>
-      ) : (
-        <>
-          <hr className="gpx-tour-divider" />
-          <div className="gpx-archetype-headline" style={{ fontSize: 18 }}>Étape terminée</div>
-          <div className="gpx-alterego-profile-row">
-            <span className="gpx-alterego-profile-row-label">Performance simulée</span>
-            <span>{PERFORMANCE_BAND_LABELS[result.performanceBand] || result.performanceBand}</span>
-          </div>
-          {fatigueDelta != null && (
-            <div className="gpx-alterego-profile-row">
-              <span className="gpx-alterego-profile-row-label">Fatigue</span>
-              <span>{fatigueDelta >= 0 ? "+" : ""}{fatigueDelta}</span>
-            </div>
-          )}
-          {recoveryDelta != null && (
-            <div className="gpx-alterego-profile-row">
-              <span className="gpx-alterego-profile-row-label">Récupération avant la prochaine étape</span>
-              <span>{recoveryDelta}</span>
-            </div>
-          )}
-          <button className="gpx-btn-primary" style={{ marginTop: 14 }} onClick={onNext}>
-            {isLast ? "Voir le résumé du Tour" : "Étape suivante"} <ChevronRight size={15} />
-          </button>
-        </>
-      )}
     </div>
   );
 }
@@ -391,51 +399,54 @@ function TourFinishedSection({ stageCount, overall, onReplay, onViewProfile }) {
   const avgFatigueFromManagement = overall.fatigueManagement != null ? 1 - overall.fatigueManagement / 100 : null;
 
   return (
-    <div className="gpx-panel gpx-tour-hero">
-      <SectionTitle icon={Flag}>Tour terminé</SectionTitle>
-      <div className="gpx-focus-headline">{stageCount} étapes simulées</div>
+    <>
+      <div className="gpx-panel gpx-tour-hero">
+        <SectionTitle icon={Flag}>Tour terminé</SectionTitle>
+        <div className="gpx-focus-headline">{stageCount} étapes simulées</div>
+        <div className="gpx-tour-finish-actions">
+          <button className="gpx-btn-primary" onClick={onReplay}><RotateCcw size={15} /> Rejouer</button>
+          <button className="gpx-btn-ghost" onClick={onViewProfile}>Voir mon profil</button>
+        </div>
+      </div>
 
-      <hr className="gpx-tour-divider" />
-      <SectionTitle icon={Mountain}>Ton profil sur ce parcours</SectionTitle>
-      <div className="gpx-alterego-profile-list">
-        {TERRAIN_AFFINITY_FIELDS.map(({ key, label }) => {
-          const score = overall[key];
-          return (
-            <div className="gpx-alterego-profile-row" key={key}>
-              <span className="gpx-alterego-profile-row-label">{label}</span>
-              <span className={score == null ? "gpx-profile-card-value-empty" : ""}>
-                {score == null ? "Données insuffisantes" : categorizeAffinity(score)}
-              </span>
+      <div className="gpx-two-up">
+        <div className="gpx-panel">
+          <SectionTitle icon={Mountain}>Ton profil sur ce parcours</SectionTitle>
+          <div className="gpx-alterego-profile-list gpx-tour-terrain">
+            {TERRAIN_AFFINITY_FIELDS.map(({ key, label }) => {
+              const score = overall[key];
+              return (
+                <div className="gpx-alterego-profile-row" key={key}>
+                  <span className="gpx-alterego-profile-row-label">{label}</span>
+                  <span className={score == null ? "gpx-profile-card-value-empty" : ""}>
+                    {score == null ? "Données insuffisantes" : categorizeAffinity(score)}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="gpx-panel">
+          <SectionTitle icon={Info}>Ce que la simulation montre</SectionTitle>
+          <p className="gpx-empty-note">{overallSummarySentence(overall)}</p>
+          <div className="gpx-tour-sub">
+            <SectionTitle icon={Flame}>Fatigue finale</SectionTitle>
+            <div className="gpx-profile-card-status">{fatigueLabel(avgFatigueFromManagement)}</div>
+          </div>
+          {overall.documentationGaps.length > 0 && (
+            <div className="gpx-tour-sub">
+              <div className="gpx-alterego-subheading">Ce qui reste à documenter</div>
+              <ul className="gpx-profile-evidence-list">
+                {overall.documentationGaps.map((g) => (
+                  <li key={g.dimension}>{DIMENSION_META[g.dimension] ? DIMENSION_META[g.dimension].label : g.dimension}</li>
+                ))}
+              </ul>
             </div>
-          );
-        })}
+          )}
+        </div>
       </div>
-
-      <hr className="gpx-tour-divider" />
-      <SectionTitle icon={Info}>Ce que la simulation montre</SectionTitle>
-      <p className="gpx-empty-note" style={{ fontStyle: "normal" }}>{overallSummarySentence(overall)}</p>
-
-      {overall.documentationGaps.length > 0 && (
-        <>
-          <hr className="gpx-tour-divider" />
-          <div className="gpx-alterego-subheading">Ce qui reste à documenter</div>
-          <ul className="gpx-profile-evidence-list">
-            {overall.documentationGaps.map((g) => (
-              <li key={g.dimension}>{DIMENSION_META[g.dimension] ? DIMENSION_META[g.dimension].label : g.dimension}</li>
-            ))}
-          </ul>
-        </>
-      )}
-
-      <hr className="gpx-tour-divider" />
-      <SectionTitle icon={Flame}>Fatigue finale</SectionTitle>
-      <div className="gpx-profile-card-status">{fatigueLabel(avgFatigueFromManagement)}</div>
-
-      <div className="gpx-tour-finish-actions">
-        <button className="gpx-btn-primary" onClick={onReplay}><RotateCcw size={15} /> Rejouer</button>
-        <button className="gpx-btn-ghost" onClick={onViewProfile}>Voir mon profil</button>
-      </div>
-    </div>
+    </>
   );
 }
 
@@ -487,23 +498,17 @@ export function TourView({ storage, onConnect, onReconnect, onBack, onViewProfil
 
   return (
     <div className="gpx-dashboard">
-      <div className="gpx-header">
-        <div className="gpx-header-left">
-          <h1 className="gpx-ride-name">Tour Simulator</h1>
-          <div className="gpx-ride-meta">
-            {profile ? (
-              <span>Basé sur {profile.activityCount} sortie{profile.activityCount > 1 ? "s" : ""}</span>
-            ) : ready ? (
-              <span>{summaries ? "Analyse de ton historique…" : "Chargement…"}</span>
-            ) : null}
-          </div>
-        </div>
-        <div className="gpx-header-actions">
-          <button className="gpx-btn-ghost" onClick={onBack}><ArrowLeft size={14} /> Retour</button>
-        </div>
-      </div>
+      <PageHead
+        title="Tour Simulator"
+        meta={profile ? (
+          <span>Basé sur {profile.activityCount} sortie{profile.activityCount > 1 ? "s" : ""}</span>
+        ) : ready ? (
+          <span>{summaries ? "Analyse de ton historique…" : "Chargement…"}</span>
+        ) : null}
+        actions={<button className="gpx-btn-ghost" onClick={onBack}><ArrowLeft size={15} /> <span>Retour</span></button>}
+      />
 
-      <div className="gpx-panel">
+      <div className="gpx-statusline">
         <StorageSettings storage={storage} onConnect={onConnect} onReconnect={onReconnect} />
       </div>
 

@@ -22,6 +22,7 @@ import {
   MAP_MARKER_RING_COLOR,
 } from "../lib/colors.js";
 import { decimate, fmt1, fmtInt } from "../lib/utils.js";
+import { resolveColor, useColorScheme } from "../lib/theme.js";
 
 /**
  * Dessine le halo/contour ("casing") sous un tracé : une plaque de séparation
@@ -31,7 +32,7 @@ import { decimate, fmt1, fmtInt } from "../lib/utils.js";
  * doivent partager un unique halo continu (cas du tracé principal en mode
  * analytique, pour éviter un halo par segment inutilement coûteux).
  */
-function drawTrackHalo(group, latlngs, { weight = 5, extraWeight = 3, color = MAP_HALO_COLOR, opacity = MAP_HALO_OPACITY } = {}) {
+function drawTrackHalo(group, latlngs, { weight = 5, extraWeight = 3, color = resolveColor(MAP_HALO_COLOR), opacity = MAP_HALO_OPACITY } = {}) {
   return L.polyline(latlngs, {
     color,
     weight: weight + extraWeight,
@@ -46,7 +47,7 @@ function drawTrackHalo(group, latlngs, { weight = 5, extraWeight = 3, color = MA
  * pour tout élément linéaire ponctuel comme la montée sélectionnée ; tout
  * futur tracé isolé (segment de comparaison, etc.) devrait faire de même.
  */
-function drawHaloPolyline(group, latlngs, { color, weight = 5, opacity = 1, haloColor = MAP_HALO_COLOR, haloOpacity = MAP_HALO_OPACITY, haloExtraWeight = 3 } = {}) {
+function drawHaloPolyline(group, latlngs, { color, weight = 5, opacity = 1, haloColor = resolveColor(MAP_HALO_COLOR), haloOpacity = MAP_HALO_OPACITY, haloExtraWeight = 3 } = {}) {
   drawTrackHalo(group, latlngs, { weight, extraWeight: haloExtraWeight, color: haloColor, opacity: haloOpacity });
   return L.polyline(latlngs, { color, weight, opacity, lineJoin: "round", lineCap: "round" }).addTo(group);
 }
@@ -58,7 +59,7 @@ function drawHaloPolyline(group, latlngs, { color, weight = 5, opacity = 1, halo
  * efforts...) : il suffit d'appeler cette fonction avec une couleur de
  * remplissage différente, sans toucher au reste de l'architecture.
  */
-function drawHaloMarker(group, latlng, { radius = 7, fillColor, ringColor = MAP_MARKER_RING_COLOR, strokeColor = COLORS.bg, strokeWeight = 2 }) {
+function drawHaloMarker(group, latlng, { radius = 7, fillColor, ringColor = MAP_MARKER_RING_COLOR, strokeColor = resolveColor(COLORS.bg), strokeWeight = 2 }) {
   L.circleMarker(latlng, { radius: radius + 2, color: ringColor, weight: 0, fillColor: ringColor, fillOpacity: 0.9 }).addTo(group);
   return L.circleMarker(latlng, { radius, color: strokeColor, weight: strokeWeight, fillColor, fillOpacity: 1 }).addTo(group);
 }
@@ -101,6 +102,7 @@ export function MapView({
   const layerGroupRef = useRef(null);
   const cursorRef = useRef(null);
   const boundsRef = useRef(null);
+  const scheme = useColorScheme(); // redessine tracé et marqueurs quand le thème change
 
   const ownDecimated = useMemo(() => decimate(analysis.series, 700), [analysis.series]);
   const decimated = decimatedProp || ownDecimated;
@@ -127,10 +129,10 @@ export function MapView({
   }, [colorMode, decimated, analysis]);
 
   function segColor(p) {
-    if (colorMode === "track") return COLORS.speed;
+    if (colorMode === "track") return resolveColor(COLORS.speed);
     const [lo, hi] = metricRange;
     const val = colorMode === "speed" ? p.speed : colorMode === "altitude" ? p.ele : colorMode === "hr" ? p.hr : p.grade;
-    if (val == null || hi === lo) return COLORS.speed;
+    if (val == null || hi === lo) return resolveColor(COLORS.speed);
     const t = (val - lo) / (hi - lo);
     const stops = colorMode === "speed" ? SPEED_SCALE : colorMode === "altitude" ? ELE_SCALE : colorMode === "hr" ? HR_SCALE : GRADE_SCALE;
     return scaleColor(t, stops);
@@ -193,7 +195,7 @@ export function MapView({
     // choisi (vitesse/pente/FC/altitude).
     if (colorMode === "track") {
       L.polyline(decimated.map((p) => [p.lat, p.lon]), {
-        color: COLORS.speed,
+        color: resolveColor(COLORS.speed),
         weight: 5,
         opacity: 1,
         lineJoin: "round",
@@ -217,7 +219,7 @@ export function MapView({
       // Halo clair (plutôt que le halo sombre standard) pour que la montée
       // sélectionnée ressorte aussi bien au-dessus du tracé déjà haloé.
       drawHaloPolyline(group, segLatLngs, {
-        color: COLORS.climb,
+        color: resolveColor(COLORS.climb),
         weight: 6,
         opacity: 1,
         haloColor: MAP_MARKER_RING_COLOR,
@@ -229,15 +231,15 @@ export function MapView({
 
     (analysis.climbs || []).forEach((c) => {
       const p = analysis.series[c.startIdx];
-      drawHaloMarker(group, [p.lat, p.lon], { radius: 6, fillColor: COLORS.climb }).bindPopup(
+      drawHaloMarker(group, [p.lat, p.lon], { radius: 6, fillColor: resolveColor(COLORS.climb) }).bindPopup(
         `<b>${c.name}</b><br/>${fmt1(c.lengthKm)} km · +${fmtInt(c.gain)} m · ${fmt1(c.avgGrade)} %`
       );
     });
 
     const start = decimated[0],
       end = decimated[decimated.length - 1];
-    drawHaloMarker(group, [start.lat, start.lon], { radius: 7, fillColor: COLORS.speed }).bindPopup("Départ");
-    drawHaloMarker(group, [end.lat, end.lon], { radius: 7, fillColor: COLORS.effort }).bindPopup("Arrivée");
+    drawHaloMarker(group, [start.lat, start.lon], { radius: 7, fillColor: resolveColor(COLORS.speed) }).bindPopup("Départ");
+    drawHaloMarker(group, [end.lat, end.lon], { radius: 7, fillColor: resolveColor(COLORS.effort) }).bindPopup("Arrivée");
 
     if (!selectedClimb) {
       const bounds = L.latLngBounds(decimated.map((p) => [p.lat, p.lon]));
@@ -245,7 +247,7 @@ export function MapView({
       map.invalidateSize();
       map.fitBounds(bounds, { padding: [28, 28] });
     }
-  }, [analysis, colorMode, decimated, selectedClimb]);
+  }, [analysis, colorMode, decimated, selectedClimb, scheme]);
 
   // Marqueur curseur : suit le survol du profil d'altitude (synchronisation graphique → carte).
   useEffect(() => {
@@ -264,13 +266,13 @@ export function MapView({
         radius: 8,
         color: "#fff",
         weight: 3,
-        fillColor: COLORS.climb,
+        fillColor: resolveColor(COLORS.climb),
         fillOpacity: 1,
       }).addTo(map);
     } else {
       cursorRef.current.setLatLng([p.lat, p.lon]);
     }
-  }, [hoverIdx, decimated]);
+  }, [hoverIdx, decimated, scheme]);
 
   function recenter() {
     const map = mapRef.current;

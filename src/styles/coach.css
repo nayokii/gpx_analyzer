@@ -1,0 +1,41 @@
+/**
+ * Cycling OS — Coach : une lecture éditoriale. Résumé en exergue, recommandations d'abord, puis constats et limites.
+ */
+.gpx-coach-lede { font-size: clamp(21px, 2.6vw, 30px); line-height: 1.38; font-weight: 600; letter-spacing: -0.03em; max-width: 30em; margin: 4px 4px 32px; }
+.gpx-coach-section .gpx-coach-list { gap: 0; }
+.gpx-coach-list li { padding: 14px 0 14px 22px; border-top: 1px solid var(--separator); font-size: 15.5px; line-height: 1.5; }
+.gpx-coach-list li:first-child { border-top: none; padding-top: 4px; }
+.gpx-coach-list li::before { top: 1.25em; width: 8px; height: 8px; border-radius: 50%; }
+.gpx-coach-list li:first-child::before { top: 0.6em; }
+.gpx-coach-section--positive { --bullet: var(--speed); }
+.gpx-coach-section--attention { --bullet: var(--climb); }
+.gpx-coach-section--evolution { --bullet: var(--info); }
+.gpx-coach-section--positive .gpx-coach-list li::before { background: var(--speed); }
+.gpx-coach-section--attention .gpx-coach-list li::before { background: var(--climb); }
+.gpx-coach-section--evolution .gpx-coach-list li::before { content: none; }
+.gpx-coach-section--evolution .gpx-coach-list li { padding-left: 0; }
+
+/* Recommandations : le bloc le plus visible, numéroté */
+.gpx-coach-section--reco { background: color-mix(in srgb, var(--brand) 9%, var(--surface)); padding: 30px 34px; }
+.gpx-coach-section--reco .gpx-section-icon { background: var(--brand); color: var(--on-brand); }
+.gpx-coach-section--reco .gpx-coach-list { counter-reset: reco; }
+.gpx-coach-section--reco .gpx-coach-list li { counter-increment: reco; padding: 16px 0 16px 48px; border-top-color: color-mix(in srgb, var(--brand) 18%, transparent); font-size: 17px; font-weight: 550; letter-spacing: -0.01em; color: var(--text); }
+.gpx-coach-section--reco .gpx-coach-list li:first-child { padding-top: 6px; }
+.gpx-coach-section--reco .gpx-coach-list li::before {
+  content: counter(reco); width: 30px; height: 30px; top: 12px; left: 0; border-radius: 50%; display: grid; place-items: center;
+  background: var(--brand); color: var(--on-brand); font-size: 14px; font-weight: 700;
+}
+.gpx-coach-section--reco .gpx-coach-list li:first-child::before { top: 2px; }
+@media (max-width: 680px) { .gpx-coach-section--reco { padding: 22px 20px; } .gpx-coach-section--reco .gpx-coach-list li { font-size: 16px; } }
+
+.gpx-coach-section--limits { background: transparent; box-shadow: none; padding: 8px 4px 0; }
+.gpx-coach-section--limits .gpx-section-title { font-size: 15px; color: var(--muted); }
+.gpx-coach-section--limits .gpx-coach-list li { font-size: 14px; color: var(--muted); }
+.gpx-coach-section--limits .gpx-coach-list li::before { background: var(--faint); }
+
+.gpx-coach-trend { display: inline-flex; align-items: center; justify-content: center; min-width: 26px; margin: 0 10px 0 0 !important; }
+.gpx-coach-trend--flat { color: var(--muted); font-weight: 700; }
+
+.gpx-coach-ride { display: flex; align-items: baseline; gap: 6px 14px; flex-wrap: wrap; margin: 0 0 18px; font-size: 15px; color: var(--muted); }
+.gpx-coach-ride-name { font-weight: 600; color: var(--text); }
+.gpx-coach-power { margin: 18px 0 0; }

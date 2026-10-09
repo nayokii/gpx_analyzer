@@ -1,0 +1,67 @@
+/**
+ * Cycling OS — Tour Simulator : un produit sportif — hero sombre, étapes numérotées, affinité en grand, progression segmentée.
+ */
+.gpx-tour-hero { background: var(--inverse-bg); color: var(--inverse-text); box-shadow: none; padding: 32px 36px; }
+.gpx-tour-hero .gpx-section-title { color: var(--inverse-muted); font-size: 14px; font-weight: 600; margin-bottom: 14px; }
+.gpx-tour-hero .gpx-section-icon { background: rgba(255, 255, 255, 0.1); color: var(--inverse-accent); }
+.gpx-tour-hero .gpx-focus-headline { font-size: clamp(28px, 4vw, 46px); max-width: 16em; }
+.gpx-tour-hero .gpx-profile-card-meta, .gpx-tour-hero .gpx-profile-evidence-list li { color: var(--inverse-muted); }
+.gpx-tour-hero .gpx-profile-card-meta[class*="meta"]:not(.gpx-tour-count) { color: var(--inverse-text); }
+.gpx-tour-hero .gpx-profile-evidence-list li::before { background: var(--inverse-accent); }
+.gpx-tour-hero .gpx-btn-ghost { background: rgba(255, 255, 255, 0.12); color: var(--inverse-text); }
+.gpx-tour-hero .gpx-btn-ghost:hover { background: rgba(255, 255, 255, 0.2); }
+.gpx-tour-hero .gpx-btn-primary { background: var(--inverse-accent); color: #04211b; }
+.gpx-tour-count { margin-top: 12px; }
+.gpx-tour-cta { margin-top: 22px; }
+.gpx-tour-note { margin-top: 12px; }
+.gpx-tour-sub { margin-top: 26px; padding-top: 22px; border-top: 1px solid var(--separator); }
+.gpx-tour-sub .gpx-section-title { font-size: 16px; margin-bottom: 12px; }
+@media (max-width: 680px) { .gpx-tour-hero { padding: 24px 22px; } }
+
+/* Parcours : étapes numérotées */
+.gpx-tour-route-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 14px; }
+.gpx-tour-stage-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; }
+.gpx-tour-stage-row { display: grid; grid-template-columns: 56px 1fr auto; align-items: center; gap: 16px; padding: 16px 0; border-top: 1px solid var(--separator); }
+.gpx-tour-stage-number { font-size: 28px; font-weight: 700; letter-spacing: -0.05em; color: var(--faint); font-variant-numeric: tabular-nums; }
+.gpx-tour-stage-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.gpx-tour-stage-type { font-size: 16px; font-weight: 700; letter-spacing: 0.01em; }
+.gpx-tour-dots { display: inline-flex; gap: 4px; align-items: center; }
+.gpx-tour-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--surface3); }
+.gpx-tour-dot-filled { background: var(--climb); }
+.gpx-tour-difficulty-label { display: inline-flex; align-items: center; gap: 8px; }
+.gpx-tour-weight { color: var(--speed-ink); font-weight: 700; letter-spacing: 0.04em; margin-left: 4px; }
+.gpx-tour-route-head .gpx-home-card-headline { font-size: 26px; }
+
+/* Progression segmentée */
+.gpx-tour-progress { margin-bottom: 16px; }
+.gpx-tour-progress-bar { position: relative; height: 10px; border-radius: var(--radius-pill); background: var(--surface3); overflow: hidden; margin-top: 8px; }
+.gpx-tour-progress-bar-fill { height: 100%; border-radius: var(--radius-pill); background: var(--brand); transition: width var(--dur-base) var(--ease); }
+.gpx-tour-progress-bar::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: repeating-linear-gradient(90deg, transparent 0, transparent calc(100% / var(--n, 1) - 3px), var(--bg) calc(100% / var(--n, 1) - 3px), var(--bg) calc(100% / var(--n, 1)));
+}
+
+/* Étape active */
+.gpx-tour-stage { padding: 32px 36px; }
+.gpx-tour-stage-title { font-size: clamp(32px, 5vw, 54px); margin: 0 0 8px; }
+.gpx-tour-stage-head { margin-bottom: 28px; }
+.gpx-tour-stage-head .gpx-ride-meta { margin-top: 0; font-size: 16px; align-items: center; }
+.gpx-tour-stage-grid { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 28px 56px; padding-top: 24px; border-top: 1px solid var(--separator); }
+.gpx-tour-col { min-width: 0; }
+.gpx-tour-col > .gpx-section-title { font-size: 15px; color: var(--muted); }
+.gpx-tour-fatigue-label { font-size: 28px; font-weight: 700; letter-spacing: -0.035em; color: var(--text); }
+.gpx-tour-fatigue-fill { background: var(--climb); }
+.gpx-tour-done { font-size: 22px !important; margin: 0 0 8px !important; letter-spacing: -0.03em; }
+.gpx-tour-result-row { grid-template-columns: minmax(0, 1fr) auto; }
+.gpx-tour-terrain .gpx-alterego-profile-row { grid-template-columns: minmax(0, 1fr) auto; }
+.gpx-tour-finish-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 26px; }
+.gpx-tour-note { font-size: 14px; }
+@media (max-width: 860px) {
+  .gpx-tour-stage { padding: 24px 22px; }
+  .gpx-tour-stage-grid { grid-template-columns: 1fr; gap: 8px; }
+  .gpx-tour-stage-row { grid-template-columns: 44px 1fr auto; }
+}
+.gpx-tour-sub .gpx-alterego-subheading { border: none; margin: 0 0 8px; padding: 0; }
+
+/* La barre sert aussi hors Tour (synchronisation cloud) : sans --n, pas de segmentation. */
+.gpx-tour-progress-bar:not([style*="--n"])::after { display: none; }

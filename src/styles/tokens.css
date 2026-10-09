@@ -1,37 +1,84 @@
 /**
  * Cycling OS — tokens du design system (source de vérité unique).
  *
- * Les noms historiques (--bg, --surface, --speed, …) sont conservés tels quels :
- * toutes les vues existantes les utilisent déjà. Les nouveaux tokens (--radius-*,
- * --dur-*, --ease, --font-mono, --text-*) sont additifs.
+ * Deux thèmes réellement dessinés (pas une inversion) :
+ *  - clair (défaut) : fond légèrement teinté, surfaces blanches, ombres très douces ;
+ *  - sombre (prefers-color-scheme: dark) : surfaces étagées vert-graphite, accents plus lumineux,
+ *    pas d'ombres — la hiérarchie vient de l'élévation des surfaces.
+ *
+ * Les noms historiques (--bg, --surface, --surface2, --text, --muted, --faint, --speed, --climb,
+ * --effort, --alert, --info, --border, --borderStrong) sont conservés : les vues non encore migrées
+ * les utilisent. Les couleurs `-ink` sont les variantes lisibles en TEXTE (contraste AA sur --surface).
  */
 :root {
+  color-scheme: light dark;
+
   /* Fonds et surfaces */
-  --bg: #0a0d0c;
-  --bgAlt: #0e1211;
-  --surface: #141917;
-  --surface2: #1a201d;
+  --bg: #f1f4f2;
+  --bgAlt: #e8ece9;
+  --surface: #ffffff;
+  --surface2: #f4f6f5;   /* champs, lignes imbriquées, pistes de barres */
+  --surface3: #e6ebe8;   /* pistes de jauges, états pressés */
+  --surface-glass: rgba(241, 244, 242, 0.86);
 
-  /* Bordures */
-  --border: rgba(237, 239, 236, 0.08);
-  --borderStrong: rgba(237, 239, 236, 0.16);
+  /* Séparateurs */
+  --separator: rgba(16, 28, 22, 0.08);
+  --border: rgba(16, 28, 22, 0.08);
+  --borderStrong: rgba(16, 28, 22, 0.18);
 
-  /* Texte : principal / secondaire (muted) / tertiaire (faint) */
-  --text: #eef1ee;
-  --muted: #8b948e;
-  --faint: #5c645f;
+  /* Texte */
+  --text: #0f1512;
+  --muted: #56615b;
+  --faint: #6e7973;
 
-  /* Couleurs sémantiques (le sens, jamais le décor) */
-  --speed: #4dd9c0;
-  --climb: #f4b740;
-  --effort: #e8543a;
-  --alert: #ff5470;
-  --info: #6f9cf2;
+  /* Couleurs métier : remplissages (graphiques, barres) */
+  --speed: #00a98e;
+  --climb: #f28b00;
+  --effort: #e5484d;
+  --alert: #d6264a;
+  --info: #5a63e6;
+  /* Variantes lisibles en texte sur surface claire */
+  --speed-ink: #007a68;
+  --climb-ink: #a35a00;
+  --effort-ink: #c0262d;
+  --alert-ink: #b81d3d;
+  --info-ink: #3f48c2;
 
-  /* Rayons : 4 = contrôles/badges, 8 = panneaux, 12 = conteneurs importants */
-  --radius-sm: 4px;
-  --radius-md: 8px;
-  --radius-lg: 12px;
+  /* Marque / action principale */
+  --brand: #067563;
+  --on-brand: #ffffff;
+
+  /* Bloc inversé (un seul par écran, pour ancrer la composition) */
+  --inverse-bg: #111a16;
+  --inverse-text: #f0f4f1;
+  --inverse-muted: #a3b3aa;
+  --inverse-accent: #34dcbd;
+
+  /* Ombres : une seule, très discrète */
+  --shadow-card: 0 1px 2px rgba(15, 30, 22, 0.05), 0 12px 32px -18px rgba(15, 30, 22, 0.16);
+  --shadow-pop: 0 2px 6px rgba(15, 30, 22, 0.08), 0 18px 40px -12px rgba(15, 30, 22, 0.22);
+
+  /* Carte (Leaflet) */
+  --map-halo: #ffffff;
+  --map-bg: #e9eeeb;
+  --map-tile-filter: saturate(0.5) contrast(0.92) brightness(1.04);
+
+  /* Rayons : 8 = contrôles, 14 = éléments internes, 22 = conteneurs */
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --radius-lg: 22px;
+  --radius-pill: 999px;
+
+  /* Échelle d'espacement (grille de 4) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 32px;
+  --space-8: 40px;
+  --space-9: 56px;
 
   /* Mouvement : 3 durées, une seule courbe */
   --dur-fast: 120ms;
@@ -39,19 +86,60 @@
   --dur-slow: 400ms;
   --ease: cubic-bezier(0.2, 0, 0, 1);
 
-  /* État actif unique : accent sémantique + filet fin. --active se redéfinit localement
-     (ex. --climb pour une montée sélectionnée), le reste suit. */
-  --active: var(--speed);
+  /* État actif unique : texte/icône en accent + capsule teintée qui glisse (ActiveIndicator) */
+  --active: var(--speed-ink);
   --active-line: 2px;
-  --active-tint: color-mix(in srgb, var(--active) 8%, transparent);
+  --active-tint: color-mix(in srgb, var(--active) 11%, transparent);
   --disabled-opacity: 0.4;
 
-  /* Typographie : texte courant = system-ui existant ; chiffres et micro-labels = mono système */
-  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
-  --font-mono: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  /* Typographie : polices système natives (SF sur Apple, Segoe UI Variable sur Windows) */
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Segoe UI Variable Display", "Segoe UI", system-ui, Roboto, "Helvetica Neue", sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "Cascadia Mono", Consolas, monospace;
 }
 
-/* Prépare les futures animations : si l'utilisateur demande moins de mouvement, tout est neutralisé. */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f1311;
+    --bgAlt: #151a17;
+    --surface: #1a201d;
+    --surface2: #232a26;
+    --surface3: #2d3531;
+    --surface-glass: rgba(15, 19, 17, 0.86);
+
+    --separator: rgba(236, 244, 239, 0.09);
+    --border: rgba(236, 244, 239, 0.08);
+    --borderStrong: rgba(236, 244, 239, 0.2);
+
+    --text: #f0f4f1;
+    --muted: #a3afa8;
+    --faint: #78847d;
+
+    --speed: #34dcbd;
+    --climb: #ffb13d;
+    --effort: #ff6c5f;
+    --alert: #ff5b7d;
+    --info: #8e9aff;
+    --speed-ink: #34dcbd;
+    --climb-ink: #ffb13d;
+    --effort-ink: #ff8a7f;
+    --alert-ink: #ff7d98;
+    --info-ink: #a6b0ff;
+
+    --brand: #34dcbd;
+    --on-brand: #04211b;
+
+    --inverse-bg: #26302b;
+
+    --shadow-card: 0 0 0 1px rgba(236, 244, 239, 0.04);
+    --shadow-pop: 0 18px 44px -10px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(236, 244, 239, 0.08);
+
+    --map-halo: #0f1311;
+    --map-bg: #1b211e;
+    --map-tile-filter: invert(1) hue-rotate(180deg) saturate(0.45) brightness(0.92) contrast(0.95);
+  }
+}
+
+/* Si l'utilisateur demande moins de mouvement, tout est neutralisé. */
 @media (prefers-reduced-motion: reduce) {
   :root {
     --dur-fast: 0.01ms;
@@ -68,11 +156,12 @@
   }
 }
 
-/* Filet d'état actif partagé (nav haute, nav basse mobile, onglets). Positionné par ActiveIndicator.jsx. */
+/* Indicateur d'état actif partagé (ActiveIndicator.jsx). Selon le conteneur, c'est un filet (onglets)
+   ou une capsule qui glisse derrière l'item actif (navigation) : seule la géométrie change. */
 .gpx-has-indicator { position: relative; }
 .gpx-active-indicator {
   position: absolute; left: 0; height: var(--active-line); background: var(--active);
-  pointer-events: none; opacity: 0; z-index: 1;
+  pointer-events: none; opacity: 0; z-index: 0;
 }
 .gpx-active-indicator.is-ready {
   transition: transform var(--dur-base) var(--ease), width var(--dur-base) var(--ease), opacity var(--dur-fast) var(--ease);
@@ -96,17 +185,3 @@
 
 /* Valeur numérique interpolée (AnimatedValue.jsx) : chiffres de largeur fixe, jamais de retour à la ligne. */
 .gpx-av { display: inline-block; white-space: nowrap; font-variant-numeric: tabular-nums; text-align: left; }
-
-/* Voix technique : micro-labels, chiffres, unités. */
-.gpx-mono {
-  font-family: var(--font-mono);
-  font-variant-numeric: tabular-nums;
-}
-.gpx-label-tech {
-  font-family: var(--font-mono);
-  font-size: 10.5px;
-  font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  color: var(--muted);
-}

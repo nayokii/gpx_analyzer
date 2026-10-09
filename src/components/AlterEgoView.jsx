@@ -26,7 +26,7 @@ import {
 } from "lucide-react";
 
 import { StorageSettings } from "./StorageSettings.jsx";
-import { SectionTitle } from "./UIPrimitives.jsx";
+import { PageHead, ProgressRing, SectionTitle } from "./UIPrimitives.jsx";
 import { useActivityRepository, useUnifiedActivities } from "./useActivityRepository.js";
 import { loadProgressionState, saveProgressionState } from "../lib/progression/persistence.js";
 import { progressionToState } from "../lib/progression/state.js";
@@ -60,19 +60,18 @@ function LevelHeader({ progression }) {
   return (
     <div className="gpx-panel gpx-alterego-level">
       <div className="gpx-alterego-level-head">
-        <div>
+        <div className="gpx-alterego-level-text">
           <div className="gpx-alterego-level-title">Niveau {level} — {title}</div>
           <div className="gpx-alterego-level-xp">
             {levelProgress.currentXp} / {levelProgress.levelXp} XP
           </div>
+          <div className="gpx-alterego-level-hint">
+            {levelProgress.remaining > 0 ? `${levelProgress.remaining} XP avant le niveau ${level + 1}` : "Niveau maximal atteint pour cette échelle"}
+          </div>
         </div>
-        <Trophy size={28} className="gpx-alterego-trophy" />
-      </div>
-      <div className="gpx-alterego-level-bar">
-        <div className="gpx-alterego-level-bar-fill" style={{ width: `${pct}%` }} />
-      </div>
-      <div className="gpx-profile-card-hint">
-        {levelProgress.remaining > 0 ? `${levelProgress.remaining} XP avant le niveau ${level + 1}` : "Niveau maximal atteint pour cette échelle"}
+        <ProgressRing className="gpx-alterego-ring" value={pct} label={`Progression vers le niveau suivant : ${pct} %`}>
+          <span className="gpx-ring-value">{pct}<small>%</small></span>
+        </ProgressRing>
       </div>
     </div>
   );
@@ -97,13 +96,16 @@ function ProfileSummarySection({ profile, onViewProfile }) {
           const meta = DIMENSION_META[key];
           return (
             <div className="gpx-alterego-profile-row" key={key}>
-              <span className="gpx-alterego-profile-row-label"><meta.icon size={13} /> {meta.label}</span>
-              <span className={dim.value == null ? "gpx-profile-card-value-empty" : ""}>{dim.value ?? "—"}</span>
+              <span className="gpx-alterego-profile-row-label"><meta.icon size={14} /> {meta.label}</span>
+              <span className="gpx-alterego-profile-bar" aria-hidden="true">
+                {dim.value != null && <i style={{ width: `${Math.max(0, Math.min(100, dim.value))}%` }} />}
+              </span>
+              <span className={"gpx-alterego-profile-value" + (dim.value == null ? " gpx-profile-card-value-empty" : "")}>{dim.value ?? "—"}</span>
             </div>
           );
         })}
       </div>
-      <p className="gpx-empty-note" style={{ marginTop: 10 }}>Indices internes (voir l'onglet Profil) — pas un pourcentage de capacité humaine.</p>
+      <p className="gpx-empty-note gpx-alterego-note">Indices internes (voir l'onglet Profil) — pas un pourcentage de capacité humaine.</p>
     </div>
   );
 }
@@ -124,7 +126,7 @@ function ArchetypeSummarySection({ profile, onViewArchetype }) {
       >
         Archétype actuel
       </SectionTitle>
-      <div className="gpx-archetype-headline" style={{ fontSize: 20 }}>{match.combinedLabel}</div>
+      <div className="gpx-archetype-headline gpx-alterego-archetype">{match.combinedLabel}</div>
       {topRider && (
         <p className="gpx-profile-card-meta" style={{ marginTop: 6 }}>Profil similaire : {topRider.rider.name}</p>
       )}
@@ -191,7 +193,7 @@ function ChallengesSection({ challenges, completedMilestones }) {
 function AchievementBadge({ achievement }) {
   return (
     <div className={"gpx-alterego-achievement" + (achievement.unlocked ? " gpx-alterego-achievement-unlocked" : "")}>
-      {achievement.unlocked ? <span className="gpx-alterego-achievement-check">✓</span> : <Lock size={12} />}
+      {achievement.unlocked ? <span className="gpx-alterego-achievement-check">✓</span> : <Lock size={13} />}
       <span>{achievement.label}</span>
     </div>
   );
@@ -284,23 +286,17 @@ export function AlterEgoView({ storage, onConnect, onReconnect, onOpen, onViewAr
 
   return (
     <div className="gpx-dashboard">
-      <div className="gpx-header">
-        <div className="gpx-header-left">
-          <h1 className="gpx-ride-name">Alter Ego</h1>
-          <div className="gpx-ride-meta">
-            {progression ? (
-              <span>Basé sur {progression.activityCount} {pluralize(progression.activityCount, "sortie")}</span>
-            ) : ready ? (
-              <span>{summaries ? "Analyse de ton historique…" : "Chargement…"}</span>
-            ) : null}
-          </div>
-        </div>
-        <div className="gpx-header-actions">
-          <button className="gpx-btn-ghost" onClick={onBack}><ArrowLeft size={14} /> Retour</button>
-        </div>
-      </div>
+      <PageHead
+        title="Alter Ego"
+        meta={progression ? (
+          <span>Basé sur {progression.activityCount} {pluralize(progression.activityCount, "sortie")}</span>
+        ) : ready ? (
+          <span>{summaries ? "Analyse de ton historique…" : "Chargement…"}</span>
+        ) : null}
+        actions={<button className="gpx-btn-ghost" onClick={onBack}><ArrowLeft size={15} /> <span>Retour</span></button>}
+      />
 
-      <div className="gpx-panel">
+      <div className="gpx-statusline">
         <StorageSettings storage={storage} onConnect={onConnect} onReconnect={onReconnect} />
       </div>
 
@@ -339,11 +335,17 @@ export function AlterEgoView({ storage, onConnect, onReconnect, onOpen, onViewAr
               )}
 
               <LevelHeader progression={progression} />
-              <ProfileSummarySection profile={progression.profileSnapshot} onViewProfile={onViewProfile} />
-              <ArchetypeSummarySection profile={progression.profileSnapshot} onViewArchetype={onViewArchetype} />
-              <ChallengesSection challenges={progression.challenges} completedMilestones={progression.completedMilestones} />
+              <div className="gpx-alterego-grid">
+                <div className="gpx-alterego-main">
+                  <ChallengesSection challenges={progression.challenges} completedMilestones={progression.completedMilestones} />
+                  <RecentXpSection events={progression.recentEvents} onOpen={onOpen} />
+                </div>
+                <div className="gpx-alterego-side">
+                  <ProfileSummarySection profile={progression.profileSnapshot} onViewProfile={onViewProfile} />
+                  <ArchetypeSummarySection profile={progression.profileSnapshot} onViewArchetype={onViewArchetype} />
+                </div>
+              </div>
               <AchievementsSection achievements={progression.achievements} />
-              <RecentXpSection events={progression.recentEvents} onOpen={onOpen} />
             </>
           )}
         </>

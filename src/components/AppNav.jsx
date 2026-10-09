@@ -66,7 +66,7 @@ export function AppNav({ active, onNavigate, onImport }) {
           <ActiveIndicator style={top.style} ready={top.ready} />
         </nav>
         <button className="gpx-btn-primary gpx-appnav-import" onClick={onImport}>
-          <Upload size={14} /> Importer
+          <Upload size={16} /> <span>Importer</span>
         </button>
       </div>
       <nav ref={bottom.ref} className="gpx-appnav gpx-appnav-bottom gpx-has-indicator" aria-label="Navigation principale">

@@ -1,0 +1,68 @@
+/**
+ * Cycling OS — Historique : période en chips, tendances, records, liste des sorties.
+ */
+.gpx-period { display: flex; align-items: center; gap: 10px 14px; flex-wrap: wrap; margin-bottom: 20px; }
+.gpx-period-label { font-size: 14px; font-weight: 650; color: var(--muted); }
+.gpx-period .gpx-history-daterange { flex-basis: 100%; }
+.gpx-history-daterange { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; }
+.gpx-trend { display: inline-flex; align-items: center; gap: 5px; font-size: 13px; font-weight: 650; }
+
+.gpx-history-toolbar { display: flex; gap: 12px 16px; flex-wrap: wrap; margin-bottom: 16px; align-items: center; }
+.gpx-history-search {
+  display: flex; align-items: center; gap: 8px; flex: 1; min-width: 220px; color: var(--muted);
+  background: var(--surface2); border-radius: var(--radius-pill); padding: 0 16px;
+}
+.gpx-history-search input { background: none !important; border: none !important; color: var(--text); font-size: 15px; width: 100%; padding: 11px 0 !important; outline: none; }
+.gpx-history-selection-bar {
+  display: flex; align-items: center; gap: 14px; margin-top: 16px; padding: 12px 16px;
+  background: color-mix(in srgb, var(--climb) 12%, var(--surface)); border-radius: var(--radius-md);
+  font-size: 14px; font-weight: 600; color: var(--text); flex-wrap: wrap;
+}
+
+/* Liste des sorties */
+.gpx-table--rides td { padding: 14px 10px; }
+.gpx-table--rides th { padding: 10px; }
+.gpx-table--rides .col-select { width: 36px; padding-right: 0; }
+.gpx-table--rides .col-date { color: var(--muted); font-size: 13.5px; }
+.gpx-ride-title { font-weight: 650; letter-spacing: -0.01em; }
+.gpx-table--rides .gpx-sync-badge { margin-left: 8px; vertical-align: -2px; color: var(--muted); }
+.gpx-table--rides .gpx-power-source, .gpx-table--rides .gpx-power-source-estimated { margin-left: 8px; padding: 2px 8px; font-size: 11.5px; }
+.gpx-table--rides .col-actions { text-align: right; white-space: nowrap; }
+.gpx-table--rides .col-actions .gpx-icon-btn { display: inline-flex; margin-left: 4px; }
+
+@media (max-width: 1100px) {
+  .gpx-table--rides th:nth-child(9), .gpx-table--rides td:nth-child(9),
+  .gpx-table--rides th:nth-child(10), .gpx-table--rides td:nth-child(10) { display: none; }
+}
+/* Tablette et mobile : chaque sortie devient un bloc lisible (nom, date, puis grille de métriques). */
+@media (max-width: 900px) {
+  .gpx-table--rides th:nth-child(9), .gpx-table--rides td:nth-child(9),
+  .gpx-table--rides th:nth-child(10), .gpx-table--rides td:nth-child(10) { display: flex; }
+  .gpx-table--rides thead { display: none; }
+  .gpx-table--rides, .gpx-table--rides tbody { display: block; width: 100%; }
+  .gpx-table--rides tr {
+    position: relative; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 2px 16px;
+    padding: 18px 0; border-bottom: 1px solid var(--separator); align-items: start;
+  }
+  .gpx-table--rides tr:last-child { border-bottom: none; }
+  .gpx-table--rides td { display: block; padding: 0; border: none; white-space: normal; }
+  .gpx-table--rides td.col-select { position: absolute; right: 0; top: 16px; width: auto; }
+  .gpx-table--rides td.col-name { grid-column: 1 / -1; grid-row: 1; padding-right: 44px; font-size: 17px; }
+  .gpx-table--rides td.col-date { grid-column: 1 / 3; grid-row: 2; margin-bottom: 10px; align-self: center; }
+  .gpx-table--rides td[data-label] { display: flex; flex-direction: column; gap: 1px; padding: 6px 0; font-weight: 650; font-size: 15px; font-variant-numeric: tabular-nums; }
+  .gpx-table--rides td[data-label]::before { content: attr(data-label); font-size: 12px; font-weight: 500; color: var(--muted); }
+  .gpx-table--rides td.col-actions { grid-column: 3; grid-row: 2; text-align: right; padding: 0; margin-bottom: 10px; }
+  .gpx-table--rides .gpx-power-source, .gpx-table--rides .gpx-power-source-estimated { margin-left: 0; margin-top: 3px; align-self: flex-start; }
+  .gpx-table--rides tr.gpx-row-clickable:hover td { background: none; }
+}
+
+@media (max-width: 680px) {
+  .gpx-history-daterange { width: 100%; }
+  .gpx-history-daterange input { flex: 1; min-width: 0; }
+}
+
+@media (min-width: 600px) and (max-width: 900px) {
+  .gpx-table--rides tr { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .gpx-table--rides td.col-actions { grid-column: 4; }
+  .gpx-table--rides td.col-date { grid-column: 1 / 4; }
+}

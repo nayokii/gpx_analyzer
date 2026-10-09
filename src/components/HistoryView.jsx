@@ -18,9 +18,15 @@ import { useEffect, useState, useCallback } from "react";
 import { ArrowLeft, Search, Trash2, ExternalLink, History as HistoryIcon, Cloud, CloudOff, WifiOff } from "lucide-react";
 
 import { useActivityRepository } from "./useActivityRepository.js";
-import { fmt1, fmtInt, fmtDuration, fmtDateFull } from "../lib/utils.js";
+import { fmt1, fmtInt, fmtDuration } from "../lib/utils.js";
 import { StorageSettings } from "./StorageSettings.jsx";
+import { PageHead, SectionTitle } from "./UIPrimitives.jsx";
 import { Reveal } from "./Reveal.jsx";
+
+/** "20 sept. 2026" : date compacte pour les listes (la date complète reste dans l'analyse). */
+function fmtDateShort(date) {
+  return date.toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" });
+}
 
 const SYNC_BADGE = {
   synced: { icon: Cloud, title: "Synchronisée avec le cloud" },
@@ -103,37 +109,31 @@ export function HistoryView({
     <div className="gpx-dashboard">
       {/* Cascade d'apparition (Phase 5A) : groupes visuels, 30 ms d'écart — voir Reveal.jsx. Les lignes du tableau ne sont jamais animées une à une. */}
       <Reveal>
-        <div className="gpx-header">
-          <div className="gpx-header-left">
-            <h1 className="gpx-ride-name"><HistoryIcon size={20} style={{ verticalAlign: "-3px", marginRight: 8 }} />Historique</h1>
-            <div className="gpx-ride-meta">
-              <span>{activities ? `${activities.length} sortie${activities.length > 1 ? "s" : ""} enregistrée${activities.length > 1 ? "s" : ""}` : "Chargement…"}</span>
-            </div>
-          </div>
-          <div className="gpx-header-actions">
-            <button className="gpx-btn-ghost" onClick={onBack}><ArrowLeft size={14} /> Retour</button>
-          </div>
-        </div>
+        <PageHead
+          title="Historique"
+          meta={activities ? `${activities.length} sortie${activities.length > 1 ? "s" : ""} enregistrée${activities.length > 1 ? "s" : ""}` : "Chargement…"}
+          actions={<button className="gpx-btn-ghost" onClick={onBack}><ArrowLeft size={15} /> <span>Retour</span></button>}
+        />
       </Reveal>
 
       <Reveal delay={30}>
-        <div className="gpx-panel">
+        <div className="gpx-statusline">
           <StorageSettings storage={storage} onConnect={onConnect} onReconnect={onReconnect} />
+          {ready && source === "offline" && (
+            <div className="gpx-storage-box gpx-storage-warn">
+              <WifiOff size={14} />
+              <span>Hors connexion — données locales utilisées (le cloud sera revérifié à la prochaine ouverture).</span>
+            </div>
+          )}
         </div>
-
-        {ready && source === "offline" && (
-          <div className="gpx-storage-box gpx-storage-warn">
-            <WifiOff size={14} />
-            <span>Hors connexion — données locales utilisées (le cloud sera revérifié à la prochaine ouverture).</span>
-          </div>
-        )}
       </Reveal>
 
       {ready && children}
 
       {ready && (
         <Reveal delay={180}>
-        <div className="gpx-panel">
+        <div className="gpx-panel gpx-rides-panel">
+          <SectionTitle icon={HistoryIcon}>Liste des sorties</SectionTitle>
           <div className="gpx-history-toolbar">
             <div className="gpx-history-search">
               <Search size={14} />
@@ -156,10 +156,10 @@ export function HistoryView({
             </p>
           ) : (
             <div className="gpx-table-wrap">
-              <table className="gpx-table">
+              <table className="gpx-table gpx-table--rides">
                 <thead>
                   <tr>
-                    <th></th>
+                    <th className="col-select"></th>
                     <th>Date</th>
                     <th>Nom</th>
                     <th>Distance</th>
@@ -175,44 +175,41 @@ export function HistoryView({
                 <tbody>
                   {filtered.map((a) => (
                     <tr key={a.id} className="gpx-row-clickable" onClick={() => onOpen(a.id)}>
-                      <td onClick={(e) => e.stopPropagation()}>
-                        <input type="checkbox" checked={selectedIds.has(a.id)} onChange={() => toggleSelect(a.id)} title="Sélectionner pour comparer (2 sorties max.)" />
+                      <td className="col-select" onClick={(e) => e.stopPropagation()}>
+                        <input type="checkbox" checked={selectedIds.has(a.id)} onChange={() => toggleSelect(a.id)} title="Sélectionner pour comparer (2 sorties max.)" aria-label={`Sélectionner ${a.name || "cette sortie"} pour comparer`} />
                       </td>
-                      <td>{a.date ? fmtDateFull(new Date(a.date)) : "Date inconnue"}</td>
-                      <td>
-                        {a.name || "Sortie vélo"}
+                      <td className="col-date">{a.date ? fmtDateShort(new Date(a.date)) : "Date inconnue"}</td>
+                      <td className="col-name">
+                        <span className="gpx-ride-title">{a.name || "Sortie vélo"}</span>
                         {a.source && a.source.type === "strava" && (
                           <span className="gpx-source-badge-strava" title="Importée depuis Strava">Strava</span>
                         )}
                         {a.syncStatus && SYNC_BADGE[a.syncStatus] && (
                           (() => {
                             const { icon: Icon, title } = SYNC_BADGE[a.syncStatus];
-                            return <Icon size={12} className="gpx-sync-badge" style={{ marginLeft: 6, verticalAlign: "-2px" }} title={title} />;
+                            return <Icon size={13} className="gpx-sync-badge" title={title} aria-label={title} />;
                           })()
                         )}
                       </td>
-                      <td>{fmt1(a.distance)} km</td>
-                      <td>{fmtDuration(a.duration)}</td>
-                      <td>{a.elevationGain != null ? `+${fmtInt(a.elevationGain)} m` : "—"}</td>
-                      <td>{a.avgSpeed != null ? `${fmt1(a.avgSpeed)} km/h` : "—"}</td>
-                      <td>
+                      <td data-label="Distance">{fmt1(a.distance)} km</td>
+                      <td data-label="Durée">{fmtDuration(a.duration)}</td>
+                      <td data-label="D+">{a.elevationGain != null ? `+${fmtInt(a.elevationGain)} m` : "—"}</td>
+                      <td data-label="Vitesse">{a.avgSpeed != null ? `${fmt1(a.avgSpeed)} km/h` : "—"}</td>
+                      <td data-label="Puissance">
                         {a.avgPower != null ? (
                           <>
                             {a.flags && a.flags.powerEstimated ? `≈ ${fmtInt(a.avgPower)} W` : `${fmtInt(a.avgPower)} W`}
-                            <span
-                              className={a.flags && a.flags.powerEstimated ? "gpx-power-source-estimated" : "gpx-power-source"}
-                              style={{ marginLeft: 6 }}
-                            >
+                            <span className={a.flags && a.flags.powerEstimated ? "gpx-power-source-estimated" : "gpx-power-source"}>
                               {a.flags && a.flags.powerEstimated ? "estimée" : "mesurée"}
                             </span>
                           </>
                         ) : "—"}
                       </td>
-                      <td>{a.avgHeartRate != null ? `${fmtInt(a.avgHeartRate)} bpm` : "—"}</td>
-                      <td>{a.avgCadence != null ? `${fmtInt(a.avgCadence)} rpm` : "—"}</td>
-                      <td onClick={(e) => e.stopPropagation()} style={{ display: "flex", gap: 6 }}>
-                        <button className="gpx-icon-btn" title="Ouvrir" onClick={() => onOpen(a.id)}><ExternalLink size={14} /></button>
-                        <button className="gpx-icon-btn" title="Supprimer" onClick={() => handleDelete(a.id, a.name)}><Trash2 size={14} /></button>
+                      <td data-label="FC">{a.avgHeartRate != null ? `${fmtInt(a.avgHeartRate)} bpm` : "—"}</td>
+                      <td data-label="Cadence">{a.avgCadence != null ? `${fmtInt(a.avgCadence)} rpm` : "—"}</td>
+                      <td className="col-actions" onClick={(e) => e.stopPropagation()}>
+                        <button className="gpx-icon-btn gpx-icon-btn--sm" title="Ouvrir" aria-label="Ouvrir la sortie" onClick={() => onOpen(a.id)}><ExternalLink size={14} /></button>
+                        <button className="gpx-icon-btn gpx-icon-btn--sm" title="Supprimer" aria-label="Supprimer la sortie" onClick={() => handleDelete(a.id, a.name)}><Trash2 size={14} /></button>
                       </td>
                     </tr>
                   ))}

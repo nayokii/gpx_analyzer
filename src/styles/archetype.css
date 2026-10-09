@@ -1,0 +1,48 @@
+/**
+ * Cycling OS — Archétype : une identité en grand, ses preuves à côté, des profils de référence sur filets.
+ */
+.gpx-archetype-hero { padding: 30px 34px 34px; }
+.gpx-archetype-hero-grid { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 20px 56px; align-items: start; }
+.gpx-archetype-hero-grid.is-solo { grid-template-columns: minmax(0, 46em); }
+.gpx-archetype-headline { font-size: clamp(34px, 5vw, 60px); font-weight: 750; line-height: 1.02; letter-spacing: -0.05em; margin: 0 0 18px; }
+.gpx-archetype-id > p { margin: 10px 0 0; }
+.gpx-archetype-roles { display: flex; flex-direction: column; gap: 6px; font-size: 16px; color: var(--muted); }
+.gpx-archetype-roles b { color: var(--text); font-weight: 650; }
+.gpx-archetype-id .gpx-profile-card-confidence { margin: 14px 0 6px; }
+.gpx-archetype-explain { font-size: 15px; color: var(--text); line-height: 1.55; }
+.gpx-archetype-limits { font-size: 13px; color: var(--muted); line-height: 1.5; padding: 10px 14px; border-radius: var(--radius-md); background: var(--surface2); margin-top: 18px !important; }
+.gpx-archetype-lists { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 18px 32px; margin-top: 18px; }
+.gpx-archetype-block { margin-top: 0; }
+.gpx-archetype-block .gpx-profile-card-meta { font-weight: 650; color: var(--text); }
+.gpx-archetype-why .gpx-alterego-subheading { margin: 0 0 10px; padding: 0; border: none; }
+.gpx-archetype-bars { display: flex; flex-direction: column; gap: 14px; margin: 0; }
+.gpx-archetype-bar-row { display: grid; grid-template-columns: 96px minmax(0, 1fr) 36px; align-items: center; gap: 8px 14px; font-size: 14px; }
+.gpx-archetype-bar-label { color: var(--muted); font-weight: 600; }
+.gpx-archetype-bar-value { text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+.gpx-archetype-bar-influence { grid-column: 1 / -1; font-size: 12.5px; color: var(--muted); margin-top: -4px; }
+.gpx-archetype-bar-row .gpx-profile-card-bar { margin: 0; }
+.gpx-archetype-bar-row .gpx-profile-card-bar-fill { background: var(--speed); }
+@media (max-width: 860px) {
+  .gpx-archetype-hero { padding: 24px 22px 26px; }
+  .gpx-archetype-hero-grid { grid-template-columns: 1fr; gap: 24px; }
+  .gpx-archetype-why { padding-top: 22px; border-top: 1px solid var(--separator); }
+  .gpx-archetype-bar-row { grid-template-columns: 82px minmax(0, 1fr) 32px; }
+}
+
+.gpx-archetype-intro { margin-bottom: 8px !important; }
+.gpx-archetype-more { margin-top: 18px; }
+.gpx-archetype-rider-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 0 48px; }
+.gpx-archetype-rider-card { padding: 22px 0; border-top: 1px solid var(--separator); min-width: 0; }
+.gpx-archetype-rider-head { display: flex; flex-direction: column; gap: 2px; margin-bottom: 8px; }
+.gpx-archetype-rider-name { font-weight: 700; font-size: 18px; letter-spacing: -0.025em; }
+.gpx-archetype-rider-similarity { display: inline-block; font-size: 12.5px; font-weight: 650; color: var(--speed-ink); background: color-mix(in srgb, var(--speed) 13%, transparent); padding: 3px 10px; border-radius: var(--radius-pill); margin-bottom: 14px; }
+.gpx-archetype-rider-card .gpx-archetype-bars { gap: 10px; }
+.gpx-archetype-rider-detail { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--separator); display: flex; flex-direction: column; gap: 8px; }
+.gpx-archetype-rider-sources { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 4px; }
+
+/* Évolution : frise verticale */
+.gpx-archetype-timeline { display: flex; flex-direction: column; position: relative; padding-left: 22px; }
+.gpx-archetype-timeline::before { content: ""; position: absolute; left: 5px; top: 10px; bottom: 10px; width: 2px; background: var(--surface3); border-radius: 2px; }
+.gpx-archetype-timeline-row { position: relative; display: flex; justify-content: space-between; align-items: baseline; gap: 16px; padding: 10px 0; font-size: 16px; font-weight: 650; letter-spacing: -0.015em; }
+.gpx-archetype-timeline-row::before { content: ""; position: absolute; left: -22px; top: 17px; width: 12px; height: 12px; border-radius: 50%; background: var(--surface); border: 3px solid var(--speed); }
+.gpx-archetype-timeline-row .gpx-profile-card-meta { font-weight: 500; }

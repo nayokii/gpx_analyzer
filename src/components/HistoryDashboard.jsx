@@ -39,7 +39,7 @@ import { buildTimeSeries, computeTrend } from "../lib/history/trends.js";
 import { compareActivities } from "../lib/history/comparisons.js";
 import { computeRecords, computeBestAvgSpeedAmongComparable } from "../lib/history/records.js";
 import { groupActivitiesByRoute } from "../lib/history/similarity.js";
-import { COLORS } from "../lib/colors.js";
+import { COLORS, CHART_TOOLTIP_STYLE, CHART_AXIS } from "../lib/colors.js";
 import { avg, fmt1, fmtInt, fmtDuration, fmtDurationLong } from "../lib/utils.js";
 
 const PERIOD_OPTIONS = [
@@ -76,8 +76,8 @@ const BUCKET_LABELS = { day: "par jour", week: "par semaine", month: "par mois" 
 
 function PeriodFilter({ period, setPeriod, customFrom, setCustomFrom, customTo, setCustomTo }) {
   return (
-    <div className="gpx-panel">
-      <SectionTitle icon={Clock}>Période</SectionTitle>
+    <div className="gpx-period" role="group" aria-label="Période">
+      <span className="gpx-period-label">Période</span>
       <div className="gpx-map-modes">
         {PERIOD_OPTIONS.map((opt) => (
           <button key={opt.key} className={"gpx-chip" + (period === opt.key ? " gpx-chip-active" : "")} onClick={() => setPeriod(opt.key)}>
@@ -86,7 +86,7 @@ function PeriodFilter({ period, setPeriod, customFrom, setCustomFrom, customTo, 
         ))}
       </div>
       {period === "custom" && (
-        <div className="gpx-history-daterange" style={{ marginTop: 10 }}>
+        <div className="gpx-history-daterange">
           <input type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} aria-label="Date de début" />
           <span>→</span>
           <input type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)} aria-label="Date de fin" />
@@ -127,31 +127,40 @@ function OverviewSection({ historyAnalytics, periodLabel }) {
 
 function TrendBadge({ trend, unit, formatValue = fmt1 }) {
   if (!trend || trend.direction === "insufficient_data") {
-    return <span className="gpx-empty-note" style={{ fontStyle: "normal" }}>Pas assez de sorties pour une tendance</span>;
+    return <span className="gpx-empty-note">Pas assez de sorties pour une tendance</span>;
   }
   const Icon = trend.direction === "up" ? TrendingUp : trend.direction === "down" ? TrendingDown : Minus;
-  const color = trend.direction === "up" ? COLORS.speed : trend.direction === "down" ? COLORS.effort : COLORS.textMuted;
+  const color = trend.direction === "up" ? "var(--speed-ink)" : trend.direction === "down" ? "var(--effort-ink)" : "var(--muted)";
   if (trend.direction === "flat") {
-    return <span style={{ display: "inline-flex", alignItems: "center", gap: 4, color, fontWeight: 700, fontSize: 12.5 }}><Icon size={13} /> Stable sur la période</span>;
+    return <span className="gpx-trend" style={{ color }}><Icon size={14} /> Stable sur la période</span>;
   }
   const totalChange = trend.slope * (trend.points.length - 1);
   const sign = totalChange > 0 ? "+" : "";
   return (
-    <span style={{ display: "inline-flex", alignItems: "center", gap: 4, color, fontWeight: 700, fontSize: 12.5 }}>
-      <Icon size={13} /> {sign}{formatValue(totalChange)}{unit ? ` ${unit}` : ""} sur la période
+    <span className="gpx-trend" style={{ color }}>
+      <Icon size={14} /> {sign}{formatValue(totalChange)}{unit ? ` ${unit}` : ""} sur la période
     </span>
   );
 }
 
-function MiniBarChart({ data, dataKey, color, valueFormatter, yTickFormatter }) {
+/** "2026-09-12" → "12/09" ; "2026-09" → "09/26" ; toute autre clé (ex. semaine) est laissée telle quelle. */
+function shortDateKey(key) {
+  const day = /^(\d{4})-(\d{2})-(\d{2})/.exec(key || "");
+  if (day) return `${day[3]}/${day[2]}`;
+  const month = /^(\d{4})-(\d{2})$/.exec(key || "");
+  if (month) return `${month[2]}/${month[1].slice(2)}`;
+  return key;
+}
+
+function MiniBarChart({ data, dataKey, color, valueFormatter, yTickFormatter = (v) => fmtInt(v) }) {
   if (!data || data.length === 0) return <p className="gpx-empty-note">Pas assez de données sur cette période.</p>;
   return (
-    <ResponsiveContainer width="100%" height={140}>
-      <BarChart data={data} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
+    <ResponsiveContainer width="100%" height={168}>
+      <BarChart data={data} margin={{ top: 6, right: 18, bottom: 0, left: -6 }}>
         <CartesianGrid stroke={COLORS.border} vertical={false} />
-        <XAxis dataKey="key" stroke={COLORS.textMuted} fontSize={10} />
-        <YAxis stroke={COLORS.textMuted} fontSize={10} width={36} tickFormatter={yTickFormatter} />
-        <Tooltip formatter={(v) => [valueFormatter(v), ""]} contentStyle={{ background: "#0e1211", border: `1px solid ${COLORS.borderStrong}`, borderRadius: 10, fontSize: 12 }} />
+        <XAxis dataKey="key" {...CHART_AXIS} tickFormatter={shortDateKey} interval="preserveStartEnd" minTickGap={28} />
+        <YAxis {...CHART_AXIS} width={44} tickFormatter={yTickFormatter} tickCount={4} />
+        <Tooltip formatter={(v) => [valueFormatter(v), ""]} contentStyle={CHART_TOOLTIP_STYLE} />
         <Bar dataKey={dataKey} fill={color} radius={[3, 3, 0, 0]} isAnimationActive={false} />
       </BarChart>
     </ResponsiveContainer>
@@ -160,14 +169,14 @@ function MiniBarChart({ data, dataKey, color, valueFormatter, yTickFormatter }) 
 
 function SpeedTrendChart({ trend }) {
   if (!trend || trend.points.length === 0) return <p className="gpx-empty-note">Pas de données de vitesse sur cette période.</p>;
-  const data = trend.points.map((p) => ({ x: p.date.slice(5, 10), value: p.value }));
+  const data = trend.points.map((p) => ({ x: shortDateKey(p.date), value: p.value }));
   return (
-    <ResponsiveContainer width="100%" height={140}>
-      <LineChart data={data} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
+    <ResponsiveContainer width="100%" height={168}>
+      <LineChart data={data} margin={{ top: 6, right: 18, bottom: 0, left: -6 }}>
         <CartesianGrid stroke={COLORS.border} vertical={false} />
-        <XAxis dataKey="x" stroke={COLORS.textMuted} fontSize={10} />
-        <YAxis stroke={COLORS.textMuted} fontSize={10} width={36} domain={["dataMin - 1", "dataMax + 1"]} tickFormatter={(v) => fmt1(v)} />
-        <Tooltip formatter={(v) => [`${fmt1(v)} km/h`, ""]} contentStyle={{ background: "#0e1211", border: `1px solid ${COLORS.borderStrong}`, borderRadius: 10, fontSize: 12 }} />
+        <XAxis dataKey="x" {...CHART_AXIS} interval="preserveStartEnd" minTickGap={28} />
+        <YAxis {...CHART_AXIS} width={44} domain={["dataMin - 1", "dataMax + 1"]} tickFormatter={(v) => fmt1(v)} tickCount={4} />
+        <Tooltip formatter={(v) => [`${fmt1(v)} km/h`, ""]} contentStyle={CHART_TOOLTIP_STYLE} />
         <Line type="monotone" dataKey="value" stroke={COLORS.speed} dot={{ r: 3 }} strokeWidth={2} isAnimationActive={false} />
       </LineChart>
     </ResponsiveContainer>

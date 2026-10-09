@@ -29,7 +29,7 @@ import {
 } from "lucide-react";
 
 import { StorageSettings } from "./StorageSettings.jsx";
-import { SectionTitle, StatCard } from "./UIPrimitives.jsx";
+import { SectionTitle, StatCard, PageHead } from "./UIPrimitives.jsx";
 import { useActivityRepository, useUnifiedActivities } from "./useActivityRepository.js";
 import { buildCoachContext } from "../lib/coach/context.js";
 import { analyzeCoachContext } from "../lib/coach/analysis.js";
@@ -57,10 +57,10 @@ function LastRideSection({ ride, onOpen }) {
   return (
     <div className="gpx-panel">
       <SectionTitle icon={Route}>Ta dernière sortie</SectionTitle>
-      <p className="gpx-empty-note" style={{ marginBottom: 12 }}>
-        {ride.name || "(sans nom)"} — {ride.date ? fmtDateFull(new Date(ride.date)) : "date inconnue"}
+      <p className="gpx-coach-ride">
+        <span className="gpx-coach-ride-name">{ride.name || "(sans nom)"} — {ride.date ? fmtDateFull(new Date(ride.date)) : "date inconnue"}</span>
         {onOpen && (
-          <button className="gpx-link-btn" style={{ marginLeft: 8 }} onClick={() => onOpen(ride.id)}>
+          <button className="gpx-link-btn" onClick={() => onOpen(ride.id)}>
             Ouvrir cette sortie
           </button>
         )}
@@ -74,7 +74,7 @@ function LastRideSection({ ride, onOpen }) {
         <StatCard icon={Heart} label="FC moyenne" value={ride.avgHeartRateBpm != null ? fmtInt(ride.avgHeartRateBpm) : null} unit="bpm" accent={COLORS.effort} />
         <StatCard icon={RefreshCw} label="Cadence moyenne" value={ride.avgCadenceRpm != null ? fmtInt(ride.avgCadenceRpm) : null} unit="rpm" accent={COLORS.info} />
       </div>
-      <div className="gpx-chart-card-stats" style={{ marginTop: 12 }}>
+      <div className="gpx-chart-card-stats gpx-coach-power">
         {ride.power.available ? (
           <span>
             Puissance <PowerBadge source={ride.power.source} /> : moy <b>{fmtInt(ride.power.avgW)} W</b>
@@ -89,14 +89,14 @@ function LastRideSection({ ride, onOpen }) {
   );
 }
 
-function ListSection({ icon: Icon, title, items, emptyText, renderItem }) {
+function ListSection({ icon: Icon, title, items, emptyText, renderItem, variant }) {
   return (
-    <div className="gpx-panel">
+    <div className={"gpx-panel gpx-coach-section" + (variant ? ` gpx-coach-section--${variant}` : "")}>
       <SectionTitle icon={Icon}>{title}</SectionTitle>
       {items.length === 0 ? (
         <p className="gpx-empty-note">{emptyText}</p>
       ) : (
-        <ul className="gpx-highlight-list">
+        <ul className="gpx-highlight-list gpx-coach-list">
           {items.map((item, i) => (
             <li key={i}>{renderItem ? renderItem(item) : item.message}</li>
           ))}
@@ -111,9 +111,9 @@ function EvolutionItem({ item }) {
   return (
     <>
       {badgeClass ? (
-        <span className={badgeClass} style={{ marginLeft: 0, marginRight: 8 }}>{EVOLUTION_SYMBOL[item.status]}</span>
+        <span className={badgeClass + " gpx-coach-trend"}>{EVOLUTION_SYMBOL[item.status]}</span>
       ) : (
-        <span style={{ marginRight: 8, color: "var(--faint)" }}>{EVOLUTION_SYMBOL[item.status] || "·"}</span>
+        <span className="gpx-coach-trend gpx-coach-trend--flat">{EVOLUTION_SYMBOL[item.status] || "·"}</span>
       )}
       {item.message}
     </>
@@ -145,35 +145,29 @@ export function CoachView({ storage, onConnect, onReconnect, onOpen, onBack, use
 
   return (
     <div className="gpx-dashboard">
-      <div className="gpx-header">
-        <div className="gpx-header-left">
-          <h1 className="gpx-ride-name">Coach</h1>
-          <div className="gpx-ride-meta">
-            {context ? (
-              <>
-                <span>
-                  Dernière sortie : {context.lastRide && context.lastRide.date ? fmtDateFull(new Date(context.lastRide.date)) : "aucune"}
-                </span>
-                <span>
-                  {context.activityCount} sortie{context.activityCount > 1 ? "s" : ""} analysée{context.activityCount > 1 ? "s" : ""}
-                </span>
-                {overallLabel && (
-                  <span>
-                    Qualité globale des données : <b className={`gpx-confidence-${overallLabel}`}>{CONFIDENCE_LABELS_FR[overallLabel] || overallLabel}</b>
-                  </span>
-                )}
-              </>
-            ) : ready ? (
-              <span>{summaries ? "Analyse de tes sorties…" : "Chargement…"}</span>
-            ) : null}
-          </div>
-        </div>
-        <div className="gpx-header-actions">
-          <button className="gpx-btn-ghost" onClick={onBack}><ArrowLeft size={14} /> Retour</button>
-        </div>
-      </div>
+      <PageHead
+        title="Coach"
+        meta={context ? (
+          <>
+            <span>
+              Dernière sortie : {context.lastRide && context.lastRide.date ? fmtDateFull(new Date(context.lastRide.date)) : "aucune"}
+            </span>
+            <span>
+              {context.activityCount} sortie{context.activityCount > 1 ? "s" : ""} analysée{context.activityCount > 1 ? "s" : ""}
+            </span>
+            {overallLabel && (
+              <span>
+                Qualité globale des données : <b className={`gpx-confidence-${overallLabel}`}>{CONFIDENCE_LABELS_FR[overallLabel] || overallLabel}</b>
+              </span>
+            )}
+          </>
+        ) : ready ? (
+          <span>{summaries ? "Analyse de tes sorties…" : "Chargement…"}</span>
+        ) : null}
+        actions={<button className="gpx-btn-ghost" onClick={onBack}><ArrowLeft size={15} /> <span>Retour</span></button>}
+      />
 
-      <div className="gpx-panel">
+      <div className="gpx-statusline">
         <StorageSettings storage={storage} onConnect={onConnect} onReconnect={onReconnect} />
       </div>
 
@@ -219,26 +213,39 @@ export function CoachView({ storage, onConnect, onReconnect, onOpen, onBack, use
                 </div>
               )}
 
-              <p className="gpx-summary-text">{analysis.summary}</p>
+              <p className="gpx-summary-text gpx-coach-lede">{analysis.summary}</p>
+
+              <ListSection
+                icon={Lightbulb}
+                variant="reco"
+                title="Mes recommandations"
+                items={analysis.recommendations}
+                emptyText="Pas de recommandation particulière pour l'instant."
+              />
+
+              <div className="gpx-two-up">
+                <ListSection
+                  icon={ThumbsUp}
+                  variant="positive"
+                  title="Ce qui va dans le bon sens"
+                  items={analysis.positives}
+                  emptyText="Rien de particulier à souligner pour l'instant."
+                />
+
+                <ListSection
+                  icon={Eye}
+                  variant="attention"
+                  title="À surveiller"
+                  items={analysis.attentionPoints}
+                  emptyText="Aucun point de vigilance identifié pour l'instant."
+                />
+              </div>
 
               <LastRideSection ride={context.lastRide} onOpen={onOpen} />
 
               <ListSection
-                icon={ThumbsUp}
-                title="Ce qui va dans le bon sens"
-                items={analysis.positives}
-                emptyText="Rien de particulier à souligner pour l'instant."
-              />
-
-              <ListSection
-                icon={Eye}
-                title="À surveiller"
-                items={analysis.attentionPoints}
-                emptyText="Aucun point de vigilance identifié pour l'instant."
-              />
-
-              <ListSection
                 icon={TrendingUp}
+                variant="evolution"
                 title="Ton évolution"
                 items={analysis.evolution}
                 emptyText="Pas encore assez de données pour dégager une évolution."
@@ -246,14 +253,8 @@ export function CoachView({ storage, onConnect, onReconnect, onOpen, onBack, use
               />
 
               <ListSection
-                icon={Lightbulb}
-                title="Mes recommandations"
-                items={analysis.recommendations}
-                emptyText="Pas de recommandation particulière pour l'instant."
-              />
-
-              <ListSection
                 icon={ShieldAlert}
+                variant="limits"
                 title="Limites des données"
                 items={analysis.dataLimits}
                 emptyText=""

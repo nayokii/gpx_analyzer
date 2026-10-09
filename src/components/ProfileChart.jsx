@@ -9,6 +9,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { X } from "lucide-react";
 
 import { COLORS } from "../lib/colors.js";
+import { cssVar, resolveColor, useColorScheme } from "../lib/theme.js";
 import { fmt1, fmtInt, fmtClock } from "../lib/utils.js";
 
 function availableProfileMetrics(analysis) {
@@ -20,6 +21,13 @@ function availableProfileMetrics(analysis) {
   if (analysis.hasCad) list.push({ key: "cadence", label: "Cadence", dataKey: "cad" });
   if (analysis.hasPower) list.push({ key: "puissance", label: "Puissance", dataKey: "power" });
   return list;
+}
+/** "#rrggbb" + alpha → rgba() : le canvas ne comprend ni var() ni color-mix(). */
+function withAlpha(color, a) {
+  const m = /^#([\da-f]{6})$/i.exec(color || "");
+  if (!m) return color;
+  const n = parseInt(m[1], 16);
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
 }
 function fmtAxisVal(metric, v) {
   if (v == null || isNaN(v)) return "—";
@@ -36,6 +44,7 @@ export function ProfileChart({ analysis, decimated, metric, setMetric, hoverIdx,
   const canvasRef = useRef(null);
   const wrapRef = useRef(null);
   const [width, setWidth] = useState(800);
+  const scheme = useColorScheme(); // le canvas ne suit pas le CSS : on le redessine quand le thème change
   const metrics = useMemo(() => availableProfileMetrics(analysis), [analysis]);
   const activeMetric = metrics.find((m) => m.key === metric) || metrics[0];
 
@@ -79,18 +88,26 @@ export function ProfileChart({ analysis, decimated, metric, setMetric, hoverIdx,
     canvas.style.width = width + "px";
     canvas.style.height = height + "px";
     const ctx = canvas.getContext("2d");
+    if (!ctx) return; // environnement sans canvas (tests jsdom, navigateur très restreint)
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.scale(dpr, dpr);
     ctx.clearRect(0, 0, width, height);
 
+    const climbColor = resolveColor(COLORS.climb);
+    const gridColor = resolveColor("var(--separator)");
+    const mutedColor = resolveColor(COLORS.textMuted);
+    const textColor = resolveColor(COLORS.text);
+    const surfaceColor = resolveColor(COLORS.surface);
+    const fontFamily = cssVar("--font-sans", "sans-serif");
+
     (analysis.climbs || []).forEach((c) => {
       const x1 = xForDist(c.startDistance),
         x2 = xForDist(c.endDistance);
-      ctx.fillStyle = selectedClimb && selectedClimb.id === c.id ? "rgba(244,183,64,0.22)" : "rgba(244,183,64,0.08)";
+      ctx.fillStyle = withAlpha(climbColor, selectedClimb && selectedClimb.id === c.id ? 0.24 : 0.09);
       ctx.fillRect(x1, padT, x2 - x1, height - padT - padB);
     });
 
-    ctx.strokeStyle = "rgba(237,239,236,0.08)";
+    ctx.strokeStyle = gridColor;
     ctx.lineWidth = 1;
     for (let i = 0; i <= 4; i++) {
       const y = padT + (i / 4) * (height - padT - padB);
@@ -101,7 +118,7 @@ export function ProfileChart({ analysis, decimated, metric, setMetric, hoverIdx,
     }
 
     const accentMap = { altitude: COLORS.climb, pente: COLORS.climb, vitesse: COLORS.speed, fc: COLORS.effort, cadence: COLORS.info, puissance: COLORS.info };
-    const stroke = accentMap[metric] || COLORS.speed;
+    const stroke = resolveColor(accentMap[activeMetric.key] || COLORS.speed);
     ctx.beginPath();
     let started = false;
     decimated.forEach((p) => {
@@ -118,21 +135,27 @@ export function ProfileChart({ analysis, decimated, metric, setMetric, hoverIdx,
       } else ctx.lineTo(x, y);
     });
     ctx.strokeStyle = stroke;
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 2.5;
+    ctx.lineJoin = "round";
+    ctx.lineCap = "round";
     ctx.stroke();
     ctx.lineTo(xForDist(distMax), yForVal(minV));
     ctx.lineTo(xForDist(distMin), yForVal(minV));
     ctx.closePath();
-    ctx.fillStyle = stroke + "22";
+    const fillGrad = typeof ctx.createLinearGradient === "function" ? ctx.createLinearGradient(0, padT, 0, height - padB) : null;
+    if (fillGrad) {
+      fillGrad.addColorStop(0, withAlpha(stroke, 0.3));
+      fillGrad.addColorStop(1, withAlpha(stroke, 0.02));
+    }
+    ctx.fillStyle = fillGrad || withAlpha(stroke, 0.12);
     ctx.fill();
 
-    ctx.fillStyle = "rgba(139,148,142,0.9)";
-    ctx.font = "10.5px sans-serif";
+    ctx.fillStyle = mutedColor;
+    ctx.font = `500 11.5px ${fontFamily}`;
     ctx.textAlign = "left";
-    ctx.fillText(fmtAxisVal(metric, maxV), 2, padT + 8);
-    ctx.fillText(fmtAxisVal(metric, minV), 2, height - padB);
-    ctx.fillStyle = "rgba(139,148,142,0.7)";
-    ctx.fillText(fmt1(distMin) + " km", padL + 2, height - 6);
+    ctx.fillText(fmtAxisVal(activeMetric.key, maxV), 2, padT + 8);
+    ctx.fillText(fmtAxisVal(activeMetric.key, minV), 2, height - padB);
+        ctx.fillText(fmt1(distMin) + " km", padL + 2, height - 6);
     ctx.textAlign = "right";
     ctx.fillText(fmt1(distMax) + " km", width - padR, height - 6);
 
@@ -142,23 +165,23 @@ export function ProfileChart({ analysis, decimated, metric, setMetric, hoverIdx,
       ctx.beginPath();
       ctx.moveTo(x, padT);
       ctx.lineTo(x, height - padB);
-      ctx.strokeStyle = "rgba(255,255,255,0.4)";
+      ctx.strokeStyle = withAlpha(textColor, 0.35);
       ctx.lineWidth = 1;
       ctx.stroke();
       const v = p[dataKey];
       if (v != null) {
         const y = yForVal(v);
         ctx.beginPath();
-        ctx.arc(x, y, 4.5, 0, Math.PI * 2);
+        ctx.arc(x, y, 5, 0, Math.PI * 2);
         ctx.fillStyle = stroke;
         ctx.fill();
-        ctx.strokeStyle = "#0a0d0c";
-        ctx.lineWidth = 1.5;
+        ctx.strokeStyle = surfaceColor;
+        ctx.lineWidth = 2.5;
         ctx.stroke();
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [width, height, decimated, metric, hoverIdx, selectedClimb, analysis]);
+  }, [width, height, decimated, activeMetric && activeMetric.key, hoverIdx, selectedClimb, analysis, scheme]);
 
   function idxFromClientX(clientX) {
     const rect = canvasRef.current.getBoundingClientRect();
@@ -187,9 +210,9 @@ export function ProfileChart({ analysis, decimated, metric, setMetric, hoverIdx,
 
   return (
     <div ref={wrapRef} className="gpx-profile-wrap">
-      <div className="gpx-map-modes" style={{ marginBottom: 10 }}>
+      <div className="gpx-map-modes" style={{ marginBottom: 14 }}>
         {metrics.map((m) => (
-          <button key={m.key} className={"gpx-chip" + (metric === m.key ? " gpx-chip-active" : "")} onClick={() => setMetric(m.key)}>
+          <button key={m.key} className={"gpx-chip" + (activeMetric.key === m.key ? " gpx-chip-active" : "")} onClick={() => setMetric(m.key)}>
             {m.label}
           </button>
         ))}
@@ -205,7 +228,7 @@ export function ProfileChart({ analysis, decimated, metric, setMetric, hoverIdx,
             e.preventDefault();
             handleMove(e.touches[0].clientX);
           }}
-          style={{ display: "block", cursor: "crosshair", touchAction: "none", borderRadius: 12 }}
+          style={{ display: "block", cursor: "crosshair", touchAction: "none" }}
         />
         {hoverPoint && (
           <div className="gpx-tooltip" style={{ position: "absolute", top: 6, left: Math.min(width - 175, Math.max(0, xForDist(hoverPoint.distance) + 10)), pointerEvents: "none" }}>

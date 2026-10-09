@@ -1,0 +1,9 @@
+/**
+ * Cycling OS — Sources de données & cloud : formulaires et listes, sans cartes imbriquées.
+ */
+.gpx-cloud-form { display: flex; flex-direction: column; gap: 14px; max-width: 360px; }
+.gpx-cloud-field { display: flex; flex-direction: column; gap: 6px; font-size: 13.5px; font-weight: 600; color: var(--muted); }
+.gpx-cloud-field input { width: 100%; padding: 12px 14px !important; font-size: 15px !important; border-radius: var(--radius-md) !important; }
+.gpx-cloud-form-actions { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-top: 4px; }
+.gpx-panel .gpx-storage-box { box-shadow: none; background: var(--surface2); }
+.gpx-panel .gpx-storage-box.gpx-storage-warn { background: color-mix(in srgb, var(--climb) 12%, var(--surface)); }
