@@ -12,6 +12,7 @@ import "./styles/tour.css";
 import "./styles/coach.css";
 import "./styles/sources.css";
 import "./styles/feed.css";
+import "./styles/terrain.css";
 import GPXAnalyzer from "./GPXAnalyzer.jsx";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
