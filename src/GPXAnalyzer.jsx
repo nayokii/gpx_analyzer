@@ -50,6 +50,7 @@ import { AppNav } from "./components/AppNav.jsx";
 import { ActivityFeedView } from "./components/ActivityFeedView.jsx";
 import { HomeView } from "./components/HomeView.jsx";
 import { DataSourcesView } from "./components/DataSourcesView.jsx";
+import { TerrainView } from "./components/TerrainView.jsx";
 import { PasswordRecoveryView } from "./components/PasswordRecoveryView.jsx";
 import {
   parseRecoveryHash, beginPasswordRecovery, onPasswordRecovery, clearAuthHash, CloudNotConfiguredError,
@@ -718,6 +719,7 @@ export default function GPXAnalyzer() {
     { key: "carte", label: "Carte" },
     { key: "performance", label: "Performance" },
     { key: "montees", label: "Montées", disabled: analysis && analysis.climbs.length === 0 },
+    { key: "technique", label: "Technique" },
     { key: "graphiques", label: "Graphiques" },
     { key: "splits", label: "Splits" },
     { key: "parametres", label: "Paramètres" },
@@ -1215,6 +1217,14 @@ export default function GPXAnalyzer() {
                 </div>
               </div>
             </>
+          )}
+
+          {/* ---------------- TECHNIQUE (terrain) ---------------- */}
+          {activeTab === "technique" && (
+            <TerrainView
+              analysis={analysis}
+              activityKey={activeActivityId || `${rideName || "sortie"}|${analysis.startTime ? analysis.startTime.toISOString() : ""}|${analysis.totalDistanceKm.toFixed(2)}`}
+            />
           )}
 
           {/* ---------------- GRAPHIQUES ---------------- */}
