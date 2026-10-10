@@ -16,13 +16,16 @@
  * src/lib/simulator/ (Phase 10A) — jamais une nouvelle source de vérité.
  * "coach" (Phase Coach V3A) : destination vers CoachView.jsx, une couche de
  * lecture au-dessus de src/lib/coach/ (jamais un second calcul).
+ * "feed" : fil d'activités visuel (ActivityFeedView.jsx), lecture seule de la
+ * même source que l'Historique ; ne remplace pas « Sorties ».
  */
-import { Home, History as HistoryIcon, UserRound, Trophy, Fingerprint, Flag, NotebookText, Upload } from "lucide-react";
+import { Home, History as HistoryIcon, UserRound, Trophy, Fingerprint, Flag, NotebookText, Newspaper, Upload } from "lucide-react";
 import { ActiveIndicator, useActiveIndicator } from "./ActiveIndicator.jsx";
 
 export const NAV_ITEMS = [
   { key: "home", label: "Accueil", icon: Home },
   { key: "rides", label: "Sorties", icon: HistoryIcon },
+  { key: "feed", label: "Activités", icon: Newspaper },
   { key: "coach", label: "Coach", icon: NotebookText },
   { key: "profil", label: "Profil", icon: UserRound },
   { key: "alterego", label: "Alter Ego", icon: Trophy },

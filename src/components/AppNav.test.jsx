@@ -4,9 +4,9 @@ import { AppNav, NAV_ITEMS } from "./AppNav.jsx";
 
 afterEach(cleanup);
 
-describe("AppNav — 7 destinations principales", () => {
-  it("expose exactement les 7 destinations attendues", () => {
-    expect(NAV_ITEMS.map((i) => i.key)).toEqual(["home", "rides", "coach", "profil", "alterego", "archetype", "tour"]);
+describe("AppNav — 8 destinations principales", () => {
+  it("expose exactement les 8 destinations attendues (Historique « rides » conservé)", () => {
+    expect(NAV_ITEMS.map((i) => i.key)).toEqual(["home", "rides", "feed", "coach", "profil", "alterego", "archetype", "tour"]);
   });
 
   it("rend chaque destination deux fois (barre haute desktop + barre basse mobile) — le choix de layout est purement CSS, jamais deux jeux de données", () => {
