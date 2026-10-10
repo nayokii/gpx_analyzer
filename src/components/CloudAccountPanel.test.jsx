@@ -215,3 +215,43 @@ describe("CloudAccountPanel — Phase 11C : résolution de conflit", () => {
     await waitFor(() => expect(screen.getByText(/1 conflit détecté/)).toBeTruthy());
   });
 });
+
+describe("CloudAccountPanel — mot de passe oublié", () => {
+  function configure() {
+    vi.stubEnv("VITE_SUPABASE_URL", "https://example.supabase.co");
+    vi.stubEnv("VITE_SUPABASE_ANON_KEY", "test-anon-key");
+    const backend = createFakeSupabaseBackend();
+    __setSupabaseClientForTests(backend.client);
+    return backend;
+  }
+
+  it("envoie la demande de réinitialisation avec le bon redirectTo et affiche une confirmation neutre", async () => {
+    const backend = configure();
+    render(<CloudAccountPanel storage={DISCONNECTED_STORAGE} isDemo={false} />);
+    fireEvent.click(await screen.findByText("Mot de passe oublié ?"));
+    fireEvent.change(screen.getByLabelText("Email"), { target: { value: "a@example.com" } });
+    fireEvent.click(screen.getByText("Envoyer le lien"));
+
+    await waitFor(() => expect(screen.getByRole("status").textContent).toMatch(/Si un compte existe pour a@example.com/));
+    expect(backend.resetRequests).toEqual([{ email: "a@example.com", redirectTo: `${window.location.origin}/` }]);
+  });
+
+  it("affiche l'erreur de limite d'envoi et permet de revenir à la connexion", async () => {
+    configure();
+    render(<CloudAccountPanel storage={DISCONNECTED_STORAGE} isDemo={false} />);
+    fireEvent.click(await screen.findByText("Mot de passe oublié ?"));
+    fireEvent.change(screen.getByLabelText("Email"), { target: { value: "limite@example.com" } });
+    fireEvent.click(screen.getByText("Envoyer le lien"));
+    expect((await screen.findByRole("alert")).textContent).toMatch(/Trop de demandes/);
+
+    fireEvent.click(screen.getByText("Retour à la connexion"));
+    expect(screen.getByLabelText("Mot de passe")).toBeTruthy();
+  });
+
+  it("n'affiche pas « Mot de passe oublié ? » dans le formulaire de création de compte", async () => {
+    configure();
+    render(<CloudAccountPanel storage={DISCONNECTED_STORAGE} isDemo={false} />);
+    fireEvent.click(await screen.findByText("Créer un compte"));
+    expect(screen.queryByText("Mot de passe oublié ?")).toBeNull();
+  });
+});

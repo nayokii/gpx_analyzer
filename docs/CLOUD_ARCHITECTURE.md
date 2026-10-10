@@ -79,6 +79,33 @@ Selon la configuration du projet Supabase, une confirmation par email peut
 défaut de Supabase Auth). À activer/désactiver depuis Dashboard → Authentication
 → Providers → Email selon l'usage voulu.
 
+### Récupération de mot de passe
+
+```js
+requestPasswordReset(email)      // envoie le mail ; redirectTo = <origine de l'app>/
+beginPasswordRecovery(hash)      // lit #access_token=…&type=recovery, établit la session de récupération
+updatePassword(newPassword)      // auth.updateUser({ password })
+onPasswordRecovery(cb)           // événement PASSWORD_RECOVERY du SDK
+parseRecoveryHash(hash) / clearAuthHash()
+```
+
+Flux : « Mot de passe oublié ? » (Sources de données → Cloud) → mail Supabase →
+clic sur le lien → l'app s'ouvre sur `<origine>/#access_token=…&type=recovery`
+→ `GPXAnalyzer.jsx` ouvre l'écran « Nouveau mot de passe »
+(`PasswordRecoveryView.jsx`), retire les jetons de l'URL, puis
+`updatePassword()`. Le client est créé avec `detectSessionInUrl: false` (pour ne
+pas interférer avec le retour OAuth Strava, qui utilise `?code=` en query) : le
+fragment de récupération est donc lu explicitement par `beginPasswordRecovery()`.
+
+**Réglages Supabase requis** (Dashboard → Authentication → URL Configuration) :
+- *Site URL* : l'URL de production (ex. `https://<ton-site>.netlify.app`) ;
+- *Redirect URLs* : `https://<ton-site>.netlify.app/**` et
+  `http://localhost:5173/**` (développement). Sans cela, Supabase ignore
+  `redirectTo` et renvoie vers la Site URL (page principale, sans écran de
+  récupération).
+Le modèle d'e-mail « Reset Password » doit conserver `{{ .ConfirmationURL }}`
+(flux par défaut « implicit » : les jetons arrivent dans le fragment `#`).
+
 ## 3. Base de données (Postgres)
 
 Une seule table, `public.activities` — voir `supabase/schema.sql` pour le

@@ -8,7 +8,11 @@
 
 export { isCloudConfigured, getSupabaseClient } from "./client.js";
 
-export { getCurrentUser, onAuthStateChange, signUp, signIn, signOut } from "./auth.js";
+export {
+  getCurrentUser, onAuthStateChange, signUp, signIn, signOut,
+  requestPasswordReset, beginPasswordRecovery, updatePassword, onPasswordRecovery,
+  parseRecoveryHash, clearAuthHash, getRecoveryRedirectUrl,
+} from "./auth.js";
 
 export {
   listCloudActivities,

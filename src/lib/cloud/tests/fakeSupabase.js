@@ -24,6 +24,8 @@ export function createFakeSupabaseBackend() {
   const activitiesTable = [];
   const storageObjects = new Map(); // path -> {content, contentType}
   let authListeners = [];
+  const resetRequests = []; // appels à resetPasswordForEmail
+  const recoveryTokens = new Map(); // access_token de récupération -> email
   let sessionUser = null;
   let idCounter = 0;
 
@@ -163,6 +165,27 @@ export function createFakeSupabaseBackend() {
     async getSession() {
       return { data: { session: sessionUser ? { user: sessionUser } : null }, error: null };
     },
+    // --- Récupération de mot de passe (simulation du comportement observable de Supabase Auth) ---
+    async resetPasswordForEmail(email, options = {}) {
+      resetRequests.push({ email, redirectTo: options.redirectTo });
+      if (email === "limite@example.com") return { data: null, error: { message: "For security purposes, you can only request this once every 60 seconds", code: "over_email_send_rate_limit" } };
+      return { data: {}, error: null }; // jamais d'indication sur l'existence du compte
+    },
+    async setSession({ access_token: accessToken }) {
+      const email = recoveryTokens.get(accessToken);
+      const record = email && users.get(email);
+      if (!record) return { data: { session: null, user: null }, error: { message: "invalid JWT" } };
+      sessionUser = { id: record.id, email: record.email };
+      notifyAuth("SIGNED_IN");
+      return { data: { session: { user: sessionUser }, user: sessionUser }, error: null };
+    },
+    async updateUser({ password }) {
+      if (!sessionUser) return { data: { user: null }, error: { message: "Auth session missing!" } };
+      const record = users.get(sessionUser.email);
+      if (record.password === password) return { data: { user: null }, error: { message: "New password should be different from the old password.", code: "same_password" } };
+      record.password = password;
+      return { data: { user: sessionUser }, error: null };
+    },
     onAuthStateChange(cb) {
       authListeners.push(cb);
       return {
@@ -237,6 +260,16 @@ export function createFakeSupabaseBackend() {
       sessionUser = user;
       notifyAuth();
     },
+    /** Demandes de réinitialisation reçues par resetPasswordForEmail. */
+    resetRequests,
+    /** Fabrique le fragment d'URL du lien reçu par e-mail (jeton valide pour ce compte). */
+    makeRecoveryHash(email) {
+      const token = `recovery-${nextId("tok")}`;
+      recoveryTokens.set(token, email);
+      return `#access_token=${token}&expires_in=3600&refresh_token=r-${token}&token_type=bearer&type=recovery`;
+    },
+    /** Retourne l'utilisateur de la session courante (vérifications de test). */
+    getSessionUser: () => sessionUser,
     _debug: { users, activitiesTable, storageObjects },
   };
 }

@@ -49,6 +49,10 @@ import { CoachView } from "./components/CoachView.jsx";
 import { AppNav } from "./components/AppNav.jsx";
 import { HomeView } from "./components/HomeView.jsx";
 import { DataSourcesView } from "./components/DataSourcesView.jsx";
+import { PasswordRecoveryView } from "./components/PasswordRecoveryView.jsx";
+import {
+  parseRecoveryHash, beginPasswordRecovery, onPasswordRecovery, clearAuthHash, CloudNotConfiguredError,
+} from "./lib/cloud/index.js";
 import { useActivityRepository } from "./components/useActivityRepository.js";
 
 // Stockage local durable (Phase 2)
@@ -117,7 +121,16 @@ function splitSortColumns(analysis) {
 }
 
 export default function GPXAnalyzer() {
-  const [mode, setMode] = useState("home"); // home | dashboard | historique | profil | alterego | archetype | tour
+  // Lien de récupération de mot de passe (e-mail Supabase) : l'URL d'arrivée porte les jetons dans son fragment.
+  // On l'analyse AVANT le premier rendu pour ouvrir directement l'écran « Nouveau mot de passe » (pas de flash d'accueil).
+  const [initialRecovery] = useState(() => (typeof window !== "undefined" ? parseRecoveryHash(window.location.hash) : { status: "none" }));
+  const [mode, setMode] = useState(initialRecovery.status === "none" ? "home" : "recovery"); // home | dashboard | historique | profil | alterego | archetype | tour | sources | recovery
+  const [recovery, setRecovery] = useState(() => {
+    if (initialRecovery.status === "error") return { phase: "error", message: initialRecovery.message };
+    if (initialRecovery.status === "recovery") return { phase: "checking" };
+    return null;
+  });
+  const recoveryStartedRef = useRef(false);
   const [isDemo, setIsDemo] = useState(false);
   const [fileName, setFileName] = useState(null);
   const [rideName, setRideName] = useState(null);
@@ -199,6 +212,40 @@ export default function GPXAnalyzer() {
   // persistés dans le dossier choisi — voir strava/storage.js — donc rien à
   // faire tant qu'on ne sait pas s'il est connecté).
   const [stravaCallbackError, setStravaCallbackError] = useState(null);
+
+  // Récupération de mot de passe : établit la session du lien (une seule fois, même en StrictMode), nettoie
+  // l'URL, et écoute aussi l'événement PASSWORD_RECOVERY du SDK.
+  useEffect(() => {
+    let unsubscribe = () => {};
+    try {
+      unsubscribe = onPasswordRecovery((user) => {
+        setRecovery((r) => (r && r.phase === "ready" ? r : { phase: "ready", email: user ? user.email : null }));
+        setMode("recovery");
+      });
+    } catch {
+      // cloud non configuré : aucun événement à écouter
+    }
+    if (initialRecovery.status !== "none" && !recoveryStartedRef.current) {
+      recoveryStartedRef.current = true;
+      const hash = window.location.hash;
+      (async () => {
+        try {
+          const result = await beginPasswordRecovery(hash);
+          if (result.status === "ready") setRecovery({ phase: "ready", email: result.email });
+          else setRecovery({ phase: "error", message: result.message || "Ce lien n'est pas valide." });
+        } catch (err) {
+          setRecovery({
+            phase: "error",
+            message: err instanceof CloudNotConfiguredError ? "Le cloud n'est pas configuré : impossible de modifier le mot de passe ici." : (err.message || "Ce lien n'est pas valide."),
+          });
+        } finally {
+          clearAuthHash();
+        }
+      })();
+    }
+    return () => unsubscribe();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [stravaRefreshTick, setStravaRefreshTick] = useState(0);
   const stravaCallbackHandled = useRef(false);
   useEffect(() => {
@@ -1644,6 +1691,15 @@ export default function GPXAnalyzer() {
           onOpen={openActivityFromHistory}
           onBack={() => setMode(points ? "dashboard" : "home")}
           userSettings={userSettings}
+        />
+      )}
+
+      {mode === "recovery" && recovery && (
+        <PasswordRecoveryView
+          phase={recovery.phase}
+          email={recovery.email}
+          error={recovery.message}
+          onDone={() => { setRecovery(null); setMode("home"); }}
         />
       )}
 

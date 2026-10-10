@@ -161,3 +161,50 @@ describe("Navigation — structure responsive", () => {
     expect(document.querySelector(".gpx-appnav-bottom")).toBeTruthy();
   });
 });
+
+describe("Récupération de mot de passe — lien reçu par e-mail", () => {
+  afterEach(() => {
+    window.history.replaceState(null, "", "/");
+  });
+
+  it("un lien de récupération valide ouvre « Nouveau mot de passe », nettoie l'URL et permet de changer le mot de passe", async () => {
+    const backend = createFakeSupabaseBackend();
+    __setSupabaseClientForTests(backend.client);
+    await backend.signUpAndLogin("a@example.com", "ancien-mdp");
+    backend.setSessionUser(null);
+    window.history.replaceState(null, "", "/" + backend.makeRecoveryHash("a@example.com"));
+
+    render(<GPXAnalyzer />);
+
+    // Pas d'écran d'accueil : on arrive directement sur la récupération.
+    expect(screen.getByRole("heading", { name: "Nouveau mot de passe" })).toBeTruthy();
+    expect(screen.queryByText(/Glissez-déposez votre fichier/)).toBeNull();
+
+    const field = await screen.findByLabelText("Nouveau mot de passe", {}, { timeout: 3000 });
+    expect(window.location.hash).toBe(""); // jetons retirés de la barre d'adresse
+    expect(screen.getByText(/Compte : a@example.com/)).toBeTruthy();
+
+    fireEvent.change(field, { target: { value: "nouveau-mdp" } });
+    fireEvent.change(screen.getByLabelText("Confirmer le mot de passe"), { target: { value: "nouveau-mdp" } });
+    fireEvent.click(screen.getByText("Enregistrer le mot de passe"));
+    await waitFor(() => expect(screen.getByText(/Mot de passe modifié/)).toBeTruthy());
+
+    fireEvent.click(screen.getByText("Continuer"));
+    expect(await screen.findByText(/Glissez-déposez votre fichier/)).toBeTruthy();
+  });
+
+  it("un lien expiré affiche l'erreur et aucun formulaire", async () => {
+    window.history.replaceState(null, "", "/#error=access_denied&error_code=otp_expired&error_description=Email+link+is+invalid+or+has+expired");
+    render(<GPXAnalyzer />);
+    expect(await screen.findByText(/expiré/)).toBeTruthy();
+    expect(screen.queryByLabelText("Nouveau mot de passe")).toBeNull();
+    await waitFor(() => expect(window.location.hash).toBe(""));
+  });
+
+  it("sans lien de récupération, l'application démarre normalement sur l'accueil", async () => {
+    window.history.replaceState(null, "", "/#autre");
+    render(<GPXAnalyzer />);
+    expect(await screen.findByText(/Glissez-déposez votre fichier/)).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "Nouveau mot de passe" })).toBeNull();
+  });
+});

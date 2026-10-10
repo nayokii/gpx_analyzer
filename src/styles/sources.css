@@ -7,3 +7,8 @@
 .gpx-cloud-form-actions { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-top: 4px; }
 .gpx-panel .gpx-storage-box { box-shadow: none; background: var(--surface2); }
 .gpx-panel .gpx-storage-box.gpx-storage-warn { background: color-mix(in srgb, var(--climb) 12%, var(--surface)); }
+
+/* Récupération de mot de passe */
+.gpx-recovery { max-width: 520px; }
+.gpx-recovery-box { display: flex; align-items: center; gap: 10px; margin: 0 0 16px; }
+.gpx-recovery-help { margin: 0 0 16px; }

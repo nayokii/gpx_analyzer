@@ -32,7 +32,7 @@ import { Cloud, LogIn, UserPlus, LogOut, UploadCloud, DownloadCloud, RefreshCw, 
 
 import { SectionTitle } from "./UIPrimitives.jsx";
 import { useActivityRepository } from "./useActivityRepository.js";
-import { isCloudConfigured, signUp, signIn, signOut } from "../lib/cloud/index.js";
+import { isCloudConfigured, signUp, signIn, signOut, requestPasswordReset } from "../lib/cloud/index.js";
 import { listQueuedOperations } from "../lib/storage/syncQueue.js";
 
 // Purement informatif pour l'UI (voir consigne §8 : "Dernière synchronisation :
@@ -419,10 +419,53 @@ function ConflictResolver({ conflicts, resolvingId, onResolve }) {
 function AuthForm({ mode, onModeChange, onSubmit, busy, error }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  // Sous-flux « mot de passe oublié » : même champ e-mail, aucun appel tant que l'utilisateur ne l'a pas demandé.
+  const [resetMode, setResetMode] = useState(false);
+  const [resetBusy, setResetBusy] = useState(false);
+  const [resetNotice, setResetNotice] = useState(null);
+  const [resetError, setResetError] = useState(null);
 
   function handleSubmit(e) {
     e.preventDefault();
     onSubmit({ email, password });
+  }
+
+  async function handleReset(e) {
+    e.preventDefault();
+    setResetBusy(true);
+    setResetError(null);
+    setResetNotice(null);
+    try {
+      await requestPasswordReset(email);
+      // Supabase ne dit jamais si l'adresse existe : message volontairement neutre.
+      setResetNotice(`Si un compte existe pour ${email.trim()}, un e-mail avec un lien de réinitialisation vient d'être envoyé. Pense à vérifier les courriers indésirables.`);
+    } catch (err) {
+      setResetError(err.message || "Impossible d'envoyer l'e-mail.");
+    } finally {
+      setResetBusy(false);
+    }
+  }
+
+  if (resetMode) {
+    return (
+      <form className="gpx-cloud-form" onSubmit={handleReset}>
+        <p className="gpx-empty-note">Indique l'adresse e-mail de ton compte : tu recevras un lien pour choisir un nouveau mot de passe.</p>
+        <label className="gpx-cloud-field">
+          Email
+          <input type="email" required autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+        </label>
+        <div className="gpx-cloud-form-actions">
+          <button className="gpx-btn-primary" type="submit" disabled={resetBusy}>
+            {resetBusy ? "Envoi…" : "Envoyer le lien"}
+          </button>
+          <button type="button" className="gpx-link-btn" onClick={() => { setResetMode(false); setResetNotice(null); setResetError(null); }}>
+            Retour à la connexion
+          </button>
+        </div>
+        {resetNotice && <div className="gpx-save-banner" role="status">{resetNotice}</div>}
+        {resetError && <div className="gpx-error-box" role="alert">{resetError}</div>}
+      </form>
+    );
   }
 
   return (
@@ -454,6 +497,11 @@ function AuthForm({ mode, onModeChange, onSubmit, busy, error }) {
         >
           {mode === "signUp" ? "J'ai déjà un compte" : "Créer un compte"}
         </button>
+        {mode !== "signUp" && (
+          <button type="button" className="gpx-link-btn" onClick={() => setResetMode(true)}>
+            Mot de passe oublié ?
+          </button>
+        )}
       </div>
       {error && <div className="gpx-error-box">{error}</div>}
     </form>
