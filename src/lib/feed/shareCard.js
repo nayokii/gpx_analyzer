@@ -11,6 +11,11 @@
  *
  * `buildShareModel` produit un modèle sans AUCUNE latitude/longitude (tracé en
  * pixels uniquement) ; `drawShareCard` ne dessine que ce modèle.
+ *
+ * Fond « transparent » : aucun pixel de fond n'est dessiné (le canvas reste vierge, donc le PNG exporté porte un vrai
+ * canal alpha). Pour rester lisibles sur n'importe quelle photo, textes et tracé sont dessinés en couleurs claires avec
+ * un contour sombre semi-transparent suivant les glyphes et le tracé (jamais de rectangle ni de bandeau opaque).
+ * Les thèmes « dark » et « light » ne sont pas modifiés.
  */
 import {
   extractRoute, shareRoute, projectRoute, buildStats, elevationProfile,
@@ -20,7 +25,16 @@ import {
 export const SHARE_FORMATS = {
   story: { key: "story", label: "Story", width: 1080, height: 1920 },
   square: { key: "square", label: "Carré", width: 1080, height: 1080 },
+  // Disposition compacte pour une superposition dans une story (surtout avec le fond transparent) : marges réduites.
+  sticker: { key: "sticker", label: "Sticker", width: 1080, height: 1200 },
 };
+
+/** Choix de fond proposés à l'utilisateur. */
+export const SHARE_BACKGROUNDS = [
+  { key: "dark", label: "Sombre" },
+  { key: "light", label: "Clair" },
+  { key: "transparent", label: "Transparent" },
+];
 
 export const HIDEABLE_STATS = [
   { key: "distance", label: "Distance" },
@@ -42,12 +56,21 @@ export const SHARE_THEMES = {
     text: "#0f1512", muted: "#56615b", faint: "#8a958f", route: "#067563", halo: "rgba(255,255,255,0.95)",
     startFill: "#067563", endFill: "#0f1512", markerInk: "#ffffff", profile: "rgba(6,117,99,0.18)",
   },
+  // Fond transparent : couleurs claires + contour sombre (`outline`) pour la lisibilité sur photo ; `bg0/bg1/grid/glow` inutilisés.
+  transparent: {
+    bg0: null, bg1: null, grid: null, glow: null,
+    text: "#ffffff", muted: "rgba(255,255,255,0.92)", faint: "rgba(255,255,255,0.82)", route: "#34dcbd", halo: "rgba(4,8,6,0.62)",
+    startFill: "#34dcbd", endFill: "#ffffff", markerInk: "#04080a", profile: "rgba(255,255,255,0.13)", outline: "rgba(4,8,6,0.58)",
+  },
 };
 
 /** Rectangle réservé au tracé, selon le format. */
 function layoutFor(format) {
   if (format === "story") {
     return { margin: 80, route: { x: 80, y: 400, w: 920, h: 820 }, profile: { x: 80, y: 1680, w: 920, h: 110 }, statsY: 1500, distanceY: 1370, distanceSize: 250, titleSize: 80, titleY: 190 };
+  }
+  if (format === "sticker") {
+    return { margin: 56, route: { x: 56, y: 215, w: 968, h: 560 }, profile: null, statsY: 1010, distanceY: 925, distanceSize: 170, titleSize: 58, titleY: 130 };
   }
   return { margin: 72, route: { x: 72, y: 215, w: 936, h: 450 }, profile: null, statsY: 905, distanceY: 800, distanceSize: 170, titleSize: 58, titleY: 150 };
 }
@@ -111,6 +134,17 @@ export function buildShareModel(activity, options = {}) {
 }
 
 // ------------------------------------------------------------------ dessin
+
+/** fillText, précédé d'un contour sombre quand le thème en définit un (fond transparent). Aucun effet sur clair/sombre. */
+function put(ctx, t, text, x, y, size) {
+  if (t.outline) {
+    ctx.strokeStyle = t.outline;
+    ctx.lineWidth = Math.min(14, Math.max(4, Math.round(size * 0.1)));
+    ctx.lineJoin = "round";
+    ctx.strokeText(text, x, y);
+  }
+  ctx.fillText(text, x, y);
+}
 
 function fitText(ctx, text, maxWidth, size, minSize, weight = 700) {
   let s = size;
@@ -189,7 +223,7 @@ function drawRoute(ctx, model, t) {
     ctx.fillStyle = t.faint;
     ctx.textAlign = "center";
     ctx.font = `600 38px ${FONT}`;
-    ctx.fillText("Tracé GPS indisponible", ox + layout.route.w / 2, oy + layout.route.h / 2);
+    put(ctx, t, "Tracé GPS indisponible", ox + layout.route.w / 2, oy + layout.route.h / 2, 38);
     ctx.textAlign = "left";
     return;
   }
@@ -238,6 +272,14 @@ function drawProfile(ctx, model, t) {
   ctx.closePath();
   ctx.fillStyle = t.profile;
   ctx.fill();
+  if (t.outline) {
+    ctx.beginPath();
+    for (let i = 0; i < n; i++) (i === 0 ? ctx.moveTo(...pt(i)) : ctx.lineTo(...pt(i)));
+    ctx.strokeStyle = t.halo;
+    ctx.lineWidth = 10;
+    ctx.lineJoin = "round";
+    ctx.stroke();
+  }
   ctx.beginPath();
   for (let i = 0; i < n; i++) (i === 0 ? ctx.moveTo(...pt(i)) : ctx.lineTo(...pt(i)));
   ctx.strokeStyle = t.route;
@@ -256,7 +298,8 @@ export function drawShareCard(ctx, model) {
   const M = layout.margin;
   const contentW = W - M * 2;
 
-  drawBackground(ctx, model, t);
+  if (model.theme === "transparent") ctx.clearRect(0, 0, model.width, model.height); // aucun fond : canal alpha conservé
+  else drawBackground(ctx, model, t);
   ctx.textBaseline = "alphabetic";
   ctx.textAlign = "left";
 
@@ -267,9 +310,9 @@ export function drawShareCard(ctx, model) {
   ctx.fill();
   ctx.fillStyle = t.muted;
   ctx.font = `700 28px ${FONT}`;
-  ctx.fillText("CYCLING OS", M + 30, M + 14);
+  put(ctx, t, "CYCLING OS", M + 30, M + 14, 28);
   ctx.textAlign = "right";
-  ctx.fillText(model.typeLabel.toUpperCase(), W - M, M + 14);
+  put(ctx, t, model.typeLabel.toUpperCase(), W - M, M + 14, 28);
   ctx.textAlign = "left";
 
   // Titre (2 lignes max) puis date
@@ -277,12 +320,12 @@ export function drawShareCard(ctx, model) {
   ctx.font = `800 ${titleSize}px ${FONT}`;
   const lines = wrapText(ctx, model.title, contentW, model.format === "story" ? 2 : 1);
   ctx.fillStyle = t.text;
-  lines.forEach((line, i) => ctx.fillText(line, M, layout.titleY + i * (titleSize * 1.1)));
+  lines.forEach((line, i) => put(ctx, t, line, M, layout.titleY + i * (titleSize * 1.1), titleSize));
   if (model.dateLabel) {
     ctx.fillStyle = t.muted;
     ctx.font = `500 ${model.format === "story" ? 34 : 30}px ${FONT}`;
     const dy = layout.titleY + (lines.length - 1) * (titleSize * 1.1) + (model.format === "story" ? 56 : 46);
-    ctx.fillText(model.dateLabel.charAt(0).toUpperCase() + model.dateLabel.slice(1), M, dy);
+    put(ctx, t, model.dateLabel.charAt(0).toUpperCase() + model.dateLabel.slice(1), M, dy, 32);
   }
 
   drawRoute(ctx, model, t);
@@ -291,11 +334,11 @@ export function drawShareCard(ctx, model) {
   if (model.distance) {
     ctx.fillStyle = t.text;
     ctx.font = `800 ${layout.distanceSize}px ${FONT}`;
-    ctx.fillText(model.distance.value, M, layout.distanceY);
+    put(ctx, t, model.distance.value, M, layout.distanceY, layout.distanceSize);
     const vw = ctx.measureText(model.distance.value).width;
     ctx.fillStyle = t.route;
     ctx.font = `700 ${Math.round(layout.distanceSize * 0.24)}px ${FONT}`;
-    ctx.fillText(model.distance.unit || "km", M + vw + 18, layout.distanceY);
+    put(ctx, t, model.distance.unit || "km", M + vw + 18, layout.distanceY, Math.round(layout.distanceSize * 0.24));
   }
 
   // Statistiques secondaires, réparties à égalité
@@ -306,16 +349,16 @@ export function drawShareCard(ctx, model) {
       const x = M + i * colW;
       ctx.fillStyle = t.faint;
       ctx.font = `600 26px ${FONT}`;
-      ctx.fillText(s.label.toUpperCase(), x, layout.statsY);
+      put(ctx, t, s.label.toUpperCase(), x, layout.statsY, 26);
       ctx.fillStyle = t.text;
       const size = fitText(ctx, s.value, colW - 24, 70, 44, 700);
       ctx.font = `700 ${size}px ${FONT}`;
-      ctx.fillText(s.value, x, layout.statsY + 78);
+      put(ctx, t, s.value, x, layout.statsY + 78, size);
       if (s.unit) {
         const w = ctx.measureText(s.value).width;
         ctx.fillStyle = t.muted;
         ctx.font = `600 28px ${FONT}`;
-        ctx.fillText(s.unit, x + w + 8, layout.statsY + 78);
+        put(ctx, t, s.unit, x + w + 8, layout.statsY + 78, 28);
       }
     });
   }
@@ -343,11 +386,11 @@ export function exportShareCardPng(model) {
 }
 
 /** Nom de fichier sûr : jamais de nom de lieu, d'identifiant ou de coordonnée. */
-export function shareFileName(title, format) {
+export function shareFileName(title, format, theme) {
   const slug = String(title || "sortie")
     .normalize("NFD").replace(/[̀-ͯ]/g, "")
     .toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40) || "sortie";
-  return `cycling-os-${slug}-${format}.png`;
+  return `cycling-os-${slug}-${format}${theme === "transparent" ? "-transparent" : ""}.png`;
 }
 
 /**

@@ -80,6 +80,13 @@
 .gpx-share-canvas { display: block; height: auto; max-width: 100%; border-radius: 10px; box-shadow: var(--shadow-card); }
 .gpx-share-preview--story .gpx-share-canvas { max-height: min(66dvh, 640px); width: auto; }
 .gpx-share-preview--square .gpx-share-canvas { width: min(100%, 420px); }
+.gpx-share-preview--sticker .gpx-share-canvas { width: min(100%, 420px); }
+/* Aperçu du fond transparent : damier CSS autour/derrière le canvas, jamais dessiné dans le PNG exporté. */
+.gpx-share-preview--transparent .gpx-share-canvas {
+  background-color: #8a918d;
+  background-image: linear-gradient(45deg, #b9bfbb 25%, transparent 25%, transparent 75%, #b9bfbb 75%), linear-gradient(45deg, #b9bfbb 25%, transparent 25%, transparent 75%, #b9bfbb 75%);
+  background-size: 24px 24px; background-position: 0 0, 12px 12px;
+}
 .gpx-share-controls { display: flex; flex-direction: column; gap: 14px; }
 .gpx-share-group { border: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .gpx-share-group legend { padding: 0; margin-bottom: 8px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--faint); font-weight: 700; display: flex; align-items: center; gap: 5px; }
