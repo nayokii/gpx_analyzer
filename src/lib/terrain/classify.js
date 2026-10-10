@@ -13,6 +13,8 @@
  *  - une voie de circulation (`residential`, `tertiary`, `service`…) avec une surface explicitement non revêtue →
  *    « track » ; sans surface renseignée → « road » ;
  *  - `cycleway` sans surface renseignée → « road », avec surface non revêtue → « track ».
+ *  - source IGN (voir ignConvert.js) : `ign:nature = "Route empierrée"` sans surface OSM renseignée → « track » ;
+ *    toute surface explicite d'OpenStreetMap l'emporte sur cette interprétation.
  * La forêt (`landuse=forest`, `natural=wood`) n'intervient PAS : être en forêt ne dit rien du type de voie.
  */
 
@@ -56,6 +58,9 @@ export function classifyWay(tags) {
   const surface = tags.surface;
   if (surface && PAVED_SURFACES.has(surface)) return ROAD_HIGHWAYS.has(hw) || hw === "track" || hw === "cycleway" || TRAIL_HIGHWAYS.has(hw) ? "road" : null;
   const unpaved = !!surface && UNPAVED_SURFACES.has(surface);
+  // Source IGN : « Route empierrée » (voie carrossable empierrée) est une piste, sauf si OpenStreetMap indique
+  // explicitement une surface (revêtue : traitée plus haut ; non revêtue : traitée par les règles générales).
+  if (!surface && tags["ign:nature"] === "Route empierrée") return "track";
   if (hw === "track") return "track";
   if (hw === "footway") return unpaved ? "trail" : null; // surface inconnue : on ne devine pas
   if (TRAIL_HIGHWAYS.has(hw)) return "trail";

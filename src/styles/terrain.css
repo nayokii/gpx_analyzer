@@ -93,3 +93,14 @@
 .gpx-terrain-unavailable > span { flex: 1 1 240px; min-width: 0; }
 .gpx-terrain-unavailable .gpx-btn-ghost { background: var(--surface); }
 .gpx-terrain-unavailable-sub { display: block; margin-top: 6px; font-size: 12.5px; opacity: 0.92; }
+
+/* Données de la carte (observé) : sources, couverture, types, tags techniques */
+.gpx-terrain-facts { margin: 0; display: grid; gap: 10px; }
+.gpx-terrain-facts > div { display: grid; grid-template-columns: 170px 1fr; gap: 4px 14px; align-items: baseline; }
+.gpx-terrain-facts dt { font-size: 12.5px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--faint); font-weight: 650; }
+.gpx-terrain-facts dd { margin: 0; font-size: 14px; display: flex; flex-wrap: wrap; gap: 2px 14px; }
+.gpx-terrain-facts dd small { flex-basis: 100%; font-size: 12.5px; color: var(--muted); }
+.gpx-terrain-attribution { margin: 12px 0 0; font-size: 12.5px; color: var(--muted); }
+.gpx-terrain-check { display: flex; align-items: flex-start; gap: 10px; margin: 8px 0 4px; font-size: 14px; cursor: pointer; }
+.gpx-terrain-check input { width: 18px; height: 18px; margin-top: 2px; accent-color: var(--brand); flex-shrink: 0; }
+@media (max-width: 680px) { .gpx-terrain-facts > div { grid-template-columns: 1fr; } }

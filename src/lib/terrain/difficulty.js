@@ -151,7 +151,7 @@ export function estimateDifficulty(segments, summary) {
   if (gradeAvailable && steepShare > 0.05) factors.push({ key: "slope", weight: slope, label: `${Math.round(steepShare * 100)} % du hors-route à plus de ${STEEP_GRADE_PCT} % de pente.` });
   if (turnDensity >= 2) factors.push({ key: "turns", weight: turnsPts, label: `${turnDensity.toFixed(1).replace(".", ",")} virages marqués par km hors route.` });
   if (!gradeAvailable) factors.push({ key: "no_elevation", weight: 0, label: "Altitude absente : la composante « pente » n'a pas pu être évaluée (la note peut être sous-estimée)." });
-  if (tagRichness < 0.3) factors.push({ key: "sparse", weight: 0, label: "Peu de tags techniques sur ces chemins dans OpenStreetMap : l'estimation reste grossière." });
+  if (tagRichness < 0.3) factors.push({ key: "sparse", weight: 0, label: "Peu de tags techniques sur ces chemins (la BD TOPO IGN n'en contient pas ; OpenStreetMap seulement lorsqu'il est renseigné) : l'estimation reste grossière." });
   factors.sort((a, b) => b.weight - a.weight);
 
   return {

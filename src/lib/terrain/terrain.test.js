@@ -650,7 +650,7 @@ describe("confidentialité des requêtes Overpass", () => {
   ];
   const send = async (points = POINTS) => {
     const fetchImpl = vi.fn(async () => ({ ok: true, status: 200, json: async () => overpassResponse([]) }));
-    const r = await runTerrainAnalysis({ cellsPerRequest: 1, points, store: memoryStore(), allowNetwork: true, fetchImpl, sleep: async () => {}, minIntervalMs: 0 });
+    const r = await runTerrainAnalysis({ sources: { ign: false }, cellsPerRequest: 1, points, store: memoryStore(), allowNetwork: true, fetchImpl, sleep: async () => {}, minIntervalMs: 0 });
     return { calls: fetchImpl.mock.calls, bodies: fetchImpl.mock.calls.map(([, init]) => decodeURIComponent(init.body)), cellKeys: Object.keys(r.load.cells) };
   };
 
@@ -697,13 +697,13 @@ describe("confidentialité des requêtes Overpass", () => {
 
 describe("runTerrainAnalysis — bout en bout", () => {
   it("sans GPS : état « no_gps »", async () => {
-    expect((await runTerrainAnalysis({ points: [], store: memoryStore(), allowNetwork: false })).status).toBe("no_gps");
-    expect((await runTerrainAnalysis({ points: [{ lat: null, lon: null }], store: memoryStore(), allowNetwork: false })).status).toBe("no_gps");
+    expect((await runTerrainAnalysis({ sources: { ign: false }, points: [], store: memoryStore(), allowNetwork: false })).status).toBe("no_gps");
+    expect((await runTerrainAnalysis({ sources: { ign: false }, points: [{ lat: null, lon: null }], store: memoryStore(), allowNetwork: false })).status).toBe("no_gps");
   });
 
   it("hors ligne et sans cache : résultat « indéterminé », couverture 0, zones manquantes comptées", async () => {
     const track = makeTrack({ toM: 2000 });
-    const r = await runTerrainAnalysis({ points: track, store: memoryStore(), allowNetwork: false });
+    const r = await runTerrainAnalysis({ sources: { ign: false }, points: track, store: memoryStore(), allowNetwork: false });
     expect(r.status).toBe("done");
     expect(r.result.summary.type).toBe("unknown");
     expect(r.result.summary.coverage).toBe(0);
@@ -716,18 +716,18 @@ describe("runTerrainAnalysis — bout en bout", () => {
     const ways = [makeWay(1, ROAD, { toM: 1000 }), makeWay(2, TRACK, { fromM: 1000, toM: 2000 }), makeWay(3, PATH, { fromM: 2000, toM: 3000 })];
     const store = memoryStore();
     const fetchImpl = vi.fn(async () => ({ ok: true, status: 200, json: async () => overpassResponse(ways) }));
-    const online = await runTerrainAnalysis({ points: track, store, allowNetwork: true, fetchImpl, sleep: async () => {}, minIntervalMs: 0 });
+    const online = await runTerrainAnalysis({ sources: { ign: false }, points: track, store, allowNetwork: true, fetchImpl, sleep: async () => {}, minIntervalMs: 0 });
     expect(online.result.summary.type).toBe("mixed");
     expect(online.result.summary.coverage).toBeGreaterThan(0.95);
 
-    const offline = await runTerrainAnalysis({ points: track, store, allowNetwork: false, fetchImpl: vi.fn() });
+    const offline = await runTerrainAnalysis({ sources: { ign: false }, points: track, store, allowNetwork: false, fetchImpl: vi.fn() });
     expect(offline.result.summary.distancesM).toEqual(online.result.summary.distancesM);
     expect(planTerrainCells(track).count).toBe(online.cellCounts.total);
   });
 
   it("erreur réseau totale : analyse « indéterminée » mais sans exception, erreurs rapportées", async () => {
     const fetchImpl = vi.fn(async () => { throw new TypeError("Failed to fetch"); });
-    const r = await runTerrainAnalysis({ points: makeTrack({ toM: 1000 }), store: memoryStore(), allowNetwork: true, fetchImpl, sleep: async () => {}, minIntervalMs: 0 });
+    const r = await runTerrainAnalysis({ sources: { ign: false }, points: makeTrack({ toM: 1000 }), store: memoryStore(), allowNetwork: true, fetchImpl, sleep: async () => {}, minIntervalMs: 0 });
     expect(r.status).toBe("done");
     expect(r.cellCounts.error).toBeGreaterThan(0);
     expect(r.result.summary.type).toBe("unknown");
@@ -738,7 +738,7 @@ describe("runTerrainAnalysis — bout en bout", () => {
     const points = makeTrack({ toM: 15000, stepM: 50 });
     const total = planTerrainCells(points).count;
     const fetchImpl = vi.fn(async () => ({ ok: false, status: 503, headers: { get: () => null } }));
-    const r = await runTerrainAnalysis({ cellsPerRequest: 1, points, store: memoryStore(), allowNetwork: true, fetchImpl, sleep: async () => {}, minIntervalMs: 0 });
+    const r = await runTerrainAnalysis({ sources: { ign: false }, cellsPerRequest: 1, points, store: memoryStore(), allowNetwork: true, fetchImpl, sleep: async () => {}, minIntervalMs: 0 });
     expect(r.status).toBe("done");
     expect(r.load.unavailable).toBe(true);
     expect(fetchImpl.mock.calls.length).toBeLessThanOrEqual(4);

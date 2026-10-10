@@ -3,15 +3,32 @@
 Dossier `src/lib/terrain/`, affiché par `src/components/TerrainView.jsx` (onglet « Technique » de l'Analyse).
 **Distinct** de la dimension « Technique » du Profil (`lib/profile/dimensions/technical.js`), qui n'est pas modifiée.
 
-## Source des données
-OpenStreetMap, via l'API **Overpass** publique (`overpass-api.de`, repli `overpass.kumi.systems`) : sans clé, sans secret.
-Les tuiles Leaflet n'ont aucun attribut de chemin : seule une vraie requête de données géographiques permet de classer.
+## Sources des données (IGN principal, OpenStreetMap en complément)
+- **IGN BD TOPO®** (couche `BDTOPO_V3:troncon_de_route`, service WFS public de la Géoplateforme, sans clé, CORS ouvert) : source PRINCIPALE en
+  France métropolitaine et dans les DOM (`coverage.js`, filtre grossier par boîtes ; la couverture réelle vient de la réponse : une zone sans aucun
+  tronçon est « sans données IGN », jamais présentée comme couverte). Adaptateur : `ign.js` (chargement, cache `ign:<zone>`, concurrence 2, départs
+  espacés de 250 ms, pagination, arrêt sur 429/pannes) et `ignConvert.js` (conversion des champs). Limite publiée (CGU cartes.gouv.fr, 15/10/2024) : 30 req/s/IP.
+- **OpenStreetMap** via **Overpass** : source principale HORS territoire IGN, secours quand l'IGN n'a rien ou est en panne, et COMPLÉMENT FACULTATIF
+  (surface, technicité) sur les zones IGN (`merge.js`). Le complément se désactive dans la boîte de consentement ; son échec n'arrête jamais l'analyse IGN.
+- **Ce que la BD TOPO contient (vérifié par sondes réelles)** : `nature` (Route à 1/2 chaussée(s), Rond-point, Route empierrée, Chemin, Sentier, Escalier…),
+  `urbain`, `etat_de_l_objet`, `fictif`, `cleabs`, `date_modification`, géométrie [lon, lat, altitude]. Elle ne contient NI revêtement, NI praticabilité, NI
+  difficulté VTT : `surface`, `tracktype`, `smoothness`, `mtb:scale`, `sac_scale` et `trail_visibility` ne sont JAMAIS fabriqués à partir de l'IGN ; ils ne
+  peuvent venir que d'OpenStreetMap.
+- **Correspondance nature → `highway`** (`ignConvert.js`) : routes → `road` ; Chemin → `track` ; Sentier → `path` ; Piste cyclable → `cycleway` ; Escalier → `steps`
+  (ignoré). Un tronçon garde sa valeur d'origine dans `ign:nature`. « Route empierrée » est classée piste d'après cette seule valeur (une surface OSM explicite
+  l'emporte). Un « Sentier » en zone urbaine (`urbain = true`) est un cheminement piéton → `footway`, non classé. Toute nature inconnue est écartée et comptée.
+- **Fusion** (`merge.js`) : un chemin OSM dont ≥ 60 % des points sont à ≤ 15 m d'un tronçon IGN est la MÊME voie : il l'enrichit (tags de surface/technicité
+  seulement, sur une copie) et n'est pas ajouté ; sinon il est conservé (`src: "osm"`). Aucun double comptage, aucun cache modifié.
+- **Provenance** (`provenance.js`) : sources des chemins rattachés, couverture, types de voies (dont la part issue de « Route empierrée »), part du hors-route
+  portant de vrais tags techniques, confiance de l'estimation — toujours séparées de la difficulté, qui reste une ESTIMATION.
 
 ## Confidentialité
-- Jamais le fichier GPX/FIT, jamais le tracé : seules des **zones fixes de ~2 × 2 km** (`geo.js`) traversées par le tracé sont demandées (jusqu'à 3 rectangles par requête).
-- Aucune requête sans **consentement explicite** (`preferences.js`, révocable). Sans consentement : cache local seul.
-- Réponses gardées dans IndexedDB (30 jours), requêtes séquentielles espacées de ~1,2 s, délai max 30 s par requête,
-  abandon au-delà de 40 zones.
+- Jamais le fichier GPX/FIT, jamais le tracé : seules des **zones fixes de ~2 × 2 km** (`geo.js`) traversées par le tracé sont demandées (4 bornes dans l'URL
+  IGN ; jusqu'à 3 rectangles par requête Overpass). Aucune heure, fréquence cardiaque, puissance ni identité. Chaque serveur voit l'adresse IP.
+- Aucune requête sans **consentement explicite** (`preferences.js`, clé `gpx-terrain-map-consent-v2`, révocable) couvrant l'IGN ET OpenStreetMap. L'ancien
+  consentement OpenStreetMap seul n'est pas repris (nouveau destinataire). Sans consentement : cache local seul.
+- Réponses gardées dans IndexedDB (IGN 90 jours, OpenStreetMap 30 jours). Attribution affichée : « Source : IGN — BD TOPO® (Licence Ouverte Etalab 2.0) » + date de
+  dernière modification des tronçons, et © contributeurs OpenStreetMap (ODbL).
 
 ## Résilience du service Overpass (jamais de tempête de requêtes)
 Le service public est partagé et par moments saturé (504 « Dispatcher… server too busy », 429, 5xx ; l'instance de secours

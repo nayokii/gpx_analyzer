@@ -58,7 +58,7 @@ describe("requête groupée — union de rectangles", () => {
     const total = planTerrainCells(points).count;
     expect(total).toBe(22);
     const fetchImpl = vi.fn(async () => ok());
-    const r = await runTerrainAnalysis({ points, store: memoryStore(), allowNetwork: true, fetchImpl, sleep: noSleep, minIntervalMs: 0 });
+    const r = await runTerrainAnalysis({ sources: { ign: false }, points, store: memoryStore(), allowNetwork: true, fetchImpl, sleep: noSleep, minIntervalMs: 0 });
     expect(Math.ceil(total / CELLS_PER_REQUEST)).toBe(8);
     expect(fetchImpl).toHaveBeenCalledTimes(MAX_REQUESTS_PER_RUN);
     expect(r.cellCounts).toMatchObject({ total: 22, available: 18, deferred: 4 });
@@ -66,9 +66,9 @@ describe("requête groupée — union de rectangles", () => {
     expect(r.load.unavailable).toBe(false);
     // la relance ne redemande que les 4 zones restantes, en 2 requêtes (3 + 1)
     const store = memoryStore();
-    await runTerrainAnalysis({ points, store, allowNetwork: true, fetchImpl, sleep: noSleep, minIntervalMs: 0 });
+    await runTerrainAnalysis({ sources: { ign: false }, points, store, allowNetwork: true, fetchImpl, sleep: noSleep, minIntervalMs: 0 });
     const again = vi.fn(async () => ok());
-    await runTerrainAnalysis({ points, store, allowNetwork: true, fetchImpl: again, sleep: noSleep, minIntervalMs: 0 });
+    await runTerrainAnalysis({ sources: { ign: false }, points, store, allowNetwork: true, fetchImpl: again, sleep: noSleep, minIntervalMs: 0 });
     expect(again).toHaveBeenCalledTimes(2);
   });
 
@@ -187,7 +187,7 @@ describe("requête groupée — échecs, 429 et serveurs défaillants", () => {
     ];
     const fetchImpl = vi.fn(async () => ok());
     const rich = POINTS.map((p, i) => ({ ...p, time: new Date(Date.UTC(2031, 6, 4, 10, 0, i)), hr: 151 + i, power: 233 + i }));
-    const r = await runTerrainAnalysis({ points: rich, store: memoryStore(), allowNetwork: true, fetchImpl, sleep: noSleep, minIntervalMs: 0 });
+    const r = await runTerrainAnalysis({ sources: { ign: false }, points: rich, store: memoryStore(), allowNetwork: true, fetchImpl, sleep: noSleep, minIntervalMs: 0 });
     const keys = Object.keys(r.load.cells);
     expect(fetchImpl.mock.calls.length).toBe(Math.ceil(keys.length / CELLS_PER_REQUEST));
     const allowed = new Set(boundsNumbers(keys));
