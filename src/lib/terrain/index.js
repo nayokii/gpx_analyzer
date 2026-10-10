@@ -13,7 +13,7 @@ import { estimateDifficulty } from "./difficulty.js";
 
 export { memoryStore, idbStore } from "./store.js";
 export { cellsForTrack, CELL_SIZE_DEG } from "./geo.js";
-export { MAX_NETWORK_CELLS, OVERPASS_ENDPOINTS, MAX_FAILED_CELLS, MAX_REQUESTS_PER_RUN, MAX_REQUESTS_PER_CELL } from "./osm.js";
+export { MAX_NETWORK_CELLS, OVERPASS_ENDPOINTS, MAX_FAILED_CELLS, MAX_REQUESTS_PER_RUN, MAX_REQUESTS_PER_CELL, CELLS_PER_REQUEST } from "./osm.js";
 export { TERRAIN_LABELS, TERRAIN_TYPE_LABELS, TERRAIN_CATEGORIES } from "./profile.js";
 export { LEVEL_LABELS } from "./difficulty.js";
 
@@ -45,14 +45,14 @@ export function planTerrainCells(points) {
  * @param {Array} params.points
  * @param {{get: Function, put: Function}} params.store
  * @param {boolean} params.allowNetwork - true seulement après consentement explicite de l'utilisateur
- * @returns {Promise<{status: "no_gps"} | {status: "done", result: Object, load: {cells: Object, errors: string[], tooLarge: boolean, unavailable: boolean, capped: boolean, requests: number}, cellCounts: {total, available, missing, deferred, error}}>}
+ * @returns {Promise<{status: "no_gps"} | {status: "done", result: Object, load: {cells: Object, errors: string[], tooLarge: boolean, unavailable: boolean, capped: boolean, requests: number, rateLimited: boolean, retryAfterMs: number}, cellCounts: {total, available, missing, deferred, error}}>}
  *   `missing` inclut les zones différées (`deferred`) : elles restent « non classifiées » et peuvent être relancées.
  */
-export async function runTerrainAnalysis({ points, store, allowNetwork, fetchImpl, sleep, minIntervalMs, signal, onProgress }) {
+export async function runTerrainAnalysis({ points, store, allowNetwork, fetchImpl, sleep, minIntervalMs, signal, onProgress, cellsPerRequest }) {
   const usable = (points || []).filter((p) => p && typeof p.lat === "number" && typeof p.lon === "number");
   if (usable.length < 2) return { status: "no_gps" };
   const { cellKeys } = planTerrainCells(usable);
-  const load = await loadCells({ cellKeys, store, allowNetwork, fetchImpl, sleep, minIntervalMs, signal, onProgress });
+  const load = await loadCells({ cellKeys, store, allowNetwork, fetchImpl, sleep, minIntervalMs, signal, onProgress, cellsPerRequest });
   const result = analyzeTerrain(usable, load.ways);
   const cellCounts = { total: cellKeys.length, available: 0, missing: 0, deferred: 0, error: 0 };
   for (const status of Object.values(load.cells)) {
@@ -65,6 +65,6 @@ export async function runTerrainAnalysis({ points, store, allowNetwork, fetchImp
   }
   return {
     status: "done", result, cellCounts,
-    load: { cells: load.cells, errors: load.errors, tooLarge: load.tooLarge, unavailable: load.unavailable, capped: load.capped, requests: load.requests },
+    load: { cells: load.cells, errors: load.errors, tooLarge: load.tooLarge, unavailable: load.unavailable, capped: load.capped, requests: load.requests, rateLimited: load.rateLimited, retryAfterMs: load.retryAfterMs },
   };
 }
