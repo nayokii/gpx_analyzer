@@ -1,0 +1,118 @@
+/* Activités — fil de publications et boîte de partage. Tokens uniquement (thèmes clair/sombre hérités). */
+.gpx-feed { --feed-route: var(--brand); --feed-grid: var(--separator); max-width: 760px; }
+
+/* ---------- Barre d'outils ---------- */
+.gpx-feed-toolbar { display: flex; gap: 10px 14px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
+.gpx-feed-search {
+  display: flex; align-items: center; gap: 8px; flex: 1; min-width: 200px; color: var(--muted);
+  background: var(--surface2); border-radius: var(--radius-pill); padding: 0 16px;
+}
+.gpx-feed-search input { background: none !important; border: none !important; width: 100%; padding: 11px 0 !important; font-size: 15px; outline: none; }
+.gpx-feed-sort { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13.5px; font-weight: 600; }
+.gpx-feed-sort select { min-height: 40px; border-radius: var(--radius-pill); padding: 0 14px; border: none; }
+.gpx-feed-types { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 18px; }
+
+.gpx-feed-list { display: flex; flex-direction: column; gap: 22px; }
+.gpx-feed-more { display: flex; justify-content: center; margin-top: 24px; }
+.gpx-feed-empty { display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center; color: var(--muted); padding: 56px 16px; }
+.gpx-feed-empty svg { color: var(--faint); }
+
+/* ---------- Publication ---------- */
+.gpx-post {
+  background: var(--surface); border-radius: var(--radius-lg); box-shadow: var(--shadow-card);
+  padding: var(--space-5) var(--space-5) var(--space-5); display: flex; flex-direction: column; gap: var(--space-4);
+  content-visibility: auto; contain-intrinsic-size: auto 640px;
+}
+.gpx-post--skeleton { min-height: 520px; background: linear-gradient(90deg, var(--surface) 0%, var(--surface2) 50%, var(--surface) 100%); background-size: 200% 100%; animation: gpx-feed-shimmer 1.6s linear infinite; }
+@keyframes gpx-feed-shimmer { to { background-position: -200% 0; } }
+
+.gpx-post-eyebrow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 13px; color: var(--muted); font-weight: 600; }
+.gpx-post-eyebrow time { display: inline-block; }
+.gpx-post-eyebrow time::first-letter { text-transform: uppercase; }
+.gpx-post-type {
+  text-transform: uppercase; letter-spacing: 0.06em; font-size: 11px; color: var(--active);
+  background: var(--active-tint); border-radius: var(--radius-pill); padding: 3px 10px;
+}
+.gpx-post-title { display: flex; align-items: center; gap: 6px; margin: 6px 0 0; font-size: 24px; line-height: 1.15; letter-spacing: -0.02em; font-weight: 750; }
+.gpx-post-title > span:first-child { min-width: 0; overflow-wrap: anywhere; }
+.gpx-post-renamed { font-size: 11px; font-weight: 600; color: var(--faint); letter-spacing: 0; }
+.gpx-post-rename { display: flex; align-items: center; gap: 6px; margin-top: 6px; }
+.gpx-post-rename input { flex: 1; min-width: 0; font-size: 18px; font-weight: 650; min-height: 44px; border-radius: var(--radius-sm); }
+
+/* Carte du tracé */
+.gpx-post-map {
+  position: relative; background: var(--map-bg); border-radius: var(--radius-md); overflow: hidden; aspect-ratio: 5 / 3;
+  display: flex; align-items: center; justify-content: center;
+}
+.gpx-post-map .gpx-post-route { width: 100%; height: 100%; display: block; }
+.gpx-post-map--empty, .gpx-post-map--loading { flex-direction: column; gap: 10px; color: var(--faint); font-size: 14px; text-align: center; padding: 16px; }
+.gpx-post-map-legend { position: absolute; left: 12px; bottom: 10px; display: flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 600; color: var(--muted); }
+.gpx-post-map-legend i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+.gpx-post-map-legend i.start { background: var(--feed-route); }
+.gpx-post-map-legend i.end { background: var(--text); margin-left: 8px; }
+.gpx-spin { animation: gpx-feed-spin 1s linear infinite; }
+@keyframes gpx-feed-spin { to { transform: rotate(360deg); } }
+
+/* Statistiques : la distance domine */
+.gpx-post-hero { display: flex; align-items: baseline; gap: 8px; margin-top: 2px; }
+.gpx-post-hero-value { font-size: clamp(52px, 14vw, 72px); font-weight: 800; letter-spacing: -0.04em; line-height: 0.95; font-variant-numeric: tabular-nums; }
+.gpx-post-hero-unit { font-size: 22px; font-weight: 700; color: var(--active); }
+.gpx-post-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 0; }
+.gpx-post-stats dt { font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--faint); font-weight: 650; }
+.gpx-post-stats dd { margin: 3px 0 0; font-size: clamp(20px, 5.4vw, 26px); font-weight: 700; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.gpx-post-stats small { font-size: 13px; color: var(--muted); font-weight: 600; margin-left: 3px; }
+.gpx-post-profile { width: 100%; height: 56px; display: block; }
+.gpx-post-extra { list-style: none; margin: 0; padding: 12px 0 0; border-top: 1px solid var(--separator); display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13.5px; color: var(--muted); }
+.gpx-post-extra b { color: var(--text); font-weight: 650; }
+.gpx-post-extra em { font-style: normal; margin-left: 6px; }
+.gpx-post-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+
+/* ---------- Boîte de partage ---------- */
+.gpx-share-backdrop { position: fixed; inset: 0; z-index: 100; background: rgba(8, 12, 10, 0.62); display: flex; align-items: center; justify-content: center; padding: 16px; }
+.gpx-share-dialog {
+  background: var(--surface); color: var(--text); border-radius: var(--radius-lg); box-shadow: var(--shadow-pop);
+  width: min(920px, 100%); max-height: calc(100dvh - 32px); overflow: auto; display: flex; flex-direction: column;
+}
+.gpx-share-head { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px 8px; }
+.gpx-share-head h2 { margin: 0; font-size: 19px; letter-spacing: -0.02em; }
+.gpx-share-body { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 24px; padding: 8px 20px 20px; align-items: start; }
+.gpx-share-preview { display: flex; justify-content: center; background: var(--surface2); border-radius: var(--radius-md); padding: 16px; }
+.gpx-share-canvas { display: block; height: auto; max-width: 100%; border-radius: 10px; box-shadow: var(--shadow-card); }
+.gpx-share-preview--story .gpx-share-canvas { max-height: min(66dvh, 640px); width: auto; }
+.gpx-share-preview--square .gpx-share-canvas { width: min(100%, 420px); }
+.gpx-share-controls { display: flex; flex-direction: column; gap: 14px; }
+.gpx-share-group { border: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.gpx-share-group legend { padding: 0; margin-bottom: 8px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--faint); font-weight: 700; display: flex; align-items: center; gap: 5px; }
+.gpx-seg { display: flex; gap: 4px; background: var(--surface2); padding: 4px; border-radius: var(--radius-pill); }
+.gpx-seg-btn { flex: 1; min-height: 40px; border: none; background: none; color: var(--muted); font-weight: 650; font-size: 14px; border-radius: var(--radius-pill); display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.1; }
+.gpx-seg-btn small { font-size: 10.5px; font-weight: 500; opacity: 0.8; }
+.gpx-seg-btn.active { background: var(--surface); color: var(--text); box-shadow: var(--shadow-card); }
+.gpx-share-checks { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 12px; }
+.gpx-check { display: flex; align-items: center; gap: 10px; min-height: 36px; font-size: 14.5px; cursor: pointer; }
+.gpx-check input { width: 18px; height: 18px; accent-color: var(--brand); flex-shrink: 0; }
+.gpx-share-hint { margin: 2px 0 0; font-size: 12.5px; color: var(--muted); line-height: 1.4; }
+.gpx-share-ok { font-size: 13.5px; color: var(--active); font-weight: 600; }
+.gpx-share-actions { display: flex; flex-direction: column; gap: 8px; }
+.gpx-share-actions button { width: 100%; justify-content: center; }
+
+@media (max-width: 760px) {
+  .gpx-share-backdrop { align-items: flex-end; padding: 0; }
+  .gpx-share-dialog { max-height: 94dvh; border-radius: var(--radius-lg) var(--radius-lg) 0 0; }
+  .gpx-share-body { grid-template-columns: 1fr; gap: 16px; }
+  .gpx-share-preview--story .gpx-share-canvas { max-height: 40dvh; }
+  .gpx-share-actions { position: sticky; bottom: 0; background: var(--surface); padding: 10px 0 calc(10px + env(safe-area-inset-bottom, 0px)); box-shadow: 0 -10px 12px -10px var(--separator); }
+}
+@media (max-width: 680px) {
+  .gpx-feed-toolbar { gap: 8px; }
+  .gpx-feed-sort span { display: none; }
+  .gpx-feed-types { flex-wrap: nowrap; overflow-x: auto; margin-inline: -16px; padding-inline: 16px; scrollbar-width: none; }
+  .gpx-feed-types::-webkit-scrollbar { display: none; }
+  .gpx-feed .gpx-page-head { margin-bottom: 12px; }
+  .gpx-post { padding: var(--space-4); border-radius: 18px; }
+  .gpx-post-title { font-size: 21px; }
+  .gpx-post-actions .gpx-btn-primary { flex: 1; }
+  .gpx-post-map { aspect-ratio: 4 / 3; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .gpx-post--skeleton, .gpx-spin { animation: none; }
+}

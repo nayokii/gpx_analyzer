@@ -47,6 +47,7 @@ import { ArchetypeView } from "./components/ArchetypeView.jsx";
 import { TourView } from "./components/TourView.jsx";
 import { CoachView } from "./components/CoachView.jsx";
 import { AppNav } from "./components/AppNav.jsx";
+import { ActivityFeedView } from "./components/ActivityFeedView.jsx";
 import { HomeView } from "./components/HomeView.jsx";
 import { DataSourcesView } from "./components/DataSourcesView.jsx";
 import { PasswordRecoveryView } from "./components/PasswordRecoveryView.jsx";
@@ -1634,6 +1635,17 @@ export default function GPXAnalyzer() {
           onBack={() => setMode(points ? "dashboard" : "home")}
           ftp={userSettings.ftp}
           maxHR={maxHR}
+          userSettings={userSettings}
+        />
+      )}
+
+      {mode === "feed" && (
+        <ActivityFeedView
+          storage={storage}
+          onConnect={connectStorage}
+          onReconnect={reconnectStorage}
+          onOpen={openActivityFromHistory}
+          onBack={() => setMode(points ? "dashboard" : "home")}
           userSettings={userSettings}
         />
       )}
