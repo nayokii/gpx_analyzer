@@ -9,7 +9,7 @@ import { X, Download, Share2, ShieldCheck } from "lucide-react";
 import { ActivityShareCard } from "./ActivityShareCard.jsx";
 import { useColorScheme } from "../lib/theme.js";
 import {
-  SHARE_FORMATS, HIDEABLE_STATS, buildShareModel, exportShareCardPng, shareFileName, shareOrDownload, downloadBlob,
+  SHARE_FORMATS, SHARE_BACKGROUNDS, HIDEABLE_STATS, buildShareModel, exportShareCardPng, shareFileName, shareOrDownload, downloadBlob,
 } from "../lib/feed/shareCard.js";
 import { extractRoute } from "../lib/feed/feedModel.js";
 
@@ -43,7 +43,7 @@ export function ActivityShareDialog({ activity, name, onClose }) {
     setMessage(null);
     try {
       const blob = await exportShareCardPng(buildShareModel(activity, { name, format, theme, hidden, hidePlaces, simplify }));
-      const fileName = shareFileName(name || activity.name, format);
+      const fileName = shareFileName(name || activity.name, format, theme);
       if (native) {
         const outcome = await shareOrDownload(blob, fileName);
         if (outcome === "downloaded") setMessage({ type: "ok", text: "Partage natif indisponible : l'image a été téléchargée." });
@@ -69,7 +69,7 @@ export function ActivityShareDialog({ activity, name, onClose }) {
         </div>
 
         <div className="gpx-share-body">
-          <div className={"gpx-share-preview gpx-share-preview--" + format}>
+          <div className={"gpx-share-preview gpx-share-preview--" + format + (theme === "transparent" ? " gpx-share-preview--transparent" : "")}>
             <ActivityShareCard activity={activity} name={name} format={format} theme={theme} hidden={hidden} hidePlaces={hidePlaces} simplify={simplify} />
           </div>
 
@@ -86,12 +86,15 @@ export function ActivityShareDialog({ activity, name, onClose }) {
             </fieldset>
 
             <fieldset className="gpx-share-group">
-              <legend>Thème</legend>
-              <div className="gpx-seg" role="radiogroup" aria-label="Thème de l'image">
-                {[["dark", "Sombre"], ["light", "Clair"]].map(([k, l]) => (
-                  <button key={k} role="radio" aria-checked={theme === k} className={"gpx-seg-btn" + (theme === k ? " active" : "")} onClick={() => setTheme(k)}>{l}</button>
+              <legend>Fond</legend>
+              <div className="gpx-seg" role="radiogroup" aria-label="Fond de l'image">
+                {SHARE_BACKGROUNDS.map((o) => (
+                  <button key={o.key} role="radio" aria-checked={theme === o.key} className={"gpx-seg-btn" + (theme === o.key ? " active" : "")} onClick={() => setTheme(o.key)}>{o.label}</button>
                 ))}
               </div>
+              {theme === "transparent" && (
+                <p className="gpx-share-hint">PNG avec canal alpha : le damier n'est qu'un repère d'aperçu, il n'est pas dans l'image. Textes et tracé sont clairs avec un fin contour sombre pour rester lisibles sur une photo. Le format « Sticker » est plus compact pour une story.</p>
+              )}
             </fieldset>
 
             <fieldset className="gpx-share-group">

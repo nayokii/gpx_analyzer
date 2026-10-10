@@ -233,4 +233,27 @@ describe("ActivityFeedView — partage", () => {
     fireEvent.keyDown(window, { key: "Escape" });
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
+
+  it("propose Clair / Sombre / Transparent et le format Sticker ; le fond transparent affiche un repère damier et un nom de fichier dédié", async () => {
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(recordingCtx());
+    const root = new MemoryDirectoryHandle();
+    await seed(root, [makeActivity("s2", { name: "Sortie sticker" })]);
+    renderFeed(root);
+    await waitFor(() => expect(screen.getAllByRole("img", { name: /^Tracé de/ }).length).toBe(1));
+    fireEvent.click(screen.getByText("Partager"));
+    const dialog = await screen.findByRole("dialog");
+
+    const bg = within(dialog).getByRole("radiogroup", { name: "Fond de l'image" });
+    expect(within(bg).getAllByRole("radio").map((r) => r.textContent)).toEqual(["Sombre", "Clair", "Transparent"]);
+    expect(dialog.querySelector(".gpx-share-preview--transparent")).toBeNull();
+    fireEvent.click(within(bg).getByRole("radio", { name: "Transparent" }));
+    expect(dialog.querySelector(".gpx-share-preview--transparent")).toBeTruthy();
+    expect(within(dialog).getByText(/canal alpha/)).toBeTruthy();
+    expect(within(dialog).getByText(/le damier n'est qu'un repère d'aperçu/)).toBeTruthy();
+    fireEvent.click(within(bg).getByRole("radio", { name: "Clair" }));
+    expect(dialog.querySelector(".gpx-share-preview--transparent")).toBeNull();
+
+    fireEvent.click(within(dialog).getByRole("radio", { name: /Sticker/ }));
+    expect(within(dialog).getByText(/Télécharger PNG \(1080×1200\)/)).toBeTruthy();
+  });
 });

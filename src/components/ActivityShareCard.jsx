@@ -13,8 +13,8 @@ import { buildShareModel, renderShareCard } from "../lib/feed/shareCard.js";
  * @param {Object} props
  * @param {Object} props.activity - Activity complète
  * @param {string} [props.name] - nom affiché
- * @param {'story'|'square'} [props.format]
- * @param {'dark'|'light'} [props.theme]
+ * @param {'story'|'square'|'sticker'} [props.format]
+ * @param {'dark'|'light'|'transparent'} [props.theme] - « transparent » : aucun fond dessiné, PNG avec canal alpha
  * @param {string[]} [props.hidden] - statistiques masquées
  * @param {boolean} [props.hidePlaces]
  * @param {boolean} [props.simplify]
