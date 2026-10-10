@@ -6,6 +6,7 @@
  */
 
 const CONSENT_KEY = "gpx-terrain-osm-consent";
+const COOLDOWN_KEY = "gpx-terrain-overpass-cooldown-until";
 const OVERRIDE_PREFIX = "gpx-terrain-override:";
 export const OVERRIDABLE_TYPES = ["road", "mtb_tracks", "mtb_trails", "mixed"];
 
@@ -31,4 +32,17 @@ export function getTypeOverride(activityKey) {
 }
 export function setTypeOverride(activityKey, type) {
   write(OVERRIDE_PREFIX + activityKey, OVERRIDABLE_TYPES.includes(type) ? type : null);
+}
+
+/**
+ * Délai d'attente avant la prochaine requête cartographique (horodatage ms), conservé à travers les changements d'onglet
+ * et les rechargements de page : fermer et rouvrir l'onglet ne permet pas de contourner l'attente imposée après un
+ * 429 ou une panne du service. 0 = aucune attente.
+ */
+export function getCooldownUntil() {
+  const v = Number(read(COOLDOWN_KEY));
+  return Number.isFinite(v) && v > 0 ? v : 0;
+}
+export function setCooldownUntil(timestampMs) {
+  write(COOLDOWN_KEY, timestampMs > 0 ? String(Math.round(timestampMs)) : null);
 }

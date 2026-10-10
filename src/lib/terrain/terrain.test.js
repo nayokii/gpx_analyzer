@@ -294,7 +294,7 @@ describe("loadCells — cache, consentement, erreurs réseau", () => {
   it("sans consentement (allowNetwork=false) : aucun appel réseau ; utilise le cache, marque le reste « missing »", async () => {
     const store = memoryStore({ "10:20": { fetchedAt: Date.now(), ways: [makeWay(1, ROAD)] } });
     const fetchImpl = vi.fn();
-    const r = await loadCells({ cellKeys: KEYS, store, allowNetwork: false, fetchImpl, sleep: noSleep });
+    const r = await loadCells({ cellsPerRequest: 1, cellKeys: KEYS, store, allowNetwork: false, fetchImpl, sleep: noSleep });
     expect(fetchImpl).not.toHaveBeenCalled();
     expect(r.cells).toEqual({ "10:20": "cache", "10:21": "missing" });
     expect(r.ways).toHaveLength(1);
@@ -303,22 +303,22 @@ describe("loadCells — cache, consentement, erreurs réseau", () => {
   it("avec consentement : télécharge les zones absentes, les met en cache, ne retélécharge pas les zones fraîches", async () => {
     const store = memoryStore();
     const fetchImpl = okFetch([makeWay(1, ROAD)]);
-    const r1 = await loadCells({ cellKeys: KEYS, store, allowNetwork: true, fetchImpl, sleep: noSleep, minIntervalMs: 0 });
+    const r1 = await loadCells({ cellsPerRequest: 1, cellKeys: KEYS, store, allowNetwork: true, fetchImpl, sleep: noSleep, minIntervalMs: 0 });
     expect(fetchImpl).toHaveBeenCalledTimes(2);
     expect(r1.cells).toEqual({ "10:20": "network", "10:21": "network" });
-    const r2 = await loadCells({ cellKeys: KEYS, store, allowNetwork: true, fetchImpl, sleep: noSleep, minIntervalMs: 0 });
+    const r2 = await loadCells({ cellsPerRequest: 1, cellKeys: KEYS, store, allowNetwork: true, fetchImpl, sleep: noSleep, minIntervalMs: 0 });
     expect(fetchImpl).toHaveBeenCalledTimes(2); // cache réutilisé
     expect(r2.cells).toEqual({ "10:20": "cache", "10:21": "cache" });
   });
 
   it("un même chemin présent dans deux zones n'est compté qu'une fois", async () => {
-    const r = await loadCells({ cellKeys: KEYS, store: memoryStore(), allowNetwork: true, fetchImpl: okFetch([makeWay(7, ROAD)]), sleep: noSleep, minIntervalMs: 0 });
+    const r = await loadCells({ cellsPerRequest: 1, cellKeys: KEYS, store: memoryStore(), allowNetwork: true, fetchImpl: okFetch([makeWay(7, ROAD)]), sleep: noSleep, minIntervalMs: 0 });
     expect(r.ways).toHaveLength(1);
   });
 
   it("envoie uniquement la requête de la zone (POST, pas de tracé), sans en-tête d'identité", async () => {
     const fetchImpl = okFetch([]);
-    await loadCells({ cellKeys: ["10:20"], store: memoryStore(), allowNetwork: true, fetchImpl, sleep: noSleep });
+    await loadCells({ cellsPerRequest: 1, cellKeys: ["10:20"], store: memoryStore(), allowNetwork: true, fetchImpl, sleep: noSleep });
     const [, init] = fetchImpl.mock.calls[0];
     expect(init.method).toBe("POST");
     expect(Object.keys(init.headers)).toEqual(["Content-Type"]);
@@ -327,7 +327,7 @@ describe("loadCells — cache, consentement, erreurs réseau", () => {
 
   it("espace les requêtes (pause entre deux zones)", async () => {
     const sleep = vi.fn(async () => {});
-    await loadCells({ cellKeys: KEYS, store: memoryStore(), allowNetwork: true, fetchImpl: okFetch([]), sleep, minIntervalMs: 5000 });
+    await loadCells({ cellsPerRequest: 1, cellKeys: KEYS, store: memoryStore(), allowNetwork: true, fetchImpl: okFetch([]), sleep, minIntervalMs: 5000 });
     expect(sleep).toHaveBeenCalled();
   });
 
@@ -338,7 +338,7 @@ describe("loadCells — cache, consentement, erreurs réseau", () => {
       if (n === 1) throw new TypeError("Failed to fetch");
       return { ok: true, status: 200, json: async () => overpassResponse([makeWay(1, ROAD)]) };
     });
-    const r = await loadCells({ cellKeys: KEYS, store: memoryStore(), allowNetwork: true, fetchImpl, endpoints: ["https://a"], sleep: noSleep, minIntervalMs: 0 });
+    const r = await loadCells({ cellsPerRequest: 1, cellKeys: KEYS, store: memoryStore(), allowNetwork: true, fetchImpl, endpoints: ["https://a"], sleep: noSleep, minIntervalMs: 0 });
     expect(r.cells["10:20"]).toBe("error");
     expect(r.cells["10:21"]).toBe("network");
     expect(r.errors).toHaveLength(1);
@@ -348,7 +348,7 @@ describe("loadCells — cache, consentement, erreurs réseau", () => {
   it("429 : AUCUN nouvel essai sur le même serveur ni pause de reprise ; la zone passe en erreur", async () => {
     const fetchImpl = vi.fn(async () => ({ ok: false, status: 429, headers: { get: () => "3" } }));
     const sleep = vi.fn(async () => {});
-    const r = await loadCells({ cellKeys: ["10:20"], store: memoryStore(), allowNetwork: true, fetchImpl, endpoints: ["https://a"], sleep, minIntervalMs: 0 });
+    const r = await loadCells({ cellsPerRequest: 1, cellKeys: ["10:20"], store: memoryStore(), allowNetwork: true, fetchImpl, endpoints: ["https://a"], sleep, minIntervalMs: 0 });
     expect(fetchImpl).toHaveBeenCalledTimes(1);
     expect(sleep).not.toHaveBeenCalled(); // plus de pause de 2 à 10 s, Retry-After n'est pas attendu
     expect(r.cells["10:20"]).toBe("error");
@@ -356,14 +356,14 @@ describe("loadCells — cache, consentement, erreurs réseau", () => {
 
   it("bascule sur le second serveur si le premier échoue (un seul essai par serveur)", async () => {
     const fetchImpl = vi.fn(async (url) => (url === "https://a" ? { ok: false, status: 500, headers: { get: () => null } } : { ok: true, status: 200, json: async () => overpassResponse([makeWay(1, ROAD)]) }));
-    const r = await loadCells({ cellKeys: ["10:20"], store: memoryStore(), allowNetwork: true, fetchImpl, endpoints: ["https://a", "https://b"], sleep: noSleep, minIntervalMs: 0 });
+    const r = await loadCells({ cellsPerRequest: 1, cellKeys: ["10:20"], store: memoryStore(), allowNetwork: true, fetchImpl, endpoints: ["https://a", "https://b"], sleep: noSleep, minIntervalMs: 0 });
     expect(r.cells["10:20"]).toBe("network");
     expect(fetchImpl.mock.calls.map((c) => c[0])).toEqual(["https://a", "https://b"]);
   });
 
   it("réponse invalide (JSON inattendu) : zone « error », jamais de donnée inventée", async () => {
     const fetchImpl = vi.fn(async () => ({ ok: true, status: 200, json: async () => ({ remark: "runtime error" }) }));
-    const r = await loadCells({ cellKeys: ["10:20"], store: memoryStore(), allowNetwork: true, fetchImpl, endpoints: ["https://a"], sleep: noSleep, minIntervalMs: 0 });
+    const r = await loadCells({ cellsPerRequest: 1, cellKeys: ["10:20"], store: memoryStore(), allowNetwork: true, fetchImpl, endpoints: ["https://a"], sleep: noSleep, minIntervalMs: 0 });
     expect(r.cells["10:20"]).toBe("error");
     expect(r.ways).toEqual([]);
   });
@@ -371,7 +371,7 @@ describe("loadCells — cache, consentement, erreurs réseau", () => {
   it("cache périmé + réseau en échec : on garde l'ancienne copie (« stale ») plutôt que rien", async () => {
     const old = { fetchedAt: Date.now() - CACHE_TTL_MS - 1000, ways: [makeWay(5, ROAD)] };
     const fetchImpl = vi.fn(async () => { throw new TypeError("offline"); });
-    const r = await loadCells({ cellKeys: ["10:20"], store: memoryStore({ "10:20": old }), allowNetwork: true, fetchImpl, endpoints: ["https://a"], sleep: noSleep, minIntervalMs: 0 });
+    const r = await loadCells({ cellsPerRequest: 1, cellKeys: ["10:20"], store: memoryStore({ "10:20": old }), allowNetwork: true, fetchImpl, endpoints: ["https://a"], sleep: noSleep, minIntervalMs: 0 });
     expect(r.cells["10:20"]).toBe("stale");
     expect(r.ways).toHaveLength(1);
   });
@@ -379,7 +379,7 @@ describe("loadCells — cache, consentement, erreurs réseau", () => {
   it("cache périmé hors consentement : utilisé tel quel, aucun appel réseau", async () => {
     const old = { fetchedAt: 0, ways: [makeWay(5, ROAD)] };
     const fetchImpl = vi.fn();
-    const r = await loadCells({ cellKeys: ["10:20"], store: memoryStore({ "10:20": old }), allowNetwork: false, fetchImpl, sleep: noSleep });
+    const r = await loadCells({ cellsPerRequest: 1, cellKeys: ["10:20"], store: memoryStore({ "10:20": old }), allowNetwork: false, fetchImpl, sleep: noSleep });
     expect(fetchImpl).not.toHaveBeenCalled();
     expect(r.cells["10:20"]).toBe("stale");
   });
@@ -387,7 +387,7 @@ describe("loadCells — cache, consentement, erreurs réseau", () => {
   it("tracé trop étendu : aucune requête, « tooLarge »", async () => {
     const keys = Array.from({ length: MAX_NETWORK_CELLS + 1 }, (_, i) => `1:${i}`);
     const fetchImpl = vi.fn();
-    const r = await loadCells({ cellKeys: keys, store: memoryStore(), allowNetwork: true, fetchImpl, sleep: noSleep });
+    const r = await loadCells({ cellsPerRequest: 1, cellKeys: keys, store: memoryStore(), allowNetwork: true, fetchImpl, sleep: noSleep });
     expect(fetchImpl).not.toHaveBeenCalled();
     expect(r.tooLarge).toBe(true);
     expect(Object.values(r.cells).every((s) => s === "missing")).toBe(true);
@@ -399,7 +399,7 @@ describe("loadCells — cache, consentement, erreurs réseau", () => {
       const fetchImpl = vi.fn((url, init) => new Promise((_, reject) => {
         init.signal.addEventListener("abort", () => { const e = new Error("aborted"); e.name = "AbortError"; reject(e); });
       }));
-      const pending = loadCells({ cellKeys: ["10:20"], store: memoryStore(), allowNetwork: true, fetchImpl, endpoints: ["https://a"], sleep: async () => {}, minIntervalMs: 0 });
+      const pending = loadCells({ cellsPerRequest: 1, cellKeys: ["10:20"], store: memoryStore(), allowNetwork: true, fetchImpl, endpoints: ["https://a"], sleep: async () => {}, minIntervalMs: 0 });
       await vi.advanceTimersByTimeAsync(REQUEST_TIMEOUT_MS + 10);
       const r = await pending;
       expect(r.cells["10:20"]).toBe("error");
@@ -411,7 +411,7 @@ describe("loadCells — cache, consentement, erreurs réseau", () => {
 
   it("annulation : propage AbortError", async () => {
     const fetchImpl = vi.fn(async () => { const e = new Error("abort"); e.name = "AbortError"; throw e; });
-    await expect(loadCells({ cellKeys: ["10:20"], store: memoryStore(), allowNetwork: true, fetchImpl, endpoints: ["https://a"], sleep: noSleep })).rejects.toThrow("abort");
+    await expect(loadCells({ cellsPerRequest: 1, cellKeys: ["10:20"], store: memoryStore(), allowNetwork: true, fetchImpl, endpoints: ["https://a"], sleep: noSleep })).rejects.toThrow("abort");
   });
 });
 
@@ -420,27 +420,46 @@ describe("loadCells — résilience Overpass (arrêt anticipé, plafond, relance
   const failing = (status) => vi.fn(async () => ({ ok: false, status, headers: { get: () => null } }));
   const ok = (ways = []) => ({ ok: true, status: 200, json: async () => overpassResponse(ways) });
   const keysN = (n) => Array.from({ length: n }, (_, i) => `10:${20 + i}`);
-  const run = (over) => loadCells({ cellKeys: keysN(10), store: memoryStore(), allowNetwork: true, endpoints: ["https://a", "https://b"], sleep: noSleep, minIntervalMs: 0, ...over });
+  const run = (over) => loadCells({ cellsPerRequest: 1, cellKeys: keysN(10), store: memoryStore(), allowNetwork: true, endpoints: ["https://a", "https://b"], sleep: noSleep, minIntervalMs: 0, ...over });
   const count = (r, status) => Object.values(r.cells).filter((s) => s === status).length;
 
   it("constantes : 2 zones consécutives, 6 requêtes par exécution, 2 requêtes par zone", () => {
     expect([MAX_FAILED_CELLS, MAX_REQUESTS_PER_RUN, MAX_REQUESTS_PER_CELL]).toEqual([2, 6, 2]);
   });
 
-  for (const status of [429, 503]) {
-    it(`dix zones en erreur ${status} : arrêt après 2 zones en échec, au plus 4 appels, unavailable, 8 zones différées`, async () => {
-      const fetchImpl = failing(status);
-      const r = await run({ fetchImpl });
-      expect(fetchImpl.mock.calls.length).toBeLessThanOrEqual(4);
-      expect(fetchImpl).toHaveBeenCalledTimes(4); // 2 zones × (serveur principal + secours)
-      expect(r.unavailable).toBe(true);
-      expect(r.capped).toBe(false);
-      expect(count(r, "error")).toBe(MAX_FAILED_CELLS);
-      expect(count(r, "deferred")).toBe(8);
-      expect(r.requests).toBe(4);
-      expect(r.ways).toEqual([]);
-    });
-  }
+  it("dix zones en erreur 503 : arrêt après 2 zones en échec, au plus 4 appels, unavailable, 8 zones différées", async () => {
+    const fetchImpl = failing(503);
+    const r = await run({ fetchImpl });
+    expect(fetchImpl).toHaveBeenCalledTimes(4); // 2 zones × (serveur principal + secours)
+    expect(r.unavailable).toBe(true);
+    expect(r.capped).toBe(false);
+    expect(r.rateLimited).toBe(false);
+    expect(count(r, "error")).toBe(MAX_FAILED_CELLS);
+    expect(count(r, "deferred")).toBe(8);
+    expect(r.requests).toBe(4);
+    expect(r.ways).toEqual([]);
+  });
+
+  it("dix zones en erreur 429 : arrêt IMMÉDIAT après la première zone en échec (2 appels : principal + secours), rateLimited", async () => {
+    const fetchImpl = vi.fn(async () => ({ ok: false, status: 429, headers: { get: (h) => (h === "Retry-After" ? "45" : null) } }));
+    const r = await run({ fetchImpl });
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    expect(r.unavailable).toBe(true);
+    expect(r.rateLimited).toBe(true);
+    expect(r.retryAfterMs).toBe(45000); // Retry-After lu quand le serveur l'expose
+    expect(count(r, "error")).toBe(1);
+    expect(count(r, "deferred")).toBe(9);
+  });
+
+  it("429 avec réponse du serveur de secours : le groupe est chargé mais plus AUCUN nouveau groupe n'est demandé", async () => {
+    const fetchImpl = vi.fn(async (url) => (url === "https://a" ? { ok: false, status: 429, headers: { get: () => null } } : ok([makeWay(1, ROAD)])));
+    const r = await run({ fetchImpl });
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    expect(r.cells["10:20"]).toBe("network");
+    expect(count(r, "deferred")).toBe(9);
+    expect(r.rateLimited).toBe(true);
+    expect(r.retryAfterMs).toBe(0);
+  });
 
   it("avec les serveurs par défaut, le scénario reste borné (jamais plus de 4 appels)", async () => {
     const fetchImpl = failing(503);
@@ -511,19 +530,36 @@ describe("loadCells — résilience Overpass (arrêt anticipé, plafond, relance
   });
 
   it("le plafond est celui de l'EXÉCUTION : serveur de secours et zones multiples ne le dépassent jamais", async () => {
-    // serveur principal toujours en panne, secours sain : chaque zone coûte 2 requêtes → 3 zones, puis plafond
+    // serveur principal toujours en panne (jamais écarté ici), secours sain : chaque zone coûte 2 requêtes → 3 zones, puis plafond
     const fetchImpl = vi.fn(async (url) => (url === "https://a" ? { ok: false, status: 503, headers: { get: () => null } } : ok([])));
-    const r = await run({ fetchImpl });
+    const r = await run({ fetchImpl, maxEndpointFailures: 99 });
     expect(fetchImpl).toHaveBeenCalledTimes(6);
     expect(count(r, "network")).toBe(3);
     expect(count(r, "deferred")).toBe(7);
+  });
+
+  it("un serveur en panne est écarté après 2 échecs consécutifs : les zones suivantes ne lui coûtent plus de requête", async () => {
+    const fetchImpl = vi.fn(async (url) => (url === "https://a" ? { ok: false, status: 503, headers: { get: () => null } } : ok([])));
+    const r = await run({ fetchImpl });
+    const urls = fetchImpl.mock.calls.map((c) => c[0]);
+    expect(urls.filter((u) => u === "https://a")).toHaveLength(2); // 2 essais, puis plus jamais
+    expect(urls.filter((u) => u === "https://b")).toHaveLength(4); // zones 1-2 en secours, zones 3-4 directement
+    expect(count(r, "network")).toBe(4);
+    expect(r.requests).toBe(6);
+  });
+
+  it("si tous les serveurs sont écartés, la zone passe en erreur sans aucune requête supplémentaire", async () => {
+    const fetchImpl = failing(500);
+    const r = await run({ fetchImpl, maxFailedCells: 99, cellKeys: keysN(4) });
+    expect(fetchImpl).toHaveBeenCalledTimes(4); // 2 serveurs × 2 échecs, puis plus rien
+    expect(count(r, "error")).toBe(4);
   });
 
   it("plafond atteint en plein milieu d'une zone : le serveur de secours n'est PAS sollicité", async () => {
     const seq = [500, 500, "ok", 500, 500, 500]; // zone 1 échec (2), zone 2 ok (1), zone 3 échec (2), zone 4 : 6e requête puis plafond
     let i = 0;
     const fetchImpl = vi.fn(async () => { const s = seq[i++]; return s === "ok" ? ok([]) : { ok: false, status: s, headers: { get: () => null } }; });
-    const r = await run({ fetchImpl, cellKeys: keysN(8) });
+    const r = await run({ fetchImpl, cellKeys: keysN(8), maxEndpointFailures: 99 });
     expect(fetchImpl).toHaveBeenCalledTimes(6);
     expect(r.requests).toBe(6);
     expect(r.cells["10:23"]).toBe("error");
@@ -537,7 +573,7 @@ describe("loadCells — résilience Overpass (arrêt anticipé, plafond, relance
   });
 
   it("bascule sur le 2e serveur : chaque serveur est essayé une seule fois par zone", async () => {
-    const fetchImpl = vi.fn(async (url) => (url === "https://a" ? { ok: false, status: 429, headers: { get: () => "5" } } : ok([])));
+    const fetchImpl = vi.fn(async (url) => (url === "https://a" ? { ok: false, status: 500, headers: { get: () => null } } : ok([])));
     await run({ fetchImpl, cellKeys: keysN(2) });
     expect(fetchImpl.mock.calls.map((c) => c[0])).toEqual(["https://a", "https://b", "https://a", "https://b"]);
   });
@@ -614,7 +650,7 @@ describe("confidentialité des requêtes Overpass", () => {
   ];
   const send = async (points = POINTS) => {
     const fetchImpl = vi.fn(async () => ({ ok: true, status: 200, json: async () => overpassResponse([]) }));
-    const r = await runTerrainAnalysis({ points, store: memoryStore(), allowNetwork: true, fetchImpl, sleep: async () => {}, minIntervalMs: 0 });
+    const r = await runTerrainAnalysis({ cellsPerRequest: 1, points, store: memoryStore(), allowNetwork: true, fetchImpl, sleep: async () => {}, minIntervalMs: 0 });
     return { calls: fetchImpl.mock.calls, bodies: fetchImpl.mock.calls.map(([, init]) => decodeURIComponent(init.body)), cellKeys: Object.keys(r.load.cells) };
   };
 
@@ -701,8 +737,8 @@ describe("runTerrainAnalysis — bout en bout", () => {
   it("service indisponible sur un long tracé : zones différées comptées parmi les manquantes, unavailable, analyse sans exception", async () => {
     const points = makeTrack({ toM: 15000, stepM: 50 });
     const total = planTerrainCells(points).count;
-    const fetchImpl = vi.fn(async () => ({ ok: false, status: 429, headers: { get: () => null } }));
-    const r = await runTerrainAnalysis({ points, store: memoryStore(), allowNetwork: true, fetchImpl, sleep: async () => {}, minIntervalMs: 0 });
+    const fetchImpl = vi.fn(async () => ({ ok: false, status: 503, headers: { get: () => null } }));
+    const r = await runTerrainAnalysis({ cellsPerRequest: 1, points, store: memoryStore(), allowNetwork: true, fetchImpl, sleep: async () => {}, minIntervalMs: 0 });
     expect(r.status).toBe("done");
     expect(r.load.unavailable).toBe(true);
     expect(fetchImpl.mock.calls.length).toBeLessThanOrEqual(4);

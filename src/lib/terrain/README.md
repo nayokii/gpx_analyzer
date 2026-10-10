@@ -8,23 +8,26 @@ OpenStreetMap, via l'API **Overpass** publique (`overpass-api.de`, repli `overpa
 Les tuiles Leaflet n'ont aucun attribut de chemin : seule une vraie requête de données géographiques permet de classer.
 
 ## Confidentialité
-- Jamais le fichier GPX/FIT, jamais le tracé : seules des **zones fixes de ~2 × 2 km** (`geo.js`) traversées par le tracé sont demandées.
+- Jamais le fichier GPX/FIT, jamais le tracé : seules des **zones fixes de ~2 × 2 km** (`geo.js`) traversées par le tracé sont demandées (jusqu'à 3 rectangles par requête).
 - Aucune requête sans **consentement explicite** (`preferences.js`, révocable). Sans consentement : cache local seul.
 - Réponses gardées dans IndexedDB (30 jours), requêtes séquentielles espacées de ~1,2 s, délai max 30 s par requête,
   abandon au-delà de 40 zones.
 
 ## Résilience du service Overpass (jamais de tempête de requêtes)
-- **Un essai par serveur et par zone** (serveur principal puis serveur de secours : 2 requêtes maximum par zone) ; aucun nouvel
-  essai sur un serveur déjà essayé, aucune pause de reprise, `Retry-After` n'est pas attendu. Tous les échecs (HTTP 400/403/429/5xx,
-  réseau, délai dépassé, réponse invalide) sont traités de la même façon : la zone passe en `error` (ou `stale` si une copie périmée existe).
-- **Disjoncteur** `MAX_FAILED_CELLS = 2` : après 2 zones consécutives en échec, les zones restantes sont `deferred`
-  (comptées parmi les zones manquantes, `cellCounts.missing`/`deferred`) et `loadCells` renvoie `unavailable: true`.
-  Un succès remet le compteur à zéro : un échec isolé n'interrompt rien.
-- **Plafond absolu** `MAX_REQUESTS_PER_RUN = 6` requêtes réseau par exécution de `loadCells` (compteur partagé par toutes les zones
-  et les deux serveurs). Si le plafond laisse des zones sans que le service ait échoué : `capped: true` (pas `unavailable`).
-- **Relance** : uniquement manuelle (bouton « Réessayer » de `TerrainView`, délai de 15 s depuis la dernière tentative en échec,
-  consentement revérifié). Une relance est une nouvelle exécution : seules les zones en échec ou différées sont redemandées
-  (les zones en cache frais ne le sont jamais).
+Le service public est partagé et par moments saturé (504 « Dispatcher… server too busy », 429, 5xx ; l'instance de secours
+`overpass.kumi.systems` peut répondre 500 sans en-têtes CORS, ce que le navigateur voit comme une simple erreur réseau).
+- **Regroupement** : jusqu'à `CELLS_PER_REQUEST = 3` zones partagent UNE requête sous forme d'**union de rectangles** (un rectangle par zone,
+  jamais une boîte englobante : la surface interrogée est exactement la somme des zones). Chaque zone est mise en cache séparément
+  (`waysForCell`). Un tracé de 22 zones passe de 22 à 8 requêtes.
+- **Un essai par serveur et par groupe** (serveur principal puis secours : 2 requêtes maximum) ; aucun nouvel essai sur un serveur déjà
+  essayé, aucune pause de reprise. Un serveur en échec 2 fois de suite pendant l'exécution n'est plus sollicité (un succès remet le compteur à zéro).
+  Tous les échecs (HTTP 400/403/429/5xx, réseau, délai dépassé, réponse invalide) sont traités de la même façon : zone `error` (ou `stale` si une copie périmée existe).
+- **HTTP 429** : arrêt IMMÉDIAT, aucun nouveau groupe pendant l'exécution (`rateLimited`, `retryAfterMs` si `Retry-After` est lisible).
+- **Disjoncteur** `MAX_FAILED_CELLS = 2` : après 2 groupes consécutifs en échec, les zones restantes sont `deferred` et `unavailable: true`.
+- **Plafond absolu** `MAX_REQUESTS_PER_RUN = 6` requêtes par exécution de `loadCells` (jusqu'à 18 zones en un passage). `capped: true` si le plafond laisse des zones alors que le service répond.
+- **Délai avant toute nouvelle requête** (appliqué par `TerrainView`, conservé dans le navigateur via `preferences.js`, donc non contournable en changeant d'onglet ou en rechargeant) :
+  **≥ 30 s après un 429** (davantage si `Retry-After` l'annonce, plafonné à 5 min), 15 s après une autre panne. Aucune requête automatique : « Réessayer » / « Charger… » programme la requête à l'échéance (compte à rebours),
+  le consentement étant revérifié au départ. Seules les zones en échec ou différées sont redemandées (cache frais jamais redemandé).
 
 ## Méthode
 1. `matching.js` : le tracé est découpé en sous-segments ≤ 25 m, chacun rattaché au chemin le plus proche (≤ 20 m), sinon « non classifié ».

@@ -1,7 +1,7 @@
 import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
 import { render, cleanup, screen, fireEvent, waitFor, within, act } from "@testing-library/react";
 
-import { TerrainView, RETRY_DELAY_MS, UNAVAILABLE_MESSAGE } from "./TerrainView.jsx";
+import { TerrainView, RETRY_DELAY_MS, RATE_LIMIT_DELAY_MS, RATE_LIMIT_NOTE, UNAVAILABLE_MESSAGE } from "./TerrainView.jsx";
 import { memoryStore, planTerrainCells } from "../lib/terrain/index.js";
 import { cellBounds } from "../lib/terrain/geo.js";
 import { hasOsmConsent, getTypeOverride } from "../lib/terrain/preferences.js";
@@ -48,7 +48,7 @@ describe("TerrainView — sans autorisation ni cache (hors ligne par défaut)", 
 
   it("après autorisation : requêtes par zone, résultat mixte avec répartition, difficulté, facteurs et confiance", async () => {
     const fetchImpl = okFetch(MIXED_WAYS);
-    render(<TerrainView analysis={ANALYSIS} activityKey="k1" store={memoryStore()} fetchImpl={fetchImpl} minIntervalMs={0} />);
+    render(<TerrainView analysis={ANALYSIS} activityKey="k1" store={memoryStore()} fetchImpl={fetchImpl} minIntervalMs={0} cellsPerRequest={1} />);
     fireEvent.click(await screen.findByText("Analyser le terrain"));
     fireEvent.click(screen.getByText("Autoriser et analyser"));
 
@@ -72,7 +72,7 @@ describe("TerrainView — sans autorisation ni cache (hors ligne par défaut)", 
   it("erreur réseau : service signalé indisponible, zones non classifiées, aucune donnée inventée, pas de plantage", async () => {
     localStorage.setItem("gpx-terrain-osm-consent", "granted");
     const fetchImpl = vi.fn(async () => { throw new TypeError("Failed to fetch"); });
-    render(<TerrainView analysis={ANALYSIS} activityKey="k1" store={memoryStore()} fetchImpl={fetchImpl} minIntervalMs={0} />);
+    render(<TerrainView analysis={ANALYSIS} activityKey="k1" store={memoryStore()} fetchImpl={fetchImpl} minIntervalMs={0} cellsPerRequest={1} />);
     fireEvent.click(await screen.findByText("Charger les données cartographiques"));
     expect(await screen.findByText(/temporairement indisponible/)).toBeTruthy();
     expect(screen.getByText("Indéterminé", { selector: ".gpx-terrain-type" })).toBeTruthy();
@@ -152,7 +152,7 @@ describe("TerrainView — service Overpass indisponible, relance manuelle", () =
   it("affiche le bandeau d'indisponibilité avec le texte exact et un bouton « Réessayer »", async () => {
     grant();
     const fetchImpl = failing(503);
-    render(<TerrainView analysis={ANALYSIS} activityKey="u1" store={memoryStore()} fetchImpl={fetchImpl} minIntervalMs={0} />);
+    render(<TerrainView analysis={ANALYSIS} activityKey="u1" store={memoryStore()} fetchImpl={fetchImpl} minIntervalMs={0} cellsPerRequest={1} />);
     fireEvent.click(await loadButton());
     const banner = await screen.findByRole("alert");
     expect(banner.textContent).toContain(UNAVAILABLE_MESSAGE);
@@ -168,7 +168,7 @@ describe("TerrainView — service Overpass indisponible, relance manuelle", () =
     expect(RETRY_DELAY_MS).toBe(15000);
     let phase = "down";
     const fetchImpl = vi.fn(async () => (phase === "down" ? { ok: false, status: 503, headers: { get: () => null } } : { ok: true, status: 200, json: async () => overpassResponse([]) }));
-    render(<TerrainView analysis={ANALYSIS} activityKey="u2" store={partlyCachedStore()} fetchImpl={fetchImpl} minIntervalMs={0} />);
+    render(<TerrainView analysis={ANALYSIS} activityKey="u2" store={partlyCachedStore()} fetchImpl={fetchImpl} minIntervalMs={0} cellsPerRequest={1} />);
     fireEvent.click(await loadButton());
     await screen.findByRole("alert");
     const callsAfterFailure = fetchImpl.mock.calls.length;
@@ -196,9 +196,9 @@ describe("TerrainView — service Overpass indisponible, relance manuelle", () =
     let up = false;
     const fetchImpl = vi.fn(async (url, init) => {
       seen.push(bodyBox(init));
-      return up ? { ok: true, status: 200, json: async () => overpassResponse([]) } : { ok: false, status: 429, headers: { get: () => null } };
+      return up ? { ok: true, status: 200, json: async () => overpassResponse([]) } : { ok: false, status: 503, headers: { get: () => null } };
     });
-    render(<TerrainView analysis={ANALYSIS} activityKey="u3" store={partlyCachedStore()} fetchImpl={fetchImpl} minIntervalMs={0} />);
+    render(<TerrainView analysis={ANALYSIS} activityKey="u3" store={partlyCachedStore()} fetchImpl={fetchImpl} minIntervalMs={0} cellsPerRequest={1} />);
     fireEvent.click(await loadButton());
     await screen.findByRole("alert");
     const wanted = new Set(KEYS.slice(-2).map(boxOf));
@@ -222,7 +222,7 @@ describe("TerrainView — service Overpass indisponible, relance manuelle", () =
       seen.push(bodyBox(init));
       return up ? { ok: true, status: 200, json: async () => overpassResponse([]) } : { ok: false, status: 503, headers: { get: () => null } };
     });
-    render(<TerrainView analysis={ANALYSIS} activityKey="u4" store={memoryStore()} fetchImpl={fetchImpl} minIntervalMs={0} />);
+    render(<TerrainView analysis={ANALYSIS} activityKey="u4" store={memoryStore()} fetchImpl={fetchImpl} minIntervalMs={0} cellsPerRequest={1} />);
     fireEvent.click(await loadButton());
     await screen.findByRole("alert");
     expect(fetchImpl.mock.calls.length).toBeLessThanOrEqual(4);
@@ -238,7 +238,7 @@ describe("TerrainView — service Overpass indisponible, relance manuelle", () =
   it("« Réessayer » ne contourne pas le consentement : après retrait de l'autorisation, la demande est reposée et rien n'est envoyé", async () => {
     grant();
     const fetchImpl = failing(503);
-    render(<TerrainView analysis={ANALYSIS} activityKey="u5" store={partlyCachedStore()} fetchImpl={fetchImpl} minIntervalMs={0} />);
+    render(<TerrainView analysis={ANALYSIS} activityKey="u5" store={partlyCachedStore()} fetchImpl={fetchImpl} minIntervalMs={0} cellsPerRequest={1} />);
     fireEvent.click(await loadButton());
     await screen.findByRole("alert");
     const before = fetchImpl.mock.calls.length;
@@ -257,7 +257,7 @@ describe("TerrainView — service Overpass indisponible, relance manuelle", () =
   it("retirer l'autorisation PENDANT l'attente annule la relance programmée", async () => {
     grant();
     const fetchImpl = failing(503);
-    render(<TerrainView analysis={ANALYSIS} activityKey="u6" store={partlyCachedStore()} fetchImpl={fetchImpl} minIntervalMs={0} />);
+    render(<TerrainView analysis={ANALYSIS} activityKey="u6" store={partlyCachedStore()} fetchImpl={fetchImpl} minIntervalMs={0} cellsPerRequest={1} />);
     fireEvent.click(await loadButton());
     await screen.findByRole("alert");
     const before = fetchImpl.mock.calls.length;
@@ -273,7 +273,7 @@ describe("TerrainView — service Overpass indisponible, relance manuelle", () =
     grant();
     const fetchImpl = failing(503);
     const errors = vi.spyOn(console, "error").mockImplementation(() => {});
-    const { unmount } = render(<TerrainView analysis={ANALYSIS} activityKey="u7" store={partlyCachedStore()} fetchImpl={fetchImpl} minIntervalMs={0} />);
+    const { unmount } = render(<TerrainView analysis={ANALYSIS} activityKey="u7" store={partlyCachedStore()} fetchImpl={fetchImpl} minIntervalMs={0} cellsPerRequest={1} />);
     fireEvent.click(await loadButton());
     await screen.findByRole("alert");
     const before = fetchImpl.mock.calls.length;
@@ -288,7 +288,7 @@ describe("TerrainView — service Overpass indisponible, relance manuelle", () =
 
   it("sans consentement : aucune requête à l'ouverture, ni après un clic sur « Pas maintenant » (aucun chemin réseau sans autorisation)", async () => {
     const fetchImpl = failing(503);
-    render(<TerrainView analysis={ANALYSIS} activityKey="u8" store={memoryStore()} fetchImpl={fetchImpl} minIntervalMs={0} />);
+    render(<TerrainView analysis={ANALYSIS} activityKey="u8" store={memoryStore()} fetchImpl={fetchImpl} minIntervalMs={0} cellsPerRequest={1} />);
     fireEvent.click(await screen.findByText("Analyser le terrain"));
     fireEvent.click(screen.getByText("Pas maintenant"));
     await act(async () => { await vi.advanceTimersByTimeAsync(60000); });
@@ -307,10 +307,143 @@ describe("TerrainView — service Overpass indisponible, relance manuelle", () =
   it("les requêtes d'un chargement autorisé ne contiennent que des boîtes englobantes (aucun point du tracé)", async () => {
     grant();
     const fetchImpl = vi.fn(async () => ({ ok: true, status: 200, json: async () => overpassResponse([]) }));
-    render(<TerrainView analysis={ANALYSIS} activityKey="u10" store={memoryStore()} fetchImpl={fetchImpl} minIntervalMs={0} />);
+    render(<TerrainView analysis={ANALYSIS} activityKey="u10" store={memoryStore()} fetchImpl={fetchImpl} minIntervalMs={0} cellsPerRequest={1} />);
     fireEvent.click(await loadButton());
     await waitFor(() => expect(fetchImpl.mock.calls.length).toBe(KEYS.length));
     const boxes = new Set(KEYS.map(boxOf));
     for (const [, init] of fetchImpl.mock.calls) expect(boxes.has(bodyBox(init))).toBe(true);
+  });
+});
+
+describe("TerrainView — délai imposé après un 429, persistance et regroupement", () => {
+  const KEYS = planTerrainCells(TRACK).cellKeys; // 6 zones
+  const rateLimited = (retryAfter = null) => vi.fn(async () => ({ ok: false, status: 429, headers: { get: (h) => (h === "Retry-After" ? retryAfter : null) } }));
+  const down = (status = 503) => vi.fn(async () => ({ ok: false, status, headers: { get: () => null } }));
+  const ok = () => vi.fn(async () => ({ ok: true, status: 200, json: async () => overpassResponse([]) }));
+  const grant = () => localStorage.setItem("gpx-terrain-osm-consent", "granted");
+  const COOLDOWN_KEY = "gpx-terrain-overpass-cooldown-until";
+  const loadBtn = () => screen.findByText("Charger les données cartographiques");
+  const tick = (ms) => act(async () => { await vi.advanceTimersByTimeAsync(ms); });
+
+  beforeEach(() => vi.useFakeTimers({ shouldAdvanceTime: true }));
+  afterEach(() => vi.useRealTimers());
+
+  it("après un 429 : note explicite, puis AUCUNE requête avant 30 s ; la relance part ensuite, une seule fois", async () => {
+    grant();
+    const fetchImpl = rateLimited();
+    render(<TerrainView analysis={ANALYSIS} activityKey="c1" store={memoryStore()} fetchImpl={fetchImpl} minIntervalMs={0} cellsPerRequest={1} />);
+    fireEvent.click(await loadBtn());
+    const banner = await screen.findByRole("alert");
+    expect(banner.textContent).toContain(UNAVAILABLE_MESSAGE);
+    expect(banner.textContent).toContain(RATE_LIMIT_NOTE);
+    expect(fetchImpl).toHaveBeenCalledTimes(2); // 429 : principal + secours pour la première zone, puis arrêt immédiat
+    const stored = Number(localStorage.getItem(COOLDOWN_KEY));
+    expect(stored - Date.now()).toBeGreaterThan(RATE_LIMIT_DELAY_MS - 2000);
+
+    fireEvent.click(screen.getByText("Réessayer"));
+    expect(await screen.findByText(/Nouvelle tentative dans (29|30) s/)).toBeTruthy();
+    await tick(RATE_LIMIT_DELAY_MS - 2000); // 28 s : toujours rien
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    await tick(3000); // > 30 s
+    await waitFor(() => expect(fetchImpl.mock.calls.length).toBeGreaterThan(2));
+  });
+
+  it("le délai après un 429 est de 30 s, pas de 15 s : à 16 s la relance n'est PAS partie", async () => {
+    grant();
+    const fetchImpl = rateLimited();
+    render(<TerrainView analysis={ANALYSIS} activityKey="c2" store={memoryStore()} fetchImpl={fetchImpl} minIntervalMs={0} cellsPerRequest={1} />);
+    fireEvent.click(await loadBtn());
+    await screen.findByRole("alert");
+    const before = fetchImpl.mock.calls.length;
+    fireEvent.click(screen.getByText("Réessayer"));
+    await tick(16000);
+    expect(fetchImpl).toHaveBeenCalledTimes(before);
+    expect(screen.getByText(/Nouvelle tentative dans/)).toBeTruthy();
+  });
+
+  it("un Retry-After supérieur à 30 s annoncé par le service est respecté (ici 45 s)", async () => {
+    grant();
+    const fetchImpl = rateLimited("45");
+    render(<TerrainView analysis={ANALYSIS} activityKey="c3" store={memoryStore()} fetchImpl={fetchImpl} minIntervalMs={0} cellsPerRequest={1} />);
+    fireEvent.click(await loadBtn());
+    await screen.findByRole("alert");
+    expect(Number(localStorage.getItem(COOLDOWN_KEY)) - Date.now()).toBeGreaterThan(43000);
+  });
+
+  it("une panne sans 429 (503) garde le délai court de 15 s et n'affiche pas la note de limite de débit", async () => {
+    grant();
+    const fetchImpl = down(503);
+    render(<TerrainView analysis={ANALYSIS} activityKey="c4" store={memoryStore()} fetchImpl={fetchImpl} minIntervalMs={0} cellsPerRequest={1} />);
+    fireEvent.click(await loadBtn());
+    const banner = await screen.findByRole("alert");
+    expect(banner.textContent).not.toContain(RATE_LIMIT_NOTE);
+    const stored = Number(localStorage.getItem(COOLDOWN_KEY)) - Date.now();
+    expect(stored).toBeLessThanOrEqual(RETRY_DELAY_MS);
+    expect(stored).toBeGreaterThan(RETRY_DELAY_MS - 2000);
+  });
+
+  it("l'attente survit au démontage : rouvrir l'onglet et cliquer « Charger… » ne contourne pas le délai", async () => {
+    grant();
+    const first = rateLimited();
+    const view = render(<TerrainView analysis={ANALYSIS} activityKey="c5" store={memoryStore()} fetchImpl={first} minIntervalMs={0} cellsPerRequest={1} />);
+    fireEvent.click(await loadBtn());
+    await screen.findByRole("alert");
+    view.unmount();
+
+    const second = ok();
+    render(<TerrainView analysis={ANALYSIS} activityKey="c5" store={memoryStore()} fetchImpl={second} minIntervalMs={0} cellsPerRequest={1} />);
+    fireEvent.click(await loadBtn()); // nouveau montage : plus de bandeau, bouton normal
+    expect(await screen.findByText(/Nouvelle tentative dans (29|30) s/)).toBeTruthy();
+    expect(second).not.toHaveBeenCalled();
+    await tick(20000);
+    expect(second).not.toHaveBeenCalled();
+    await tick(11000);
+    await waitFor(() => expect(second).toHaveBeenCalled());
+  });
+
+  it("le délai s'applique aussi au chemin « Autoriser et analyser » : l'autorisation ne permet pas de le contourner", async () => {
+    localStorage.setItem(COOLDOWN_KEY, String(Date.now() + 20000));
+    const fetchImpl = ok();
+    render(<TerrainView analysis={ANALYSIS} activityKey="c6" store={memoryStore()} fetchImpl={fetchImpl} minIntervalMs={0} cellsPerRequest={1} />);
+    fireEvent.click(await screen.findByText("Analyser le terrain"));
+    fireEvent.click(screen.getByText("Autoriser et analyser"));
+    expect(await screen.findByText(/Nouvelle tentative dans/)).toBeTruthy();
+    expect(fetchImpl).not.toHaveBeenCalled();
+    await tick(21000);
+    await waitFor(() => expect(fetchImpl).toHaveBeenCalled());
+  });
+
+  it("un chargement sans incident efface l'attente", async () => {
+    grant();
+    localStorage.setItem(COOLDOWN_KEY, String(Date.now() - 1000)); // échéance déjà passée
+    const fetchImpl = ok();
+    render(<TerrainView analysis={ANALYSIS} activityKey="c7" store={memoryStore()} fetchImpl={fetchImpl} minIntervalMs={0} cellsPerRequest={1} />);
+    fireEvent.click(await loadBtn());
+    await waitFor(() => expect(fetchImpl.mock.calls.length).toBe(KEYS.length));
+    await waitFor(() => expect(localStorage.getItem(COOLDOWN_KEY)).toBeNull());
+  });
+
+  it("l'analyse locale à l'ouverture n'est jamais soumise au délai et ne lance aucune requête", async () => {
+    grant();
+    localStorage.setItem(COOLDOWN_KEY, String(Date.now() + 60000));
+    const fetchImpl = ok();
+    render(<TerrainView analysis={ANALYSIS} activityKey="c8" store={memoryStore()} fetchImpl={fetchImpl} minIntervalMs={0} />);
+    expect(await screen.findByText("Indéterminé", { selector: ".gpx-terrain-type" })).toBeTruthy();
+    await tick(120000);
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it("regroupement par défaut : 6 zones saines = 2 requêtes (3 + 3), bornes seulement", async () => {
+    grant();
+    const fetchImpl = ok();
+    render(<TerrainView analysis={ANALYSIS} activityKey="c9" store={memoryStore()} fetchImpl={fetchImpl} minIntervalMs={0} />);
+    fireEvent.click(await loadBtn());
+    await waitFor(() => expect(fetchImpl).toHaveBeenCalledTimes(2));
+    const allowed = new Set(KEYS.flatMap((k) => { const b = cellBounds(k); return [b.south, b.west, b.north, b.east].map((v) => v.toFixed(5)); }));
+    for (const [, init] of fetchImpl.mock.calls) {
+      const nums = decodeURIComponent(init.body).match(/-?\d+\.\d{5}/g);
+      expect(nums).toHaveLength(12);
+      for (const n of nums) expect(allowed.has(n)).toBe(true);
+    }
   });
 });

@@ -15,11 +15,18 @@ import { SectionTitle } from "./UIPrimitives.jsx";
 import {
   runTerrainAnalysis, planTerrainCells, idbStore, TERRAIN_LABELS, TERRAIN_TYPE_LABELS, LEVEL_LABELS, OVERPASS_ENDPOINTS,
 } from "../lib/terrain/index.js";
-import { hasOsmConsent, setOsmConsent, getTypeOverride, setTypeOverride, OVERRIDABLE_TYPES } from "../lib/terrain/preferences.js";
+import {
+  hasOsmConsent, setOsmConsent, getTypeOverride, setTypeOverride, OVERRIDABLE_TYPES, getCooldownUntil, setCooldownUntil,
+} from "../lib/terrain/preferences.js";
 import { fmt1, fmtInt } from "../lib/utils.js";
 
-/** Délai minimal entre la fin d'une tentative en échec et la relance suivante (le service est sans doute surchargé). */
+/** Délai minimal entre la fin d'une tentative en échec (réseau, 5xx, délai dépassé) et la requête suivante. */
 export const RETRY_DELAY_MS = 15000;
+/** Délai minimal après un HTTP 429 (limite de débit du service) : jamais de nouvelle requête avant. */
+export const RATE_LIMIT_DELAY_MS = 30000;
+/** Plafond du délai quand le service annonce lui-même un Retry-After très long. */
+export const MAX_COOLDOWN_MS = 5 * 60000;
+export const RATE_LIMIT_NOTE = "Le service limite le nombre de requêtes (HTTP 429) : une nouvelle tentative n'est possible qu'après au moins 30 secondes.";
 export const UNAVAILABLE_MESSAGE =
   "Service cartographique (OpenStreetMap / Overpass) temporairement indisponible. Aucune nouvelle requête n'est lancée automatiquement. Les portions non chargées restent non classifiées.";
 
@@ -37,8 +44,9 @@ function pctText(v) {
  * @param {{get: Function, put: Function, clear: Function}} [props.store] - cache des zones (injectable pour les tests)
  * @param {typeof fetch} [props.fetchImpl] - injectable pour les tests
  * @param {number} [props.minIntervalMs] - espacement des requêtes (défaut du client Overpass ; 0 en test)
+ * @param {number} [props.cellsPerRequest] - zones regroupées par requête (défaut du client Overpass ; 1 = une par zone, tests)
  */
-export function TerrainView({ analysis, activityKey, store: storeProp, fetchImpl, minIntervalMs }) {
+export function TerrainView({ analysis, activityKey, store: storeProp, fetchImpl, minIntervalMs, cellsPerRequest }) {
   const store = useMemo(() => storeProp || idbStore(), [storeProp]);
   const points = useMemo(
     () => (analysis.series || []).filter((p) => p.lat != null && p.lon != null).map((p) => ({ lat: p.lat, lon: p.lon, grade: p.grade })),
@@ -53,8 +61,8 @@ export function TerrainView({ analysis, activityKey, store: storeProp, fetchImpl
   const [override, setOverride] = useState(() => getTypeOverride(activityKey));
   const abortRef = useRef(null);
 
-  // Relance manuelle après indisponibilité : jamais de requête automatique, au plus une relance en attente.
-  const failureAtRef = useRef(0);
+  // Attente avant toute requête réseau : jamais de requête automatique, au plus une relance en attente. L'échéance est
+  // conservée dans le navigateur (preferences.js) : changer d'onglet ou recharger la page ne la contourne pas.
   const retryRef = useRef({ timeout: null, interval: null });
   const [retryWait, setRetryWait] = useState(null); // secondes restantes avant la relance, null = aucune relance en attente
 
@@ -75,11 +83,16 @@ export function TerrainView({ analysis, activityKey, store: storeProp, fetchImpl
       setProgress(null);
       try {
         const out = await runTerrainAnalysis({
-          points, store, allowNetwork, fetchImpl, minIntervalMs, signal: controller.signal,
+          points, store, allowNetwork, fetchImpl, minIntervalMs, cellsPerRequest, signal: controller.signal,
           onProgress: (done, total) => setProgress({ done, total }),
         });
         if (!controller.signal.aborted) {
-          if (out.load && out.load.unavailable) failureAtRef.current = Date.now();
+          if (allowNetwork && out.status === "done") {
+            const { load, cellCounts } = out;
+            if (load.rateLimited) setCooldownUntil(Date.now() + Math.min(MAX_COOLDOWN_MS, Math.max(RATE_LIMIT_DELAY_MS, load.retryAfterMs || 0)));
+            else if (load.unavailable || cellCounts.error > 0) setCooldownUntil(Date.now() + RETRY_DELAY_MS);
+            else setCooldownUntil(0); // chargement sans incident : plus d'attente
+          }
           setState({ phase: "done", out });
         }
       } catch (err) {
@@ -89,7 +102,7 @@ export function TerrainView({ analysis, activityKey, store: storeProp, fetchImpl
         setProgress(null);
       }
     },
-    [points, store, fetchImpl, minIntervalMs, clearRetry]
+    [points, store, fetchImpl, minIntervalMs, cellsPerRequest, clearRetry]
   );
 
   // À l'ouverture : analyse LOCALE (cache seul, aucun réseau) — les statistiques GPS ne dépendent jamais de la connexion.
@@ -106,30 +119,16 @@ export function TerrainView({ analysis, activityKey, store: storeProp, fetchImpl
     clearInterval(retryRef.current.interval);
   }, []);
 
-  function handleAnalyzeClick() {
-    if (consent) run(true);
-    else setAskConsent(true);
-  }
-  function handleAccept() {
-    setOsmConsent(true);
-    setConsent(true);
-    setAskConsent(false);
-    run(true);
-  }
-  function handleRevoke() {
-    setOsmConsent(false);
-    setConsent(false);
-    clearRetry(); // une relance en attente ne doit jamais partir après le retrait de l'autorisation
-  }
   /**
-   * « Réessayer » : relance MANUELLE, jamais sans consentement. Si la dernière tentative en échec date de moins de
-   * RETRY_DELAY_MS, la relance est programmée à l'issue du délai restant (compte à rebours affiché) ; un nouveau clic
-   * pendant l'attente est ignoré. Seules les zones en échec ou différées sont redemandées (le reste vient du cache).
+   * UNIQUE point d'entrée des requêtes réseau (analyse, autorisation, « Charger… », « Réessayer ») : jamais sans
+   * consentement, jamais avant l'échéance d'attente (15 s après une panne, ≥ 30 s après un 429). Si l'échéance n'est pas
+   * atteinte, la requête est programmée à son terme (compte à rebours affiché) ; un nouveau clic pendant l'attente est
+   * ignoré. Seules les zones en échec ou différées sont redemandées (le reste vient du cache).
    */
-  function handleRetry() {
+  function requestNetworkRun() {
     if (loading || retryWait != null) return;
     if (!hasOsmConsent()) { setConsent(false); setAskConsent(true); return; }
-    const remaining = failureAtRef.current + RETRY_DELAY_MS - Date.now();
+    const remaining = getCooldownUntil() - Date.now();
     if (remaining <= 0) { run(true); return; }
     setRetryWait(Math.ceil(remaining / 1000));
     const until = Date.now() + remaining;
@@ -139,6 +138,22 @@ export function TerrainView({ analysis, activityKey, store: storeProp, fetchImpl
       if (hasOsmConsent()) run(true); // le consentement est revérifié au moment de partir
     }, remaining);
   }
+  function handleAnalyzeClick() {
+    if (consent) requestNetworkRun();
+    else setAskConsent(true);
+  }
+  function handleAccept() {
+    setOsmConsent(true);
+    setConsent(true);
+    setAskConsent(false);
+    requestNetworkRun();
+  }
+  function handleRevoke() {
+    setOsmConsent(false);
+    setConsent(false);
+    clearRetry(); // une relance en attente ne doit jamais partir après le retrait de l'autorisation
+  }
+  const handleRetry = requestNetworkRun;
   async function handleClearCache() {
     await store.clear();
     run(false);
@@ -228,7 +243,10 @@ export function TerrainView({ analysis, activityKey, store: storeProp, fetchImpl
             {unavailable && (
               <div className="gpx-terrain-note is-warn gpx-terrain-unavailable" role="alert">
                 <CloudOff size={15} aria-hidden="true" />
-                <span>{UNAVAILABLE_MESSAGE}</span>
+                <span>
+                  {UNAVAILABLE_MESSAGE}
+                  {out.load.rateLimited && <small className="gpx-terrain-unavailable-sub">{RATE_LIMIT_NOTE}</small>}
+                </span>
                 <button className="gpx-btn-ghost" onClick={handleRetry} disabled={loading || retryWait != null}>
                   <RefreshCw size={14} /> {retryWait != null ? `Nouvelle tentative dans ${retryWait} s` : "Réessayer"}
                 </button>
@@ -255,8 +273,8 @@ export function TerrainView({ analysis, activityKey, store: storeProp, fetchImpl
         {/* Autorisation et lancement de la requête cartographique */}
         {!loading && summary && !unavailable && out.cellCounts.missing + out.cellCounts.error > 0 && !askConsent && (
           <div className="gpx-terrain-actions">
-            <button className="gpx-btn-primary" onClick={handleAnalyzeClick}>
-              <MapPin size={15} /> {consent ? "Charger les données cartographiques" : "Analyser le terrain"}
+            <button className="gpx-btn-primary" onClick={handleAnalyzeClick} disabled={retryWait != null}>
+              <MapPin size={15} /> {retryWait != null ? `Nouvelle tentative dans ${retryWait} s` : consent ? "Charger les données cartographiques" : "Analyser le terrain"}
             </button>
             {!consent && <span className="gpx-terrain-hint">Demande une autorisation (une seule fois) avant tout envoi.</span>}
           </div>
