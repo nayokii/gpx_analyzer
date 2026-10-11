@@ -40,12 +40,26 @@ function fmtAxisVal(metric, v) {
   return fmt1(v);
 }
 
-export function ProfileChart({ analysis, decimated, metric, setMetric, hoverIdx, setHoverIdx, selectedClimb, onSelectClimb, height = 200 }) {
+/**
+ * @param {Object} props
+ * @param {boolean} [props.showMetricTabs=true] - false : métrique figée (panneau dédié, ex. profil d'altitude)
+ * @param {string[]|null} [props.allowedMetrics=null] - restreint les métriques proposées (clés de availableProfileMetrics)
+ * @param {"minimal"|"full"} [props.axes="minimal"] - "full" : graduations sur les deux axes + unité en titre
+ * @param {string} [props.label] - description accessible du graphique
+ * @param {string} [props.powerLabel="Puissance"] - libellé de la ligne puissance de l'infobulle (ex. « Puissance (estimée) »)
+ */
+export function ProfileChart({
+  analysis, decimated, metric, setMetric, hoverIdx, setHoverIdx, selectedClimb, onSelectClimb, height = 200,
+  showMetricTabs = true, allowedMetrics = null, axes = "minimal", label, powerLabel = "Puissance",
+}) {
   const canvasRef = useRef(null);
   const wrapRef = useRef(null);
   const [width, setWidth] = useState(800);
   const scheme = useColorScheme(); // le canvas ne suit pas le CSS : on le redessine quand le thème change
-  const metrics = useMemo(() => availableProfileMetrics(analysis), [analysis]);
+  const metrics = useMemo(() => {
+    const all = availableProfileMetrics(analysis);
+    return allowedMetrics ? all.filter((m) => allowedMetrics.includes(m.key)) : all;
+  }, [analysis, allowedMetrics]);
   const activeMetric = metrics.find((m) => m.key === metric) || metrics[0];
 
   useEffect(() => {
@@ -54,7 +68,13 @@ export function ProfileChart({ analysis, decimated, metric, setMetric, hoverIdx,
     }
     onResize();
     window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
+    // La grille du cockpit peut changer la largeur du panneau sans resize de fenêtre.
+    const observer = typeof ResizeObserver !== "undefined" && wrapRef.current ? new ResizeObserver(onResize) : null;
+    if (observer) observer.observe(wrapRef.current);
+    return () => {
+      window.removeEventListener("resize", onResize);
+      if (observer) observer.disconnect();
+    };
   }, []);
 
   const dataKey = activeMetric ? activeMetric.dataKey : "ele";
@@ -64,10 +84,11 @@ export function ProfileChart({ analysis, decimated, metric, setMetric, hoverIdx,
   const distMin = decimated[0] ? decimated[0].distance : 0;
   const distMax = decimated[decimated.length - 1] ? decimated[decimated.length - 1].distance : 1;
 
-  const padL = 44,
+  const full = axes === "full";
+  const padL = full ? 58 : 44,
     padR = 12,
     padT = 14,
-    padB = 22;
+    padB = full ? 30 : 22;
   function xForDist(d) {
     return padL + ((d - distMin) / (distMax - distMin || 1)) * (width - padL - padR);
   }
@@ -152,12 +173,29 @@ export function ProfileChart({ analysis, decimated, metric, setMetric, hoverIdx,
 
     ctx.fillStyle = mutedColor;
     ctx.font = `500 11.5px ${fontFamily}`;
-    ctx.textAlign = "left";
-    ctx.fillText(fmtAxisVal(activeMetric.key, maxV), 2, padT + 8);
-    ctx.fillText(fmtAxisVal(activeMetric.key, minV), 2, height - padB);
-        ctx.fillText(fmt1(distMin) + " km", padL + 2, height - 6);
-    ctx.textAlign = "right";
-    ctx.fillText(fmt1(distMax) + " km", width - padR, height - 6);
+    if (full) {
+      // Graduations : 5 repères verticaux alignés sur la grille, ~5 repères en distance.
+      ctx.textAlign = "right";
+      for (let i = 0; i <= 4; i++) {
+        const v = maxV - (i / 4) * (maxV - minV);
+        const y = padT + (i / 4) * (height - padT - padB);
+        ctx.fillText(fmtAxisVal(activeMetric.key, v), padL - 6, y + 4);
+      }
+      ctx.textAlign = "center";
+      const ticks = 5;
+      for (let i = 0; i <= ticks; i++) {
+        const d = distMin + (i / ticks) * (distMax - distMin);
+        ctx.textAlign = i === 0 ? "left" : i === ticks ? "right" : "center";
+        ctx.fillText(fmt1(d) + (i === ticks ? " km" : ""), xForDist(d), height - 8);
+      }
+    } else {
+      ctx.textAlign = "left";
+      ctx.fillText(fmtAxisVal(activeMetric.key, maxV), 2, padT + 8);
+      ctx.fillText(fmtAxisVal(activeMetric.key, minV), 2, height - padB);
+      ctx.fillText(fmt1(distMin) + " km", padL + 2, height - 6);
+      ctx.textAlign = "right";
+      ctx.fillText(fmt1(distMax) + " km", width - padR, height - 6);
+    }
 
     if (hoverIdx != null && decimated[hoverIdx]) {
       const p = decimated[hoverIdx];
@@ -181,7 +219,7 @@ export function ProfileChart({ analysis, decimated, metric, setMetric, hoverIdx,
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [width, height, decimated, activeMetric && activeMetric.key, hoverIdx, selectedClimb, analysis, scheme]);
+  }, [width, height, decimated, activeMetric && activeMetric.key, hoverIdx, selectedClimb, analysis, scheme, full]);
 
   function idxFromClientX(clientX) {
     const rect = canvasRef.current.getBoundingClientRect();
@@ -198,6 +236,22 @@ export function ProfileChart({ analysis, decimated, metric, setMetric, hoverIdx,
   function handleMove(clientX) {
     setHoverIdx(idxFromClientX(clientX));
   }
+  // Clavier : ←/→ déplacent le repère (±1 point, ±10 avec Maj), Début/Fin vont aux extrémités, Échap l'enlève.
+  function handleKeyDown(e) {
+    const last = decimated.length - 1;
+    if (last < 0) return;
+    const step = e.shiftKey ? 10 : 1;
+    const cur = hoverIdx == null ? null : hoverIdx;
+    let next = null;
+    if (e.key === "ArrowRight") next = Math.min(last, (cur == null ? -1 : cur) + step);
+    else if (e.key === "ArrowLeft") next = Math.max(0, (cur == null ? last + 1 : cur) - step);
+    else if (e.key === "Home") next = 0;
+    else if (e.key === "End") next = last;
+    else if (e.key === "Escape") { setHoverIdx(null); return; }
+    else return;
+    e.preventDefault();
+    setHoverIdx(next);
+  }
   function handleClick(clientX) {
     const idx = idxFromClientX(clientX);
     const p = decimated[idx];
@@ -210,16 +264,27 @@ export function ProfileChart({ analysis, decimated, metric, setMetric, hoverIdx,
 
   return (
     <div ref={wrapRef} className="gpx-profile-wrap">
-      <div className="gpx-map-modes" style={{ marginBottom: 14 }}>
-        {metrics.map((m) => (
-          <button key={m.key} className={"gpx-chip" + (activeMetric.key === m.key ? " gpx-chip-active" : "")} onClick={() => setMetric(m.key)}>
-            {m.label}
-          </button>
-        ))}
-      </div>
+      {showMetricTabs && (
+        <div className="gpx-map-modes" style={{ marginBottom: 14 }}>
+          {metrics.map((m) => (
+            <button
+              key={m.key}
+              className={"gpx-chip" + (activeMetric.key === m.key ? " gpx-chip-active" : "")}
+              aria-pressed={activeMetric.key === m.key}
+              onClick={() => setMetric(m.key)}
+            >
+              {m.label}
+            </button>
+          ))}
+        </div>
+      )}
       <div style={{ position: "relative" }}>
         <canvas
           ref={canvasRef}
+          role="img"
+          tabIndex={0}
+          aria-label={label || `Profil ${activeMetric.label.toLowerCase()} en fonction de la distance. Flèches gauche et droite pour déplacer le repère.`}
+          onKeyDown={handleKeyDown}
           onMouseMove={(e) => handleMove(e.clientX)}
           onMouseLeave={() => setHoverIdx(null)}
           onClick={(e) => handleClick(e.clientX)}
@@ -238,7 +303,7 @@ export function ProfileChart({ analysis, decimated, metric, setMetric, hoverIdx,
             {hoverPoint.speed != null && <div className="gpx-tooltip-row"><span>Vitesse</span><b>{fmt1(hoverPoint.speed)} km/h</b></div>}
             {hoverPoint.hr != null && <div className="gpx-tooltip-row"><span>FC</span><b>{fmtInt(hoverPoint.hr)} bpm</b></div>}
             {hoverPoint.cad != null && <div className="gpx-tooltip-row"><span>Cadence</span><b>{fmtInt(hoverPoint.cad)} rpm</b></div>}
-            {hoverPoint.power != null && <div className="gpx-tooltip-row"><span>Puissance</span><b>{fmtInt(hoverPoint.power)} W</b></div>}
+            {hoverPoint.power != null && <div className="gpx-tooltip-row"><span>{powerLabel}</span><b>{fmtInt(hoverPoint.power)} W</b></div>}
             {hoverPoint.time && <div className="gpx-tooltip-row"><span>Heure</span><b>{fmtClock(hoverPoint.time)}</b></div>}
           </div>
         )}

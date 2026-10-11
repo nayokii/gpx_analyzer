@@ -56,6 +56,7 @@ import {
   parseRecoveryHash, beginPasswordRecovery, onPasswordRecovery, clearAuthHash, CloudNotConfiguredError,
 } from "./lib/cloud/index.js";
 import { useActivityRepository } from "./components/useActivityRepository.js";
+import { useCockpitTheme } from "./components/useCockpitTheme.js";
 
 // Stockage local durable (Phase 2)
 import { toActivity } from "./lib/normalize.js";
@@ -717,6 +718,11 @@ export default function GPXAnalyzer() {
 
   const activeNavSection = mode === "dashboard" || mode === "historique" ? "rides" : mode;
 
+  // L'accueil est le cockpit : thème sombre dédié + navigation latérale (voir styles/cockpit.css). Les autres vues
+  // gardent leur thème et leur barre haute.
+  const isCockpit = mode === "home";
+  useCockpitTheme(isCockpit);
+
   function sortRows(rows, sortState) {
     const { key, dir } = sortState;
     return [...rows].sort((a, b) => {
@@ -751,9 +757,9 @@ export default function GPXAnalyzer() {
   const tabsIndicator = useActiveIndicator(activeTab);
 
   return (
-    <div className="gpx-app">
+    <div className={"gpx-app" + (isCockpit ? " gpx-app--cockpit" : "")}>
 
-      <AppNav active={activeNavSection} onNavigate={navigateToSection} onImport={() => fileInputRef.current && fileInputRef.current.click()} />
+      <AppNav variant={isCockpit ? "sidebar" : "top"} active={activeNavSection} onNavigate={navigateToSection} onImport={() => fileInputRef.current && fileInputRef.current.click()} />
       <input ref={fileInputRef} type="file" accept={getAcceptString()} style={{ display: "none" }} onChange={handleInputChange} />
 
       {mode === "dashboard" && (
@@ -774,6 +780,9 @@ export default function GPXAnalyzer() {
           onLoadDemo={loadDemo}
           upload={uploadProps}
           onOpenSources={() => setMode("sources")}
+          userSettings={userSettings}
+          maxHR={maxHR}
+          hrZones={hrZones}
         />
       )}
 

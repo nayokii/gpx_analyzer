@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { render, cleanup, screen, fireEvent, within } from "@testing-library/react";
-import { AppNav, NAV_ITEMS } from "./AppNav.jsx";
+import { AppNav, NAV_ITEMS, SIDEBAR_GROUPS } from "./AppNav.jsx";
 
 afterEach(cleanup);
 
@@ -57,6 +57,40 @@ describe("AppNav — import toujours accessible", () => {
     const onImport = vi.fn();
     render(<AppNav active="archetype" onNavigate={() => {}} onImport={onImport} />);
     fireEvent.click(screen.getByText("Importer"));
+    expect(onImport).toHaveBeenCalled();
+  });
+});
+
+describe("AppNav — variante barre latérale (cockpit)", () => {
+  const sidebarKeys = SIDEBAR_GROUPS.flatMap((g) => g.items.map((i) => i.key));
+
+  it("ne propose que des destinations réelles : toutes celles de NAV_ITEMS + les sources de données", () => {
+    expect([...sidebarKeys].sort()).toEqual([...NAV_ITEMS.map((i) => i.key), "sources"].sort());
+  });
+
+  it("rend la barre latérale et la barre basse mobile, sans barre haute desktop", () => {
+    render(<AppNav variant="sidebar" active="home" onNavigate={() => {}} onImport={() => {}} />);
+    expect(document.querySelector(".gpx-sidebar")).toBeTruthy();
+    expect(document.querySelector(".gpx-appnav-bottom")).toBeTruthy();
+    expect(document.querySelector(".gpx-appnav-top")).toBeNull();
+  });
+
+  it("marque la section active avec aria-current et appelle onNavigate avec la bonne clé", () => {
+    const onNavigate = vi.fn();
+    render(<AppNav variant="sidebar" active="alterego" onNavigate={onNavigate} onImport={() => {}} />);
+    const sidebar = document.querySelector(".gpx-sidebar");
+    expect(within(sidebar).getByTitle("Alter Ego").getAttribute("aria-current")).toBe("page");
+    expect(sidebar.querySelector(".gpx-sidebar-item[title='Dashboard']").getAttribute("aria-current")).toBeNull();
+    fireEvent.click(within(sidebar).getByTitle("Mes sorties"));
+    expect(onNavigate).toHaveBeenCalledWith("rides");
+    fireEvent.click(within(sidebar).getByTitle("Sources de données"));
+    expect(onNavigate).toHaveBeenCalledWith("sources");
+  });
+
+  it("le bouton Importer de la barre latérale appelle onImport", () => {
+    const onImport = vi.fn();
+    render(<AppNav variant="sidebar" active="home" onNavigate={() => {}} onImport={onImport} />);
+    fireEvent.click(within(document.querySelector(".gpx-sidebar")).getByTitle("Importer une sortie"));
     expect(onImport).toHaveBeenCalled();
   });
 });
