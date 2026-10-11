@@ -299,7 +299,7 @@ export function createActivityRepository({ rootHandle = null, cloudUser = null, 
       measured = null;
     }
 
-    const analysis = computeAnalysis(points, userSettings);
+    const analysis = computeAnalysis(points, userSettings, { measured });
     const activity = toActivity(analysis, points, {
       id: mergeKeyForCloud(cloudEntry),
       name: cloudEntry.name || name || null,

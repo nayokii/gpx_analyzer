@@ -88,8 +88,11 @@ export const ANALYSIS_VERSION = 1;
  * @property {number|null} movingTime - Temps en mouvement en secondes (calculé)
  * @property {number|null} elevationGain - Dénivelé positif en mètres (calculé)
  * @property {number|null} elevationLoss - Dénivelé négatif en mètres (calculé)
- * @property {number|null} avgSpeed - Vitesse moyenne en km/h, recalculée par notre moteur (calculé)
+ * @property {number|null} avgSpeed - Vitesse moyenne EN MOUVEMENT en km/h : valeur de session du device (FIT) quand fiable, sinon distance / temps en mouvement (voir lib/speed.js)
  * @property {number|null} maxSpeed - Vitesse maximale en km/h, recalculée par notre moteur (calculé)
+ * @property {number|null} avgSpeedElapsed - Vitesse moyenne sur la durée ÉCOULÉE (pauses incluses), km/h — métrique distincte de avgSpeed
+ * @property {'device'|'derived'|null} avgSpeedSource - Origine de avgSpeed : valeur de session du device (FIT) ou distance / temps en mouvement
+ * @property {number|null} speedModelVersion - Version de la règle de vitesse ayant produit avgSpeed/movingTime (voir lib/speed.js)
  * @property {number|null} avgSpeedMeasured - Vitesse moyenne en km/h mesurée par le device
  *   source (ex. FIT `session.avg_speed`) ; `null` si absente de la source
  * @property {number|null} maxSpeedMeasured - Vitesse maximale en km/h mesurée par le device
@@ -135,6 +138,9 @@ export function createEmptyActivity() {
     avgSpeed: null,
     maxSpeed: null,
     avgSpeedMeasured: null,
+    avgSpeedElapsed: null,
+    avgSpeedSource: null,
+    speedModelVersion: null,
     maxSpeedMeasured: null,
     avgHeartRate: null,
     maxHeartRate: null,
