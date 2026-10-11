@@ -407,7 +407,7 @@ export function ProfileView({ storage, onConnect, onReconnect, onOpen, onBack, u
   );
 
   return (
-    <div className="gpx-dashboard">
+    <div className="gpx-dashboard gpx-ds">
       {/* Cascade d'apparition (Phase 5B) : groupes visuels via Reveal, 30 ms d'écart. Les bandeaux d'avertissement et les cartes de dimensions ne sont pas animés individuellement. */}
       <Reveal>
         <PageHead

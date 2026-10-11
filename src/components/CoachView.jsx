@@ -144,7 +144,7 @@ export function CoachView({ storage, onConnect, onReconnect, onOpen, onBack, use
   const overallLabel = context ? confidenceLabel(context.profile.overallConfidence) : null;
 
   return (
-    <div className="gpx-dashboard">
+    <div className="gpx-dashboard gpx-ds">
       <PageHead
         title="Coach"
         meta={context ? (

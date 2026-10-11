@@ -8,6 +8,7 @@ import { MemoryDirectoryHandle } from "../lib/storage/testFsHandle.js";
 import { saveActivity } from "../lib/storage/activityStore.js";
 import { createEmptyActivity } from "../lib/types.js";
 import { parseFITArrayBuffer } from "../lib/parsers/fitParser.js";
+import { parseGPXString } from "../lib/parsers/gpxParser.js";
 import { computeAnalysis } from "../lib/analysis.js";
 import { toActivity } from "../lib/normalize.js";
 import { computeCyclistProfile } from "../lib/profile/profile.js";
@@ -16,6 +17,10 @@ import { matchArchetypes } from "../lib/archetypes/matching.js";
 import { HomeView, pickFocusChallenge } from "./HomeView.jsx";
 import { stubResizeObserver } from "./testResizeObserverMock.js";
 import { stubCanvasContext } from "./testCanvasMock.js";
+import { __setSupabaseClientForTests } from "../lib/cloud/client.js";
+import { __resetSyncCoordinatorForTests } from "../lib/storage/activityRepository.js";
+import { createFakeSupabaseBackend } from "../lib/cloud/tests/fakeSupabase.js";
+import { uploadActivity as cloudUploadActivity } from "../lib/cloud/index.js";
 
 stubResizeObserver();
 stubCanvasContext();
@@ -359,5 +364,69 @@ describe("HomeView — dernière sortie absente (toutes les activités ont écho
     render(<HomeView storage={connectedStorage(root)} onConnect={noop} onReconnect={noop} onNavigate={noop} onOpenActivity={noop} onLoadDemo={noop} upload={noopUpload} />);
     await waitFor(() => expect(screen.getByText("Aucune sortie enregistrée.")).toBeTruthy());
     expect(screen.getByText(/Importe ta première activité pour commencer à construire ton profil/)).toBeTruthy();
+  });
+});
+
+describe("HomeView : appareil sans dossier local (tablette, téléphone) avec un compte cloud", () => {
+  // Cause réelle du « Dashboard vide sur tablette » : HomeView ne lisait que le dossier local, alors que Sorties, Profil, etc.
+  // lisent le dépôt unifié local + cloud. Sans File System Access API (la plupart des navigateurs tablette/mobile), le Dashboard
+  // affichait l'écran d'import même quand des sorties existaient.
+  afterEach(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    __setSupabaseClientForTests(null);
+    __resetSyncCoordinatorForTests();
+  });
+
+  async function cloudWith(activities) {
+    const backend = createFakeSupabaseBackend();
+    __setSupabaseClientForTests(backend.client);
+    await backend.signUpAndLogin("tablette@example.com");
+    for (const { activity, arrayBuffer } of activities) {
+      await cloudUploadActivity({ activity, originalFileContent: arrayBuffer, sourceFormat: "fit" });
+    }
+  }
+
+  it("affiche automatiquement la dernière sortie du compte cloud, sans dossier local", async () => {
+    const { activity, arrayBuffer } = await loadRealFitActivity();
+    await cloudWith([{ activity, arrayBuffer }]);
+
+    render(<HomeView storage={{ status: "unsupported", rootHandle: null }} onConnect={noop} onReconnect={noop} onNavigate={noop} onOpenActivity={noop} onLoadDemo={noop} upload={noopUpload} />);
+
+    await waitFor(() => expect(screen.getByText("Bonjour.")).toBeTruthy(), { timeout: 3000 });
+    expect(screen.queryByText(/Glissez-déposez votre fichier/)).toBeNull();
+    expect(screen.getByText(activity.name)).toBeTruthy(); // panneau Parcours : la sortie sélectionnée d'office
+    expect(screen.getByRole("region", { name: "Résumé de la sortie" })).toBeTruthy();
+    expect(screen.getByRole("region", { name: "Carte du parcours" })).toBeTruthy();
+  });
+
+  it("sélectionne la sortie la plus récente quand le compte en contient plusieurs", async () => {
+    const gpxRide = (name, day, lat) => {
+      const xml = `<?xml version="1.0"?><gpx><trk><name>${name}</name><trkseg>
+<trkpt lat="${lat}" lon="6.0000"><ele>400</ele><time>2026-09-${day}T08:00:00Z</time></trkpt>
+<trkpt lat="${lat + 0.01}" lon="6.0100"><ele>420</ele><time>2026-09-${day}T08:30:00Z</time></trkpt>
+<trkpt lat="${lat + 0.02}" lon="6.0200"><ele>440</ele><time>2026-09-${day}T09:00:00Z</time></trkpt>
+</trkseg></trk></gpx>`;
+      const { points } = parseGPXString(xml);
+      const activity = toActivity(computeAnalysis(points, null), points, { id: name, name, sourceType: "gpx", originalFilename: `${name}.gpx` });
+      return { activity, xml };
+    };
+    const older = gpxRide("Sortie ancienne", "01", 46.0);
+    const newer = gpxRide("Sortie la plus récente", "28", 47.0);
+    await cloudWith([]);
+    // Ordre d'envoi volontairement inverse de l'ordre chronologique.
+    await cloudUploadActivity({ activity: newer.activity, originalFileContent: newer.xml, sourceFormat: "gpx" });
+    await cloudUploadActivity({ activity: older.activity, originalFileContent: older.xml, sourceFormat: "gpx" });
+
+    render(<HomeView storage={{ status: "unsupported", rootHandle: null }} onConnect={noop} onReconnect={noop} onNavigate={noop} onOpenActivity={noop} onLoadDemo={noop} upload={noopUpload} />);
+
+    await waitFor(() => expect(screen.getByText("Bonjour.")).toBeTruthy(), { timeout: 3000 });
+    expect(within(screen.getByRole("region", { name: "Parcours" })).getByText("Sortie la plus récente")).toBeTruthy();
+    expect(within(screen.getByRole("region", { name: "Parcours" })).queryByText("Sortie ancienne")).toBeNull();
+  });
+
+  it("sans dossier ni compte, l'écran d'import reste affiché (aucune sortie fabriquée)", async () => {
+    render(<HomeView storage={{ status: "unsupported", rootHandle: null }} onConnect={noop} onReconnect={noop} onNavigate={noop} onOpenActivity={noop} onLoadDemo={noop} upload={noopUpload} />);
+    expect(screen.getByText(/Glissez-déposez votre fichier/)).toBeTruthy();
+    expect(screen.queryByText("Bonjour.")).toBeNull();
   });
 });

@@ -3,7 +3,7 @@ import {
   Upload, MapPin, TrendingUp, Activity, Heart, Zap, Mountain, Clock, Gauge,
   RefreshCw, ChevronUp, ChevronDown, X, Download, Info, Flame, Timer,
   Route, Thermometer, PauseCircle, Settings2, ArrowUpRight, Wind, Compass,
-  FileWarning, Sparkles, History as HistoryIcon, ChevronRight,
+  FileWarning, Sparkles, History as HistoryIcon,
 } from "lucide-react";
 import {
   ResponsiveContainer, AreaChart, Area, LineChart, Line, XAxis, YAxis,
@@ -46,7 +46,7 @@ import { AlterEgoView } from "./components/AlterEgoView.jsx";
 import { ArchetypeView } from "./components/ArchetypeView.jsx";
 import { TourView } from "./components/TourView.jsx";
 import { CoachView } from "./components/CoachView.jsx";
-import { AppNav } from "./components/AppNav.jsx";
+import { AppShell } from "./components/AppShell.jsx";
 import { ActivityFeedView } from "./components/ActivityFeedView.jsx";
 import { HomeView } from "./components/HomeView.jsx";
 import { DataSourcesView } from "./components/DataSourcesView.jsx";
@@ -56,7 +56,6 @@ import {
   parseRecoveryHash, beginPasswordRecovery, onPasswordRecovery, clearAuthHash, CloudNotConfiguredError,
 } from "./lib/cloud/index.js";
 import { useActivityRepository } from "./components/useActivityRepository.js";
-import { useCockpitTheme } from "./components/useCockpitTheme.js";
 
 // Stockage local durable (Phase 2)
 import { toActivity } from "./lib/normalize.js";
@@ -122,6 +121,15 @@ function splitSortColumns(analysis) {
     (key !== "avgHR" || analysis.hasHR) && (key !== "avgCad" || analysis.hasCad) &&
     (key !== "avgPower" || analysis.hasPower) && (key !== "time" || analysis.hasTime)
   );
+}
+
+/**
+ * Coque globale pour toutes les vues ; la récupération de mot de passe (flux d'authentification) reste sans navigation,
+ * comme avant, mais garde le thème global.
+ */
+function ShellOrBare({ mode, children, ...shellProps }) {
+  if (mode === "recovery") return <div className="gpx-app">{children}</div>;
+  return <AppShell {...shellProps}>{children}</AppShell>;
 }
 
 export default function GPXAnalyzer() {
@@ -718,11 +726,6 @@ export default function GPXAnalyzer() {
 
   const activeNavSection = mode === "dashboard" || mode === "historique" ? "rides" : mode;
 
-  // L'accueil est le cockpit : thème sombre dédié + navigation latérale (voir styles/cockpit.css). Les autres vues
-  // gardent leur thème et leur barre haute.
-  const isCockpit = mode === "home";
-  useCockpitTheme(isCockpit);
-
   function sortRows(rows, sortState) {
     const { key, dir } = sortState;
     return [...rows].sort((a, b) => {
@@ -757,18 +760,14 @@ export default function GPXAnalyzer() {
   const tabsIndicator = useActiveIndicator(activeTab);
 
   return (
-    <div className={"gpx-app" + (isCockpit ? " gpx-app--cockpit" : "")}>
-
-      <AppNav variant={isCockpit ? "sidebar" : "top"} active={activeNavSection} onNavigate={navigateToSection} onImport={() => fileInputRef.current && fileInputRef.current.click()} />
+    <ShellOrBare
+      mode={mode}
+      active={activeNavSection}
+      onNavigate={navigateToSection}
+      onImport={() => fileInputRef.current && fileInputRef.current.click()}
+      rideContext={mode === "dashboard" ? { name: rideName } : null}
+    >
       <input ref={fileInputRef} type="file" accept={getAcceptString()} style={{ display: "none" }} onChange={handleInputChange} />
-
-      {mode === "dashboard" && (
-        <div className="gpx-context-strip">
-          <button className="gpx-link-btn" onClick={() => setMode("historique")}>Sorties</button>
-          <ChevronRight size={13} />
-          <span className="gpx-context-strip-active">Analyse — {rideName || "Sortie vélo"}</span>
-        </div>
-      )}
 
       {mode === "home" && (
         <HomeView
@@ -787,7 +786,7 @@ export default function GPXAnalyzer() {
       )}
 
       {mode === "dashboard" && analysis && (
-        <div className="gpx-dashboard gpx-view-analyse">
+        <div className="gpx-dashboard gpx-view-analyse gpx-ds">
           {isDemo && (
             <div className="gpx-demo-banner">
               <Sparkles size={14} /> Données de démonstration — fictives, générées uniquement pour illustrer l'interface.
@@ -1769,6 +1768,6 @@ export default function GPXAnalyzer() {
           refreshSignal={stravaRefreshTick}
         />
       )}
-    </div>
+    </ShellOrBare>
   );
 }

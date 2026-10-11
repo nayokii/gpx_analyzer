@@ -69,7 +69,7 @@ export function ActivityFeedView({ storage, onConnect, onReconnect, onOpen, onBa
     : error ? "Erreur de chargement" : "Chargement…";
 
   return (
-    <div className="gpx-dashboard gpx-feed">
+    <div className="gpx-dashboard gpx-feed gpx-ds">
       <PageHead
         title="Activités"
         meta={ready ? meta : undefined}

@@ -113,7 +113,7 @@ export function DataSourcesView({ storage, onConnect, onReconnect, onDisconnectS
   }
 
   return (
-    <div className="gpx-dashboard">
+    <div className="gpx-dashboard gpx-ds">
       <PageHead
         title="Sources de données"
         meta={<span>Stockage local et import automatique des sorties</span>}

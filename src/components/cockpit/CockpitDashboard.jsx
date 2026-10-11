@@ -22,7 +22,7 @@ import { loadRideInputs } from "../../lib/cockpit/rideSource.js";
 import { fmt1, fmtInt, fmtDuration } from "../../lib/utils.js";
 import {
   CockpitPanel, MapPanel, TelemetryPanel, SeriesPanel, ElevationPanel, SummaryPanel, RoutePanel,
-  PartialDataBanner, ProvenanceBadge, StateNote, rideOptionLabel,
+  PartialDataBanner, ProvenanceBadge, StateNote, rideOptionLabel, rideDateLabel,
 } from "./CockpitPanels.jsx";
 
 /* ------------------------------------------------------------------ */
@@ -224,6 +224,7 @@ export function CockpitDashboard({ activities, userSettings, maxHR, hrZones, onO
   const [seriesMetric, setSeriesMetric] = useState("vitesse");
 
   const activity = activities.find((a) => a.id === selectedId) || activities[0];
+  const isLatest = activity === activities[0];
   // Entrées d'analyse de la sortie affichée (lecture du fichier source). `inputs.id` évite tout mélange : tant que la sortie
   // sélectionnée n'est pas celle qui a été chargée, on affiche « chargement », jamais les données de la précédente.
   const [inputs, setInputs] = useState(null);
@@ -266,7 +267,11 @@ export function CockpitDashboard({ activities, userSettings, maxHR, hrZones, onO
               {activities.map((a) => <option key={a.id} value={a.id}>{rideOptionLabel(a)}</option>)}
             </select>
           </label>
-        ) : <span className="ck-scope">Sortie affichée : la seule enregistrée</span>}
+        ) : null}
+        {/* La sortie affichée est annoncée dès le haut de l'écran, sur toutes les tailles (le nom, lui, est dans « Parcours »). */}
+        <span className={"ck-latest" + (isLatest ? " is-latest" : "")}>
+          {isLatest ? "Dernière sortie" : "Sortie sélectionnée"} · {rideDateLabel(activity)}
+        </span>
       </div>
 
       <PartialDataBanner missing={missing} />

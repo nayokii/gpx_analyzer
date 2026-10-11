@@ -82,11 +82,11 @@
 .gpx-home-card-title { display: flex; align-items: center; gap: 10px; font-size: 15px; font-weight: 650; letter-spacing: -0.01em; color: var(--muted); }
 .gpx-home-card-title .gpx-section-icon { width: 28px; height: 28px; border-radius: 9px; }
 .gpx-home-card-arrow { color: var(--faint); transition: transform var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease); }
-.gpx-home-card:hover .gpx-home-card-arrow { color: var(--brand); transform: translateX(3px); }
+.gpx-home-card:hover .gpx-home-card-arrow { color: var(--brand-ink); transform: translateX(3px); }
 .gpx-home-card-body { display: flex; flex-direction: column; gap: 6px; flex: 1; }
 .gpx-home-card-headline { font-size: 34px; font-weight: 700; letter-spacing: -0.045em; line-height: 1.05; }
 .gpx-home-card-sub { font-size: 14.5px; color: var(--muted); }
-.gpx-home-card-link { font-size: 14px; font-weight: 650; color: var(--brand); margin-top: auto; padding-top: 16px; }
+.gpx-home-card-link { font-size: 14px; font-weight: 650; color: var(--brand-ink); margin-top: auto; padding-top: 16px; }
 .gpx-xp-bar { height: 10px; border-radius: var(--radius-pill); background: var(--surface3); overflow: hidden; margin: 14px 0 6px; }
 .gpx-xp-bar > div { height: 100%; border-radius: var(--radius-pill); background: var(--climb); transition: width var(--dur-slow) var(--ease); }
 .gpx-archetype-desc { font-size: 15px; color: var(--muted); line-height: 1.5; margin: 8px 0 0; }
@@ -133,11 +133,11 @@
 .gpx-landing-inner { max-width: 640px; width: 100%; text-align: center; margin: 0 auto; }
 .gpx-landing-eyebrow {
   display: inline-flex; align-items: center; gap: 7px; padding: 6px 14px; border-radius: var(--radius-pill);
-  font-size: 13.5px; font-weight: 650; color: var(--brand);
+  font-size: 13.5px; font-weight: 650; color: var(--brand-ink);
   background: color-mix(in srgb, var(--brand) 11%, transparent); margin-bottom: 24px;
 }
 .gpx-landing-title { font-size: clamp(38px, 7vw, 60px); line-height: 1.02; font-weight: 750; letter-spacing: -0.05em; margin: 0 0 16px; }
-.gpx-landing-title span { color: var(--brand); }
+.gpx-landing-title span { color: var(--brand-ink); }
 .gpx-landing-sub { color: var(--muted); font-size: 17px; line-height: 1.55; max-width: 32em; margin: 0 auto 36px; letter-spacing: -0.01em; }
 .gpx-upload-zone {
   border: 2px dashed var(--borderStrong); border-radius: 28px; padding: 44px 24px; background: var(--surface);
@@ -147,7 +147,7 @@
 .gpx-upload-zone.drag { border-color: var(--brand); background: color-mix(in srgb, var(--brand) 7%, var(--surface)); }
 .gpx-upload-icon {
   width: 60px; height: 60px; border-radius: 20px; margin: 0 auto 18px; display: flex; align-items: center; justify-content: center;
-  background: color-mix(in srgb, var(--brand) 12%, transparent); color: var(--brand);
+  background: color-mix(in srgb, var(--brand) 12%, transparent); color: var(--brand-ink);
 }
 .gpx-upload-title { font-size: 18px; font-weight: 650; letter-spacing: -0.02em; margin-bottom: 6px; }
 .gpx-upload-sub { font-size: 14.5px; color: var(--muted); margin-bottom: 22px; }

@@ -342,7 +342,7 @@ export function ArchetypeView({ storage, onConnect, onReconnect, onBack, userSet
   }, [profile]);
 
   return (
-    <div className="gpx-dashboard">
+    <div className="gpx-dashboard gpx-ds">
       {/* Cascade d'apparition (Phase 5B) : groupes visuels via Reveal, 30 ms d'écart. Les bandeaux de limites/confiance restent affichés immédiatement. */}
       <Reveal>
         <PageHead
