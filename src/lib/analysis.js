@@ -6,6 +6,7 @@
  */
 
 import { haversine, smoothArray, avg } from './utils.js';
+import { resolveAverageSpeed, sanitizeDeviceMovingSec } from './speed.js';
 import { estimatePower, computeBestPowerEfforts, computeNormalizedPower } from './power.js';
 
 /**
@@ -13,9 +14,13 @@ import { estimatePower, computeBestPowerEfforts, computeNormalizedPower } from '
  *
  * @param {Array} points - Points GPS bruts avec {lat, lon, ele?, time?, hr?, cad?, power?, temp?}
  * @param {Object} [userSettings] - Paramètres utilisateur (weight, bikeWeight, ftp)
+ * @param {Object} [options]
+ * @param {Object|null} [options.measured] - Totaux de session du device (FIT : distanceKm,
+ *   avgSpeedKmh, elapsedSec, timerSec, movingSec). Absent pour un GPX : tout est alors calculé.
  * @returns {Object} Résultat d'analyse complet
  */
-export function computeAnalysis(points, userSettings = null) {
+export function computeAnalysis(points, userSettings = null, options = {}) {
+  const measured = (options && options.measured) || null;
   const n = points.length;
   const hasEle = points.some((p) => p.ele != null);
   const timeCount = points.filter((p) => p.time != null).length;
@@ -138,10 +143,57 @@ export function computeAnalysis(points, userSettings = null) {
         i = j;
       } else i++;
     }
+
+    // Pauses du timer : l'appareil n'enregistre aucun point pendant une pause,
+    // donc elles apparaissent comme un TROU entre deux points consécutifs (et
+    // non comme une suite de points lents). On les compte comme arrêt si la
+    // distance parcourue pendant le trou correspond à une vitesse d'arrêt ;
+    // un trou parcouru à vitesse normale (perte GPS) reste du temps de roulage.
+    for (let g = 1; g < n; g++) {
+      const gap = timeSec[g] - timeSec[g - 1];
+      if (gap < MIN_STOP_DUR) continue;
+      const gapSpeedKmh = ((dist[g] - dist[g - 1]) / gap) * 3.6;
+      if (gapSpeedKmh >= STOP_SPEED) continue;
+      if (stops.some((s) => s.startIdx < g && s.endIdx >= g)) continue; // déjà comptée dans un arrêt détecté
+      stops.push({
+        startIdx: g - 1,
+        endIdx: g,
+        duration: gap,
+        distance: dist[g - 1] / 1000,
+        lat: points[g - 1].lat,
+        lon: points[g - 1].lon,
+      });
+      stoppedAcc += gap;
+    }
+    stops.sort((a, b) => a.startIdx - b.startIdx);
+
     stoppedTimeSec = stoppedAcc;
     movingTimeSec = totalTimeSec - stoppedAcc;
   }
-  const avgSpeedKmh = hasTime && movingTimeSec > 0 ? totalDistanceKm / (movingTimeSec / 3600) : null;
+
+  // ---- vitesse moyenne : règle unique, voir ./speed.js ----
+  // Le timer du device (FIT) fait foi pour le temps en mouvement quand il est
+  // plausible ; sinon le temps hors arrêts calculé ci-dessus.
+  const deviceTimerSec = hasTime
+    ? sanitizeDeviceMovingSec(measured && (measured.timerSec ?? measured.movingSec), (measured && measured.elapsedSec) || totalTimeSec)
+    : null;
+  if (deviceTimerSec != null) {
+    movingTimeSec = deviceTimerSec;
+    stoppedTimeSec = Math.max(0, totalTimeSec - deviceTimerSec);
+  }
+  // Distance et temps d'un même jeu : celui de la session FIT quand elle fournit les deux.
+  const useSessionDistance = deviceTimerSec != null && measured.distanceKm > 0;
+  const speedResolution = hasTime
+    ? resolveAverageSpeed({
+        distanceKm: useSessionDistance ? measured.distanceKm : totalDistanceKm,
+        movingTimeSec,
+        elapsedSec: (measured && measured.elapsedSec > 0 ? measured.elapsedSec : null) || totalTimeSec,
+        deviceAvgKmh: measured ? measured.avgSpeedKmh : null,
+      })
+    : { avgSpeedKmh: null, avgSpeedElapsedKmh: null, source: null };
+  const avgSpeedKmh = speedResolution.avgSpeedKmh;
+  const avgSpeedElapsedKmh = speedResolution.avgSpeedElapsedKmh;
+  const avgSpeedSource = speedResolution.source;
   const maxSpeedKmh = hasTime ? Math.max(...speed.filter((v) => v != null)) : null;
 
   // ---- splits par kilomètre ----
@@ -228,7 +280,7 @@ export function computeAnalysis(points, userSettings = null) {
     elevLoss: hasEle ? elevLoss : null,
     maxEle, minEle,
     totalTimeSec, movingTimeSec, stoppedTimeSec, stops,
-    avgSpeedKmh, maxSpeedKmh,
+    avgSpeedKmh, avgSpeedElapsedKmh, avgSpeedSource, maxSpeedKmh,
     splits, climbs, bestEfforts, powerStats, hrStats, cadStats, tempStats,
     startTime: points[0].time || null,
     endTime: points[n - 1].time || null,

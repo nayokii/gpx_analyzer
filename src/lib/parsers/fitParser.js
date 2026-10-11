@@ -71,7 +71,8 @@ function mToKm(m) {
  * @returns {Promise<{
  *   name: string|null,
  *   points: Array,
- *   measured: {distanceKm: number|null, avgSpeedKmh: number|null, maxSpeedKmh: number|null}
+ *   measured: {distanceKm: number|null, avgSpeedKmh: number|null, maxSpeedKmh: number|null,
+ *     elapsedSec: number|null, timerSec: number|null, movingSec: number|null}
  * }>} Asynchrone : charge @garmin/fitsdk à la volée (voir note en tête de fichier)
  * @throws {Error} Si le fichier n'est pas un FIT valide ou ne contient pas de points exploitables
  */
@@ -139,6 +140,12 @@ export async function parseFITArrayBuffer(arrayBuffer) {
     distanceKm: session ? mToKm(session.totalDistance != null ? session.totalDistance : null) : null,
     avgSpeedKmh: msToKmh(sessionAvgSpeedMs != null ? sessionAvgSpeedMs : null),
     maxSpeedKmh: msToKmh(sessionMaxSpeedMs != null ? sessionMaxSpeedMs : null),
+    // Durées de session (secondes). `timerSec` = temps timer en marche (hors
+    // pauses) — c'est le dénominateur de `avg_speed` côté device ; `movingSec`
+    // = total_moving_time ; `elapsedSec` = temps écoulé, pauses incluses.
+    elapsedSec: session && session.totalElapsedTime != null ? session.totalElapsedTime : null,
+    timerSec: session && session.totalTimerTime != null ? session.totalTimerTime : null,
+    movingSec: session && session.totalMovingTime != null ? session.totalMovingTime : null,
   };
 
   return { name, points, measured };

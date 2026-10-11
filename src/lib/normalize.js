@@ -9,6 +9,7 @@
  */
 
 import { createEmptyActivity } from "./types.js";
+import { SPEED_MODEL_VERSION } from "./speed.js";
 
 /**
  * @param {Object} analysis - Résultat de computeAnalysis()
@@ -45,7 +46,12 @@ export function toActivity(analysis, points, meta = {}) {
   activity.movingTime = analysis.movingTimeSec;
   activity.elevationGain = analysis.elevGain;
   activity.elevationLoss = analysis.elevLoss;
+  // Vitesse moyenne EN MOUVEMENT (règle unique : voir ./speed.js). La vitesse sur
+  // la durée écoulée est une métrique distincte, stockée à part.
   activity.avgSpeed = analysis.avgSpeedKmh;
+  activity.avgSpeedElapsed = analysis.avgSpeedElapsedKmh != null ? analysis.avgSpeedElapsedKmh : null;
+  activity.avgSpeedSource = analysis.avgSpeedSource || null;
+  activity.speedModelVersion = SPEED_MODEL_VERSION;
   activity.maxSpeed = analysis.maxSpeedKmh;
   activity.avgSpeedMeasured = meta.measured && meta.measured.avgSpeedKmh != null ? meta.measured.avgSpeedKmh : null;
   activity.maxSpeedMeasured = meta.measured && meta.measured.maxSpeedKmh != null ? meta.measured.maxSpeedKmh : null;

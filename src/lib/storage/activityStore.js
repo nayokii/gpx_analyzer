@@ -106,6 +106,21 @@ export async function readIndex(dirHandle) {
   }
 }
 
+// Sérialise TOUTES les écritures de ce module (saveActivity, deleteActivity,
+// patchActivity, rebuildIndex) par dossier : chacune fait un lire-modifier-écrire
+// sur index.json. Le verrou du repository (activityRepository.js) ne couvre que
+// ses propres appels ; celui-ci protège aussi la sync Strava et la migration de
+// vitesse, qui appellent ce module directement. Les fonctions publiques prennent
+// le verrou ; les variantes `*Unlocked` sont réservées à l'intérieur d'une section
+// verrouillée (verrou non réentrant).
+const storeLocks = new WeakMap();
+function withStoreLock(rootHandle, fn) {
+  const tail = storeLocks.get(rootHandle) || Promise.resolve();
+  const result = tail.then(fn, fn);
+  storeLocks.set(rootHandle, result.then(() => {}, () => {}));
+  return result;
+}
+
 async function writeIndex(dirHandle, entries) {
   const sorted = [...entries].sort((a, b) => (b.date || "").localeCompare(a.date || ""));
   await writeTextFile(dirHandle, INDEX_FILE, JSON.stringify(sorted, null, 2));
@@ -117,7 +132,11 @@ async function writeIndex(dirHandle, entries) {
  * dans le dossier. Les fichiers illisibles/corrompus sont ignorés plutôt que
  * de faire échouer toute la liste.
  */
-export async function rebuildIndex(rootHandle) {
+export function rebuildIndex(rootHandle) {
+  return withStoreLock(rootHandle, () => rebuildIndexUnlocked(rootHandle));
+}
+
+async function rebuildIndexUnlocked(rootHandle) {
   const dirHandle = await getActivitiesDir(rootHandle);
   const entries = [];
   for await (const [name, handle] of dirHandle) {
@@ -141,6 +160,18 @@ export async function listActivities(rootHandle) {
   return rebuildIndex(rootHandle);
 }
 
+async function listActivitiesUnlocked(rootHandle) {
+  const dirHandle = await getActivitiesDir(rootHandle);
+  return (await readIndex(dirHandle)) || rebuildIndexUnlocked(rootHandle);
+}
+
+async function loadActivityDetailUnlocked(rootHandle, id) {
+  const dirHandle = await getActivitiesDir(rootHandle);
+  const entry = (await listActivitiesUnlocked(rootHandle)).find((e) => e.id === id);
+  if (!entry) throw new Error(`Sortie introuvable (id ${id}).`);
+  return JSON.parse(await readTextFile(dirHandle, entry.files.json));
+}
+
 /**
  * Sauvegarde une activité : conserve le fichier source original tel quel et
  * écrit la version JSON normalisée, puis met à jour l'index.
@@ -151,7 +182,11 @@ export async function listActivities(rootHandle) {
  * @param {string} [sourceExt] - extension du fichier source (sans le point) : "gpx" ou "fit"
  * @returns {Promise<import('../types.js').Activity>} l'activité telle qu'enregistrée (avec source.storedFilename renseigné)
  */
-export async function saveActivity(rootHandle, activity, sourceFileContent, sourceExt = "gpx") {
+export function saveActivity(rootHandle, activity, sourceFileContent, sourceExt = "gpx") {
+  return withStoreLock(rootHandle, () => saveActivityUnlocked(rootHandle, activity, sourceFileContent, sourceExt));
+}
+
+async function saveActivityUnlocked(rootHandle, activity, sourceFileContent, sourceExt) {
   const dirHandle = await getActivitiesDir(rootHandle);
   const base = baseFilename(activity);
   const originalFilename = `${base}.${sourceExt}`;
@@ -166,7 +201,7 @@ export async function saveActivity(rootHandle, activity, sourceFileContent, sour
   }
   await writeTextFile(dirHandle, jsonFilename, JSON.stringify(toSave, null, 2));
 
-  const index = (await readIndex(dirHandle)) || (await rebuildIndex(rootHandle));
+  const index = (await readIndex(dirHandle)) || (await rebuildIndexUnlocked(rootHandle));
   const withoutExisting = index.filter((e) => e.id !== activity.id);
   withoutExisting.push(summaryFromActivity(toSave, { json: jsonFilename, original: originalFilename }));
   await writeIndex(dirHandle, withoutExisting);
@@ -204,10 +239,42 @@ export async function loadActivitySourceArrayBuffer(rootHandle, id) {
   return readBinaryFile(dirHandle, activity.source.storedFilename);
 }
 
+/**
+ * Met à jour une Activity déjà enregistrée, sous le verrou d'écriture. `compute`
+ * reçoit l'Activity COURANTE (relue sous verrou, donc jamais périmée si elle a été
+ * réimportée entre-temps) et renvoie les champs à fusionner, ou `null` pour ne rien
+ * écrire. Le fichier source et les autres champs ne sont pas touchés.
+ *
+ * Ordre d'écriture : index d'abord, JSON ensuite. Le JSON porte les marqueurs
+ * (ex. speedModelVersion) : s'il n'a pas été écrit, rien n'est jamais considéré
+ * comme fait, et l'opération est simplement rejouée au prochain passage.
+ * Utilisé par la migration de vitesse moyenne (voir speedMigration.js).
+ * @returns {Promise<Object|null>} l'Activity mise à jour, ou `null` si `compute` a renoncé
+ */
+export function patchActivity(rootHandle, id, compute) {
+  return withStoreLock(rootHandle, async () => {
+    const dirHandle = await getActivitiesDir(rootHandle);
+    const activity = await loadActivityDetailUnlocked(rootHandle, id);
+    const patch = compute(activity);
+    if (!patch) return null;
+    const patched = { ...activity, ...patch };
+    const index = await listActivitiesUnlocked(rootHandle);
+    const existing = index.find((e) => e.id === id);
+    const files = existing ? existing.files : { json: `${baseFilename(activity)}.json`, original: activity.source?.storedFilename || null };
+    await writeIndex(dirHandle, [...index.filter((e) => e.id !== id), summaryFromActivity(patched, files)]);
+    await writeTextFile(dirHandle, files.json, JSON.stringify(patched, null, 2));
+    return patched;
+  });
+}
+
 /** Supprime une activité (fichier source + JSON) et met à jour l'index. */
-export async function deleteActivity(rootHandle, id) {
+export function deleteActivity(rootHandle, id) {
+  return withStoreLock(rootHandle, () => deleteActivityUnlocked(rootHandle, id));
+}
+
+async function deleteActivityUnlocked(rootHandle, id) {
   const dirHandle = await getActivitiesDir(rootHandle);
-  const activity = await loadActivityDetail(rootHandle, id);
+  const activity = await loadActivityDetailUnlocked(rootHandle, id);
   const base = baseFilename(activity);
 
   await dirHandle.removeEntry(`${base}.json`).catch(() => {});

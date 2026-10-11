@@ -59,6 +59,7 @@ import { useActivityRepository } from "./components/useActivityRepository.js";
 
 // Stockage local durable (Phase 2)
 import { toActivity } from "./lib/normalize.js";
+import { migrateStoredSpeeds } from "./lib/storage/speedMigration.js";
 import {
   isFileSystemAccessSupported,
   pickDataDirectory,
@@ -137,6 +138,9 @@ export default function GPXAnalyzer() {
   const [fileName, setFileName] = useState(null);
   const [rideName, setRideName] = useState(null);
   const [points, setPoints] = useState(null);
+  // Totaux de session du device (FIT) de la sortie affichée : sans eux le dashboard
+  // recalculerait la vitesse moyenne autrement que l'historique (voir lib/speed.js).
+  const [sessionMeasured, setSessionMeasured] = useState(null);
   const [activeActivityId, setActiveActivityId] = useState(null); // id de la sortie ouverte depuis l'historique, si applicable
 
   const [error, setError] = useState(null);
@@ -297,6 +301,20 @@ export default function GPXAnalyzer() {
     })();
   }, [storage.status, storage.rootHandle]);
 
+  // Corrige UNE fois les vitesses moyennes des anciennes sorties dont le fichier
+  // source est encore dans le dossier (voir lib/storage/speedMigration.js).
+  useEffect(() => {
+    if (storage.status !== "connected" || !storage.rootHandle) return;
+    let cancelled = false;
+    migrateStoredSpeeds(storage.rootHandle)
+      .then((report) => {
+        if (!cancelled && report.updated.length > 0) console.info("[Cycling OS] vitesses moyennes recalculées :", report.updated);
+        if (report.failed.length > 0) console.warn("[Cycling OS] migration vitesse en échec :", report.failed);
+      })
+      .catch((err) => console.warn("[Cycling OS] migration vitesse impossible :", err));
+    return () => { cancelled = true; };
+  }, [storage.status, storage.rootHandle]);
+
   async function connectStorage() {
     try {
       const handle = await pickDataDirectory();
@@ -318,7 +336,7 @@ export default function GPXAnalyzer() {
     setStorage({ status: "disconnected", rootHandle: null, dirName: null });
   }
 
-  const analysis = useMemo(() => (points ? computeAnalysis(points, userSettings) : null), [points, userSettings]);
+  const analysis = useMemo(() => (points ? computeAnalysis(points, userSettings, { measured: sessionMeasured }) : null), [points, userSettings, sessionMeasured]);
   // Moteur d'analyse avancée (Phase 4A) — indépendant de l'UI, calculé ici pour
   // être disponible dans le flux de l'app ; pas encore branché sur le rendu
   // (l'interface actuelle continue de lire `analysis` directement).
@@ -510,6 +528,7 @@ export default function GPXAnalyzer() {
     }
 
     setPoints(points);
+    setSessionMeasured(measured || null);
     setRideName(name);
     setFileName(file.name);
     setIsDemo(false);
@@ -531,7 +550,7 @@ export default function GPXAnalyzer() {
     // arrière-plan, et met à jour le message affiché une fois le résultat connu.
     if (storage.status === "connected" && storage.rootHandle) {
       try {
-        const freshAnalysis = computeAnalysis(points, userSettings);
+        const freshAnalysis = computeAnalysis(points, userSettings, { measured });
         const activity = toActivity(freshAnalysis, points, { name, sourceType: format, originalFilename: file.name, measured });
         const sourceContent = format === "fit" ? sourceArrayBuffer : sourceText;
         const { activity: saved, cloudSyncPromise } = await repository.saveActivity(activity, sourceContent, format);
@@ -597,10 +616,10 @@ export default function GPXAnalyzer() {
         }
       }
 
-      let name, points;
+      let name, points, measured = null;
       if (detail && detail.source.type === "fit") {
         const arrayBuffer = await loadActivitySourceArrayBuffer(storage.rootHandle, id);
-        ({ name, points } = await parseFITArrayBuffer(arrayBuffer));
+        ({ name, points, measured } = await parseFITArrayBuffer(arrayBuffer));
       } else if (detail && detail.source.type === "strava") {
         // Pas de fichier source à reparser (voir src/lib/strava/adapter.js).
         name = detail.name;
@@ -618,6 +637,7 @@ export default function GPXAnalyzer() {
         points = pointsFromSamples(detail);
       }
       setPoints(points);
+      setSessionMeasured(measured);
       setRideName(detail.name || name);
       setFileName(detail.source.originalFilename || detail.source.storedFilename);
       setIsDemo(false);
@@ -645,6 +665,7 @@ export default function GPXAnalyzer() {
   function loadDemo() {
     const { name, points } = generateDemoPoints();
     setPoints(points);
+    setSessionMeasured(null);
     setRideName(name);
     setFileName(null);
     setIsDemo(true);
@@ -655,6 +676,7 @@ export default function GPXAnalyzer() {
   }
   function resetAll() {
     setPoints(null);
+    setSessionMeasured(null);
     setSelectedClimb(null);
     setActiveTab("resume");
     setMode("home");
