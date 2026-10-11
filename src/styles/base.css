@@ -337,6 +337,11 @@ body { background: var(--bg); }
   position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
   color: var(--muted); font-size: 14px; z-index: 500; background: var(--map-bg);
 }
+.gpx-map-note {
+  position: absolute; left: 10px; bottom: 28px; z-index: 600; max-width: calc(100% - 20px);
+  padding: 7px 11px; border-radius: var(--radius-sm); font-size: 12.5px; font-weight: 600;
+  background: var(--surface); color: var(--text); box-shadow: var(--shadow-pop); pointer-events: none;
+}
 .gpx-map-scale { margin-top: 14px; }
 .gpx-map-scale-bar { height: 6px; border-radius: var(--radius-pill); }
 .gpx-map-scale-labels { display: flex; justify-content: space-between; font-size: 12px; font-weight: 600; color: var(--muted); margin-top: 6px; font-variant-numeric: tabular-nums; }

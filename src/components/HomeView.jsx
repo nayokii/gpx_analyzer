@@ -1,5 +1,10 @@
 /**
- * ACCUEIL — Focus Dashboard : le centre de gravité de l'application, pas une
+ * ACCUEIL — Cockpit de performance (voir components/cockpit/) surmontant le
+ * Focus Dashboard : carte, télémétrie, profil d'altitude, résumé et analyse de
+ * la sortie sélectionnée (par défaut la plus récente de l'historique), puis les
+ * blocs Alter Ego / Profil / Archétype décrits ci-dessous.
+ *
+ * Focus Dashboard : le centre de gravité de l'application, pas une
  * galerie de copies miniatures des autres pages. Répond à quatre questions
  * en quelques secondes : où j'en suis (Alter Ego), sur quoi je progresse
  * (Focus), qu'est-ce qui compte maintenant (Focus), quelle est ma dernière
@@ -38,13 +43,14 @@ import {
 import { StorageSettings } from "./StorageSettings.jsx";
 import { Reveal } from "./Reveal.jsx";
 import { SectionTitle, ProgressRing } from "./UIPrimitives.jsx";
+import { CockpitDashboard } from "./cockpit/CockpitDashboard.jsx";
+import { ProgressionHistoryPanel, ProvenanceLegend } from "./cockpit/CockpitPanels.jsx";
 import { COLORS } from "../lib/colors.js";
 import { listActivities } from "../lib/storage/activityStore.js";
 import { loadCachedActivityDetails } from "../lib/storage/activityCache.js";
 import { confidenceLabel } from "../lib/profile/confidence.js";
 import { getXpProgress } from "../lib/progression/levels.js";
 import { getCachedProfile, getCachedProgression, getCachedArchetypeMatch } from "../lib/derivedCache.js";
-import { fmt1, fmtInt, fmtDuration, fmtDateFull } from "../lib/utils.js";
 
 /** "vendredi 9 octobre" → "Vendredi 9 octobre" (la casse du mois reste française). */
 function formatToday() {
@@ -234,61 +240,16 @@ function ProfilePreviewSection({ profile, onOpen }) {
 }
 
 /* ------------------------------------------------------------------ */
-/* Dernière sortie                                                      */
+/* Aucune sortie exploitable                                            */
 /* ------------------------------------------------------------------ */
 
-function LastRideSection({ lastActivity, onOpen }) {
-  const speed = lastActivity ? lastActivity.avgSpeed : null;
-  const power = lastActivity ? lastActivity.avgPower : null;
-  const estimated = !!(lastActivity && lastActivity.flags && lastActivity.flags.powerEstimated);
+/** Historique lisible mais aucune sortie n'a pu être chargée : message honnête, jamais une sortie fabriquée. */
+function NoRideSection() {
   return (
     <div className="gpx-panel">
       <SectionTitle icon={Sparkles}>Dernière sortie</SectionTitle>
-      {!lastActivity ? (
-        <>
-          <p className="gpx-summary-text">Aucune sortie enregistrée.</p>
-          <p className="gpx-empty-note">Importe ta première activité pour commencer à construire ton profil.</p>
-        </>
-      ) : (
-        <div className="gpx-lastride">
-          <div>
-            <div className="gpx-lastride-name">{lastActivity.name || "Sortie vélo"}</div>
-            <div className="gpx-lastride-date">
-              {lastActivity.date ? fmtDateFull(new Date(lastActivity.date)) : "Date inconnue"}
-            </div>
-            <div className="gpx-lastride-stats">
-              <div className="gpx-lastride-stat">
-                <span className="gpx-lastride-stat-label">Distance</span>
-                <span className="gpx-lastride-stat-value">{fmt1(lastActivity.distance)}<small>km</small></span>
-              </div>
-              <div className="gpx-lastride-stat">
-                <span className="gpx-lastride-stat-label">Durée</span>
-                <span className="gpx-lastride-stat-value">{fmtDuration(lastActivity.movingTime ?? lastActivity.duration)}</span>
-              </div>
-              {speed != null && (
-                <div className="gpx-lastride-stat">
-                  <span className="gpx-lastride-stat-label">Vitesse moyenne</span>
-                  <span className="gpx-lastride-stat-value">{fmt1(speed)}<small>km/h</small></span>
-                </div>
-              )}
-              {lastActivity.elevationGain != null && (
-                <div className="gpx-lastride-stat">
-                  <span className="gpx-lastride-stat-label">Dénivelé</span>
-                  <span className="gpx-lastride-stat-value">+{fmtInt(lastActivity.elevationGain)}<small>m</small></span>
-                </div>
-              )}
-              {power != null && (
-                <div className="gpx-lastride-stat">
-                  <span className="gpx-lastride-stat-label">Puissance moyenne</span>
-                  <span className="gpx-lastride-stat-value">{fmtInt(power)}<small>W</small></span>
-                  <span className={estimated ? "gpx-power-source-estimated" : "gpx-power-source"}>{estimated ? "estimée" : "mesurée"}</span>
-                </div>
-              )}
-            </div>
-          </div>
-          <button className="gpx-btn-primary gpx-lastride-cta" onClick={onOpen}>Voir l'analyse <ArrowRight size={16} /></button>
-        </div>
-      )}
+      <p className="gpx-summary-text">Aucune sortie enregistrée.</p>
+      <p className="gpx-empty-note">Importe ta première activité pour commencer à construire ton profil.</p>
     </div>
   );
 }
@@ -353,11 +314,14 @@ function EmptyStateImport({ storage, onConnect, onReconnect, upload, onLoadDemo,
  * @param {Function} props.onNavigate - (section: "rides"|"profil"|"alterego"|"archetype") => void
  * @param {Function} props.onOpenActivity - (id) => void, ouvre une sortie dans l'analyse
  * @param {Function} props.onLoadDemo
+ * @param {Object} [props.userSettings] - paramètres de puissance de l'app (poids, FTP, estimation) pour l'analyse du cockpit
+ * @param {number} [props.maxHR] - FC max de référence (zones de FC du cockpit)
+ * @param {Array} [props.hrZones] - bornes des zones de FC du cockpit
  * @param {Object} props.upload - { dragOver, onDragOver, onDragLeave, onDrop, onBrowseClick, error } — le
  *   `<input type="file">` réel est unique dans toute l'app, monté une fois par GPXAnalyzer.jsx ; `onBrowseClick`
  *   se contente de déclencher son clic, cette vue n'en rend jamais un second (voir GPXAnalyzer.jsx: fileInputRef).
  */
-export function HomeView({ storage, onConnect, onReconnect, onNavigate, onOpenActivity, onLoadDemo, upload, onOpenSources }) {
+export function HomeView({ storage, onConnect, onReconnect, onNavigate, onOpenActivity, onLoadDemo, upload, onOpenSources, userSettings = null, maxHR, hrZones }) {
   const [summaries, setSummaries] = useState(null);
   const [summariesError, setSummariesError] = useState(null);
   const [fullActivities, setFullActivities] = useState(null);
@@ -398,7 +362,7 @@ export function HomeView({ storage, onConnect, onReconnect, onNavigate, onOpenAc
   const hasData = storage.status === "connected" && !isLoading && !isEmpty && profile != null;
 
   return (
-    <div className="gpx-dashboard">
+    <div className={"gpx-dashboard" + (hasData ? " ck-root" : "")}>
       {summariesError ? (
         <div className="gpx-panel">
           <div className="gpx-error-box">{summariesError}</div>
@@ -411,10 +375,13 @@ export function HomeView({ storage, onConnect, onReconnect, onNavigate, onOpenAc
         </div>
       ) : hasData ? (
         <>
-          <header className="gpx-home-head">
-            <p className="gpx-home-date">{formatToday()}</p>
-            <h1 className="gpx-home-title">Bonjour.</h1>
-            <p className="gpx-home-lede">Ton identité cycliste, en un coup d'œil.</p>
+          <header className="gpx-home-head ck-head">
+            <div>
+              <p className="gpx-home-date">{formatToday()}</p>
+              <h1 className="gpx-home-title">Bonjour.</h1>
+              <p className="gpx-home-lede">Ton cockpit cycliste, en un coup d'œil.</p>
+            </div>
+            <ProvenanceLegend />
           </header>
 
           {failedCount > 0 && (
@@ -424,12 +391,27 @@ export function HomeView({ storage, onConnect, onReconnect, onNavigate, onOpenAc
             </div>
           )}
 
-          <div className="gpx-home-grid">
+          <Reveal>
+            {lastActivity ? (
+              <CockpitDashboard
+                activities={fullActivities}
+                userSettings={userSettings}
+                maxHR={maxHR}
+                hrZones={hrZones}
+                rootHandle={storage.rootHandle}
+                onOpenActivity={onOpenActivity}
+              />
+            ) : (
+              <NoRideSection />
+            )}
+          </Reveal>
+
+          <div className="gpx-home-grid ck-progress-grid">
             <Reveal className="gpx-span-8"><FocusSection profile={profile} progression={progression} onViewChallenges={() => onNavigate("alterego")} /></Reveal>
             <Reveal className="gpx-span-4 gpx-home-ae" delay={40}><AlterEgoPreview progression={progression} onOpen={() => onNavigate("alterego")} /></Reveal>
-            <Reveal className="gpx-span-12 gpx-home-last" delay={80}><LastRideSection lastActivity={lastActivity} onOpen={lastActivity ? () => onOpenActivity(lastActivity.id) : undefined} /></Reveal>
-            <Reveal className="gpx-span-7 gpx-home-profile" delay={120}><ProfilePreviewSection profile={profile} onOpen={() => onNavigate("profil")} /></Reveal>
-            <Reveal className="gpx-span-5 gpx-home-ar" delay={160}><ArchetypePreview archetypeMatch={archetypeMatch} onOpen={() => onNavigate("archetype")} /></Reveal>
+            <Reveal className="gpx-span-7 gpx-home-profile" delay={80}><ProfilePreviewSection profile={profile} onOpen={() => onNavigate("profil")} /></Reveal>
+            <Reveal className="gpx-span-5 gpx-home-ar" delay={120}><ArchetypePreview archetypeMatch={archetypeMatch} onOpen={() => onNavigate("archetype")} /></Reveal>
+            <Reveal className="gpx-span-12" delay={160}><ProgressionHistoryPanel progression={progression} /></Reveal>
           </div>
 
           <div className="gpx-panel gpx-home-import-compact">

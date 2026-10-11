@@ -157,8 +157,20 @@ describe("Navigation — structure responsive", () => {
     render(<GPXAnalyzer />);
     await screen.findByText(/Glissez-déposez votre fichier/);
     expect(screen.getAllByText("Profil").length).toBeGreaterThanOrEqual(2);
-    expect(document.querySelector(".gpx-appnav-top")).toBeTruthy();
+    // L'accueil est le cockpit : barre latérale (desktop/tablette) + barre basse (mobile). Les autres vues gardent la barre haute.
+    expect(document.querySelector(".gpx-sidebar")).toBeTruthy();
     expect(document.querySelector(".gpx-appnav-bottom")).toBeTruthy();
+    expect(document.querySelector(".gpx-appnav-top")).toBeNull();
+    expect(document.documentElement.getAttribute("data-theme")).toBe("cockpit");
+  });
+
+  it("quitter l'accueil rend la barre haute et retire le thème cockpit", async () => {
+    render(<GPXAnalyzer />);
+    await screen.findByText(/Glissez-déposez votre fichier/);
+    fireEvent.click(document.querySelector(".gpx-sidebar-item[title='Mes sorties']"));
+    await waitFor(() => expect(document.querySelector(".gpx-appnav-top")).toBeTruthy());
+    expect(document.querySelector(".gpx-sidebar")).toBeNull();
+    expect(document.documentElement.getAttribute("data-theme")).toBeNull();
   });
 });
 

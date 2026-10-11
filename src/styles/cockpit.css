@@ -1,0 +1,349 @@
+/**
+ * Cycling OS — cockpit de performance (écran d'accueil).
+ *
+ * Thème « télémétrie » : noir bleuté, panneaux #11151A, filets fins, accent rose #D6116B (principal) et #F5C6D6
+ * (secondaire). Il s'active en posant data-theme="cockpit" sur <html> (components/useCockpitTheme.js) et ne REDÉFINIT
+ * QUE les tokens de tokens.css : tous les composants existants (carte, profil, panneaux, boutons) s'y adaptent sans
+ * être modifiés, et les canvas / tracés Leaflet — qui lisent :root — suivent aussi.
+ *
+ * Contrastes (sur #11151A) : texte #E9ECF1 ≈ 15:1, gris froid #9AA4B2 ≈ 7:1, rose lisible en texte #FF5FA2 ≈ 6,6:1.
+ * Le rose #D6116B (≈ 3,6:1) ne sert qu'aux surfaces, tracés et fonds de bouton (texte blanc dessus ≈ 5,1:1).
+ */
+
+:root[data-theme="cockpit"] {
+  color-scheme: dark;
+
+  --bg: #0a0b0d;
+  --bgAlt: #0e1013;
+  --surface: #11151a;
+  --surface2: #171c23;
+  --surface3: #212831;
+  --surface-glass: rgba(10, 11, 13, 0.92);
+
+  --separator: rgba(176, 190, 210, 0.11);
+  --border: rgba(176, 190, 210, 0.12);
+  --borderStrong: rgba(176, 190, 210, 0.26);
+
+  --text: #e9ecf1;
+  --muted: #9aa4b2;
+  --faint: #7f8a9b;
+
+  /* Couleurs métier remappées sur la palette : rose = vitesse/accent, rose pâle = altitude, corail = FC, acier = cadence/puissance. */
+  --speed: #d6116b;
+  --climb: #f5c6d6;
+  --effort: #ff7a59;
+  --alert: #ff4d6d;
+  --info: #8fa3c0;
+  --speed-ink: #ff5fa2;
+  --climb-ink: #f5c6d6;
+  --effort-ink: #ff9a80;
+  --alert-ink: #ff8fa3;
+  --info-ink: #a9bad3;
+
+  --brand: #d6116b;
+  --on-brand: #ffffff;
+  --active: #ff5fa2;
+  --active-tint: rgba(214, 17, 107, 0.14);
+
+  --inverse-bg: #161b22;
+  --inverse-text: #e9ecf1;
+  --inverse-muted: #9aa4b2;
+  --inverse-accent: #ff5fa2;
+
+  --shadow-card: none;
+  --shadow-pop: 0 10px 28px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(176, 190, 210, 0.14);
+
+  /* Carte : tuiles OSM assombries (inversion + désaturation) ; halo du tracé = fond de l'app. */
+  --map-halo: #0a0b0d;
+  --map-bg: #0f1216;
+  --map-tile-filter: invert(1) hue-rotate(180deg) saturate(0.3) brightness(0.82) contrast(0.92);
+
+  /* Angles francs : outil d'analyse, pas carte SaaS. */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+}
+
+:root[data-theme="cockpit"] body { background: var(--bg); }
+
+/* Les liens/boutons texte utilisent le rose lisible (le rose de marque est trop sombre en petit texte). */
+:root[data-theme="cockpit"] .gpx-app .gpx-link-btn,
+:root[data-theme="cockpit"] .gpx-app .gpx-home-card-link { color: var(--speed-ink); }
+:root[data-theme="cockpit"] .gpx-app :focus-visible { outline-color: var(--speed-ink); }
+:root[data-theme="cockpit"] .gpx-app .gpx-panel { border: 1px solid var(--border); box-shadow: none; }
+:root[data-theme="cockpit"] .gpx-app .gpx-chip-active,
+:root[data-theme="cockpit"] .gpx-app .gpx-chip-active:hover { background: var(--speed); color: #fff; }
+:root[data-theme="cockpit"] .gpx-app .gpx-home-card { border: 1px solid var(--border); box-shadow: none; }
+:root[data-theme="cockpit"] .gpx-app .gpx-home-card:hover { transform: none; border-color: var(--borderStrong); }
+:root[data-theme="cockpit"] .gpx-app .gpx-xp-bar > div { background: var(--speed); }
+:root[data-theme="cockpit"] .gpx-app .gpx-upload-zone { border-radius: var(--radius-lg); }
+
+/* ---------------------------------------------------------------------------------------------------------------
+   Coque : barre latérale + contenu
+   --------------------------------------------------------------------------------------------------------------- */
+
+.gpx-app--cockpit {
+  display: grid;
+  grid-template-columns: 224px minmax(0, 1fr);
+  align-items: start;
+}
+.gpx-app--cockpit > :not(.gpx-sidebar) { grid-column: 2; min-width: 0; }
+.gpx-app--cockpit > .gpx-sidebar { grid-column: 1; grid-row: 1 / span 12; }
+
+.gpx-sidebar {
+  position: sticky; top: 0; align-self: start;
+  height: 100vh; height: 100dvh; overflow-y: auto;
+  display: flex; flex-direction: column; gap: 18px;
+  padding: 18px 12px 16px;
+  background: var(--bgAlt);
+  border-right: 1px solid var(--border);
+}
+.gpx-sidebar-brand {
+  display: flex; align-items: center; gap: 10px; padding: 6px 8px;
+  background: none; border: none; color: var(--text); font-size: 16px; font-weight: 700; letter-spacing: -0.01em;
+}
+.gpx-sidebar-nav { display: flex; flex-direction: column; gap: 16px; flex: 1; }
+.gpx-sidebar-group { display: flex; flex-direction: column; gap: 2px; }
+.gpx-sidebar-heading {
+  margin: 0 0 4px; padding: 0 10px; font-size: 10.5px; font-weight: 700; letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--faint);
+}
+.gpx-sidebar-item {
+  position: relative; display: flex; align-items: center; gap: 10px; width: 100%;
+  padding: 8px 10px; border: none; border-left: 2px solid transparent; border-radius: var(--radius-sm);
+  background: none; color: var(--muted); font-size: 14px; font-weight: 600; text-align: left;
+  transition: color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
+}
+.gpx-sidebar-item:hover { color: var(--text); background: var(--surface2); }
+.gpx-sidebar-item.active, .gpx-sidebar-item.active:hover {
+  color: var(--speed-ink); background: var(--active-tint); border-left-color: var(--speed);
+}
+.gpx-sidebar-item svg { flex-shrink: 0; }
+.gpx-sidebar-import { width: 100%; justify-content: center; min-height: 40px; font-size: 14px; }
+
+/* La barre compacte (marque + import) n'existe que sur mobile ; la barre basse est déjà gérée par base.css. */
+.gpx-topbar--compact { display: none; }
+
+/* Tablette : rail d'icônes (les libellés restent accessibles via title / aria). */
+@media (min-width: 681px) and (max-width: 1100px) {
+  .gpx-app--cockpit { grid-template-columns: 64px minmax(0, 1fr); }
+  .gpx-sidebar { padding: 14px 8px; align-items: center; }
+  .gpx-sidebar-label, .gpx-sidebar-heading { display: none; }
+  .gpx-sidebar-brand { padding: 6px; }
+  .gpx-sidebar-item { justify-content: center; padding: 10px 0; border-left: none; width: 44px; }
+  .gpx-sidebar-item.active { box-shadow: inset 2px 0 0 var(--speed); }
+  .gpx-sidebar-group { align-items: center; }
+  .gpx-sidebar-import { width: 44px; padding: 0; }
+}
+
+/* Mobile : plus de barre latérale — barre compacte en haut + barre d'onglets en bas. */
+@media (max-width: 680px) {
+  .gpx-app--cockpit { display: block; }
+  .gpx-sidebar { display: none; }
+  .gpx-topbar--compact { display: flex; }
+}
+
+/* ---------------------------------------------------------------------------------------------------------------
+   Contenu
+   --------------------------------------------------------------------------------------------------------------- */
+
+.ck-root { max-width: 1560px; padding: 20px 24px 64px; }
+@media (max-width: 680px) { .ck-root { padding: 14px 12px 24px; } }
+
+.ck-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px 24px; flex-wrap: wrap; padding: 4px 0 16px; }
+.ck-head .gpx-home-title { font-size: clamp(28px, 3.4vw, 40px); letter-spacing: -0.04em; }
+.ck-head .gpx-home-lede { margin-top: 6px; font-size: 14.5px; }
+.ck-head .gpx-home-date { font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--faint); }
+
+/* Légende des provenances */
+.ck-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 0; padding: 0; list-style: none; font-size: 12px; color: var(--muted); }
+.ck-legend li { display: inline-flex; align-items: center; gap: 6px; }
+
+/* Pastille de provenance : le texte court porte le sens, la couleur n'est qu'un renfort. */
+.ck-prov {
+  display: inline-flex; align-items: center; padding: 1px 5px; border: 1px solid currentColor; border-radius: 3px;
+  font-size: 9.5px; font-weight: 700; letter-spacing: 0.06em; line-height: 1.5; white-space: nowrap; vertical-align: middle;
+}
+.ck-prov--measured { color: var(--speed-ink); }
+.ck-prov--calculated { color: var(--info-ink); }
+.ck-prov--estimated { color: var(--effort-ink); border-style: dashed; }
+.ck-prov--unavailable { color: var(--faint); border-style: dotted; }
+.ck-sr { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+
+/* Grille des panneaux */
+.ck-ride-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
+.ck-select { display: inline-flex; align-items: center; gap: 10px; font-size: 12px; font-weight: 600; color: var(--muted); }
+.ck-select span { display: inline-flex; align-items: center; gap: 6px; text-transform: uppercase; letter-spacing: 0.08em; font-size: 10.5px; }
+.ck-select select { max-width: min(520px, 70vw); min-height: 36px; }
+.ck-scope { font-size: 11.5px; font-weight: 600; color: var(--muted); letter-spacing: 0.01em; }
+.ck-scope--game { color: var(--climb-ink); }
+
+.ck-grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 12px; margin-bottom: 12px; }
+.ck-grid > * { min-width: 0; }
+.ck-map, .ck-elevation, .ck-series { grid-column: span 8; }
+.ck-telemetry, .ck-summary, .ck-route { grid-column: span 4; }
+.ck-analysis { grid-column: span 12; }
+.ck-progress-grid { gap: 12px; }
+
+@media (max-width: 1100px) {
+  .ck-map, .ck-elevation, .ck-series { grid-column: span 12; }
+  .ck-telemetry, .ck-summary { grid-column: span 6; }
+  .ck-route { grid-column: span 12; }
+  .ck-grid { gap: 10px; }
+  /* Télémétrie et résumé côte à côte, puis profils, parcours et analyse. */
+  .ck-map { order: 1; }
+  .ck-telemetry { order: 2; }
+  .ck-summary { order: 3; }
+  .ck-elevation { order: 4; }
+  .ck-series { order: 5; }
+  .ck-route { order: 6; }
+  .ck-analysis { order: 7; }
+}
+/* Mobile : le résumé et le parcours passent avant la carte (informations essentielles sans défilement). */
+@media (max-width: 680px) {
+  .ck-grid { display: flex; flex-direction: column; gap: 10px; }
+  .ck-route { order: 1; }
+  .ck-summary { order: 2; }
+  .ck-map { order: 3; }
+  .ck-telemetry { order: 4; }
+  .ck-elevation { order: 5; }
+  .ck-series { order: 6; }
+  .ck-analysis { order: 7; }
+}
+
+/* Panneau */
+.ck-panel { display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); }
+.ck-panel-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px 12px; flex-wrap: wrap;
+  padding: 10px 14px; border-bottom: 1px solid var(--separator);
+}
+.ck-panel-title {
+  display: inline-flex; align-items: center; gap: 8px; margin: 0;
+  font-size: 11.5px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted);
+}
+.ck-panel-title svg { color: var(--speed-ink); }
+.ck-panel-meta { min-width: 0; }
+.ck-panel-body { padding: 14px; flex: 1; min-width: 0; }
+@media (max-width: 680px) { .ck-panel-body { padding: 12px; } }
+
+.ck-subtitle { margin: 0 0 8px; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--faint); }
+.ck-hint { margin: 10px 0 0; font-size: 12.5px; line-height: 1.5; color: var(--muted); }
+.ck-axis-caption { margin: 8px 0 0; font-size: 11.5px; line-height: 1.45; color: var(--muted); }
+
+/* Carte : le conteneur Leaflet s'aligne sur le langage du cockpit */
+.ck-map .gpx-leaflet-container { border-radius: var(--radius-md); }
+.ck-map .gpx-map-toolbar { margin-bottom: 10px; }
+.ck-map .gpx-map-scale { margin-top: 10px; }
+
+/* Télémétrie */
+.ck-cells { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px; margin: 0; background: var(--separator); border: 1px solid var(--separator); border-radius: var(--radius-md); overflow: hidden; }
+.ck-cell { background: var(--surface); padding: 10px 12px; min-width: 0; }
+.ck-cell dt { font-size: 11px; font-weight: 600; color: var(--muted); letter-spacing: 0.02em; }
+.ck-cell dt small { font-weight: 500; color: var(--faint); }
+.ck-cell dd { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 6px; margin: 4px 0 0; }
+.ck-cell-value { font-size: 26px; font-weight: 700; letter-spacing: -0.03em; line-height: 1.05; font-variant-numeric: tabular-nums; color: var(--text); }
+.ck-cell-unit { font-size: 12px; font-weight: 600; color: var(--muted); }
+.ck-cell.is-unavailable .ck-cell-value { color: var(--faint); }
+
+/* Résumé */
+.ck-rows { margin: 0; }
+.ck-row { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 7px 0; border-top: 1px solid var(--separator); }
+.ck-row:first-child { border-top: none; padding-top: 0; }
+.ck-row dt { font-size: 13px; color: var(--muted); min-width: 0; }
+.ck-row dt small { color: var(--faint); font-size: 11.5px; }
+.ck-row dd { display: flex; align-items: baseline; gap: 5px; margin: 0; flex-shrink: 0; }
+.ck-row-value { font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--text); }
+.ck-row.is-unavailable .ck-row-value { color: var(--faint); font-weight: 500; }
+
+/* Parcours */
+.ck-route-name { font-size: 20px; font-weight: 700; letter-spacing: -0.03em; line-height: 1.15; overflow-wrap: anywhere; }
+.ck-route-date { margin-top: 4px; font-size: 12.5px; color: var(--muted); }
+.ck-route-stats { display: flex; flex-wrap: wrap; gap: 12px 24px; margin: 14px 0 0; }
+.ck-route-stats dt { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--faint); }
+.ck-route-stats dd { margin: 3px 0 0; font-size: 22px; font-weight: 700; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
+.ck-route-stats dd small { margin-left: 3px; font-size: 12px; font-weight: 600; color: var(--muted); letter-spacing: 0; }
+.ck-route-cta { margin-top: 14px; width: 100%; justify-content: center; }
+
+/* Montées */
+.ck-climbs { display: flex; flex-direction: column; gap: 4px; margin: 12px 0 0; padding: 0; list-style: none; }
+.ck-climb {
+  display: grid; grid-template-columns: minmax(70px, auto) repeat(3, auto) 1fr; gap: 4px 14px; align-items: baseline; width: 100%;
+  padding: 7px 10px; text-align: left; font-size: 12.5px; color: var(--muted);
+  background: var(--surface2); border: 1px solid transparent; border-radius: var(--radius-sm);
+}
+.ck-climb b { color: var(--text); font-weight: 650; }
+.ck-climb:hover { border-color: var(--borderStrong); }
+.ck-climb.is-selected { border-color: var(--speed); background: var(--active-tint); }
+@media (max-width: 680px) { .ck-climb { grid-template-columns: 1fr 1fr; } }
+
+/* Analyse : onglets */
+.ck-tabs { display: flex; gap: 2px; margin-bottom: 14px; border-bottom: 1px solid var(--separator); overflow-x: auto; overflow-y: hidden; scrollbar-width: none; }
+.ck-tab {
+  padding: 8px 14px; margin-bottom: -1px; border: none; border-bottom: 2px solid transparent; background: none;
+  font-size: 13px; font-weight: 600; color: var(--muted); white-space: nowrap;
+}
+.ck-tab:hover { color: var(--text); }
+.ck-tab.is-active { color: var(--speed-ink); border-bottom-color: var(--speed); }
+
+.ck-zones { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.ck-zones li { display: grid; grid-template-columns: 112px 74px minmax(60px, 1fr) 52px 40px; align-items: center; gap: 10px; font-size: 13px; }
+.ck-zone-name { font-weight: 600; color: var(--text); }
+.ck-zone-range, .ck-zone-time, .ck-zone-pct { color: var(--muted); font-variant-numeric: tabular-nums; }
+.ck-zone-pct { text-align: right; }
+.ck-zone-bar { display: block; height: 8px; background: var(--surface3); border-radius: 2px; overflow: hidden; }
+.ck-zone-bar span { display: block; height: 100%; background: var(--speed); }
+@media (max-width: 680px) {
+  .ck-zones li { grid-template-columns: 1fr auto auto; }
+  .ck-zone-range { display: none; }
+  .ck-zone-bar { grid-column: 1 / -1; order: 5; }
+}
+
+.ck-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.ck-table th, .ck-table td { padding: 8px 10px; text-align: left; border-top: 1px solid var(--separator); font-variant-numeric: tabular-nums; }
+.ck-table thead th { border-top: none; font-size: 10.5px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--faint); }
+.ck-table tbody th { font-weight: 600; color: var(--text); }
+.ck-table td { color: var(--muted); }
+.ck-table td small { color: var(--faint); }
+@media (max-width: 680px) { .ck-table { font-size: 12px; } .ck-table th, .ck-table td { padding: 7px 6px; } }
+
+.ck-records { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
+.ck-records li { display: grid; grid-template-columns: 1fr auto minmax(96px, auto); gap: 12px; align-items: baseline; padding: 8px 0; border-top: 1px solid var(--separator); font-size: 13px; }
+.ck-records li:first-child { border-top: none; }
+.ck-record-label { color: var(--muted); }
+.ck-record-value { font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.ck-record-value small { margin-left: 3px; font-size: 11.5px; font-weight: 600; color: var(--muted); }
+.ck-record-holder { color: var(--faint); text-align: right; font-size: 12px; }
+.ck-here { color: var(--speed-ink); }
+
+/* États */
+.ck-state { display: flex; gap: 12px; align-items: flex-start; padding: 14px; border: 1px dashed var(--borderStrong); border-radius: var(--radius-md); color: var(--muted); }
+.ck-state svg { flex-shrink: 0; margin-top: 2px; color: var(--faint); }
+.ck-state-title { margin: 0; font-size: 13.5px; font-weight: 650; color: var(--text); }
+.ck-state-text { margin: 3px 0 0; font-size: 12.5px; line-height: 1.5; }
+.ck-state--error { border-style: solid; border-color: var(--alert); }
+.ck-state--error svg { color: var(--alert-ink); }
+
+.ck-banner {
+  display: flex; align-items: flex-start; gap: 8px; margin: 0 0 12px; padding: 9px 12px;
+  font-size: 12.5px; line-height: 1.45; color: var(--muted);
+  background: var(--surface); border: 1px solid var(--border); border-left: 2px solid var(--climb); border-radius: var(--radius-md);
+}
+.ck-banner svg { flex-shrink: 0; margin-top: 2px; color: var(--climb-ink); }
+
+/* Progression (Alter Ego) */
+.ck-xp-grid { display: grid; grid-template-columns: 3fr 2fr; gap: 20px 32px; }
+@media (max-width: 900px) { .ck-xp-grid { grid-template-columns: 1fr; } }
+.ck-xp-list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; }
+.ck-xp-list li { display: grid; grid-template-columns: 64px 1fr auto; gap: 10px; align-items: baseline; padding: 6px 0; border-top: 1px solid var(--separator); font-size: 13px; }
+.ck-xp-list li:first-child { border-top: none; }
+.ck-xp-gain { font-weight: 700; color: var(--speed-ink); font-variant-numeric: tabular-nums; }
+.ck-xp-reason { color: var(--muted); min-width: 0; overflow-wrap: anywhere; }
+.ck-xp-date { color: var(--faint); font-size: 12px; white-space: nowrap; }
+.ck-badges { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.ck-badges li { padding: 3px 9px; font-size: 12px; font-weight: 600; color: var(--climb-ink); border: 1px solid var(--borderStrong); border-radius: 3px; }
+
+/* Focus clavier visible sur les éléments propres au cockpit */
+.ck-climb:focus-visible, .ck-tab:focus-visible, .gpx-sidebar-item:focus-visible, .gpx-sidebar-brand:focus-visible,
+.ck-panel canvas:focus-visible { outline: 2px solid var(--speed-ink); outline-offset: 2px; }
+
+/* Les animations d'apparition (Reveal) sont déjà neutralisées par tokens.css sous prefers-reduced-motion. */

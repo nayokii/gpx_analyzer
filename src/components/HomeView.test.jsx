@@ -15,8 +15,15 @@ import { computeProgression } from "../lib/progression/progression.js";
 import { matchArchetypes } from "../lib/archetypes/matching.js";
 import { HomeView, pickFocusChallenge } from "./HomeView.jsx";
 import { stubResizeObserver } from "./testResizeObserverMock.js";
+import { stubCanvasContext } from "./testCanvasMock.js";
 
 stubResizeObserver();
+stubCanvasContext();
+
+// Leaflet ne rend pas dans jsdom (pas de layout réel) : même neutralisation que GPXAnalyzer.test.jsx.
+// Le cockpit (carte + profils) est vérifié dans cockpit/CockpitDashboard.test.jsx avec une carte factice
+// qui expose les props reçues.
+vi.mock("./MapView.jsx", () => ({ MapView: () => null }));
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURE_PATH = path.join(__dirname, "..", "lib", "parsers", "__fixtures__", "ride-2026-09-20.fit");

@@ -5,7 +5,7 @@
  * sont posés sur cette carte à leurs coordonnées GPS réelles.
  */
 
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { RefreshCw } from "lucide-react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -96,6 +96,8 @@ export function MapView({
   decimated: decimatedProp,
   hoverIdx,
   onHoverIndex,
+  scrollWheelZoom = true,
+  lockTouchPan = false,
 }) {
   const containerRef = useRef(null);
   const mapRef = useRef(null);
@@ -103,6 +105,8 @@ export function MapView({
   const cursorRef = useRef(null);
   const boundsRef = useRef(null);
   const scheme = useColorScheme(); // redessine tracé et marqueurs quand le thème change
+  // État du fond de carte (tuiles OSM, qui exigent Internet) : le tracé reste dessiné même sans tuiles.
+  const [tilesFailed, setTilesFailed] = useState(false);
 
   const ownDecimated = useMemo(() => decimate(analysis.series, 700), [analysis.series]);
   const decimated = decimatedProp || ownDecimated;
@@ -145,13 +149,24 @@ export function MapView({
     const map = L.map(containerRef.current, {
       zoomControl: true,
       attributionControl: true,
-      scrollWheelZoom: true,
+      scrollWheelZoom,
+      // Sur écran tactile, un doigt posé sur la carte la déplacerait au lieu de faire défiler la page (Leaflet impose
+      // touch-action: none). Avec `lockTouchPan`, le glisser à un doigt fait défiler la page ; zoom (pincement, boutons) conservé.
+      dragging: !(lockTouchPan && L.Browser.mobile),
     });
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    const tiles = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
       maxZoom: 19,
       attribution:
         '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
     }).addTo(map);
+    // Hors ligne / tuiles bloquées : après quelques échecs sans aucune tuile chargée, on le dit explicitement.
+    let loaded = false;
+    let errors = 0;
+    tiles.on("tileload", () => { loaded = true; errors = 0; setTilesFailed(false); });
+    tiles.on("tileerror", () => {
+      errors += 1;
+      if (!loaded && errors >= 3) setTilesFailed(true);
+    });
     const first = decimated[0];
     map.setView([first.lat, first.lon], 13);
     mapRef.current = map;
@@ -299,6 +314,11 @@ export function MapView({
       </div>
       <div className="gpx-leaflet-container" style={{ height }}>
         <div ref={containerRef} style={{ width: "100%", height: "100%" }} />
+        {tilesFailed && (
+          <div className="gpx-map-note" role="status">
+            Fond de carte indisponible (hors ligne ou tuiles bloquées). Le tracé reste affiché.
+          </div>
+        )}
       </div>
       {colorMode !== "track" && (
         <div className="gpx-map-scale">
