@@ -40,7 +40,7 @@ const rgbaAt = (img, x, y) => Array.from(img.data.slice((y * img.width + x) * 4,
 
 function stats(img) {
   const n = img.width * img.height;
-  let transparent = 0, opaque = 0, partial = 0, white = 0, teal = 0;
+  let transparent = 0, opaque = 0, partial = 0, white = 0, pink = 0;
   let minX = img.width, minY = img.height, maxX = -1, maxY = -1;
   for (let i = 0; i < n; i++) {
     const [r, g, b, a] = [img.data[i * 4], img.data[i * 4 + 1], img.data[i * 4 + 2], img.data[i * 4 + 3]];
@@ -50,10 +50,10 @@ function stats(img) {
     if (a === 255) {
       opaque++;
       if (r > 245 && g > 245 && b > 245) white++;
-      if (Math.abs(r - 52) < 6 && Math.abs(g - 220) < 6 && Math.abs(b - 189) < 6) teal++;
+      if (Math.abs(r - 214) < 6 && Math.abs(g - 17) < 6 && Math.abs(b - 107) < 6) pink++;
     } else partial++;
   }
-  return { n, transparent, opaque, partial, white, teal, margins: { left: minX, top: minY, right: img.width - 1 - maxX, bottom: img.height - 1 - maxY } };
+  return { n, transparent, opaque, partial, white, pink, margins: { left: minX, top: minY, right: img.width - 1 - maxX, bottom: img.height - 1 - maxY } };
 }
 
 const luminance = ([r, g, b]) => {
@@ -124,9 +124,9 @@ describe("fond transparent — vrai PNG avec canal alpha", () => {
   it.skipIf(!HAS_FONTS)("le tracé GPS est dessiné en couleur de marque opaque avec un halo sombre semi-transparent ; sans tracé il n'y en a pas", async () => {
     const withRoute = stats(await exportPng(withGps, { format: "square", theme: "transparent" }));
     const without = stats(await exportPng(noGps, { format: "square", theme: "transparent" }));
-    expect(withRoute.teal).toBeGreaterThan(1500);
+    expect(withRoute.pink).toBeGreaterThan(1500);
     expect(withRoute.partial).toBeGreaterThan(without.partial);
-    expect(without.teal).toBeLessThan(withRoute.teal / 10); // sans tracé : plus que la signature/unités teintées
+    expect(without.pink).toBeLessThan(withRoute.pink / 10); // sans tracé : plus que la signature/unités teintées
   });
 
   it("états du modèle : sans tracé GPS, le message de remplacement est dessiné, jamais un tracé", async () => {
@@ -187,12 +187,12 @@ describe("fond transparent — instructions de dessin", () => {
 });
 
 describe("clair et sombre : rendus inchangés par l'ajout du fond transparent", () => {
-  // Empreintes (journal complet des instructions de dessin, propriétés et dégradés compris) relevées AVANT la modification.
+  // Empreintes (journal complet des instructions de dessin, propriétés et dégradés compris). Mises à jour pour le tracé rose de marque : seul le nom de couleur change (même nombre d'instructions).
   const BASELINE = {
-    "gps-story-dark": "114b52a9f91db1fc:578", "gps-story-light": "2c801555945cab56:578",
-    "gps-square-dark": "4b6bb8c473bc4ec5:377", "gps-square-light": "e7c19a50c4ca5398:377",
-    "nogps-story-dark": "c03afc38efd6b954:124", "nogps-story-light": "14764efa6249ee9f:124",
-    "nogps-square-dark": "298a9d9d9094d534:114", "nogps-square-light": "b1d972713ce9d259:114",
+    "gps-story-dark": "61cdd857e4c18f45:578", "gps-story-light": "3e72a125656eb9e8:578",
+    "gps-square-dark": "e7d9320e7c570c96:377", "gps-square-light": "2f2e4a78f435754b:377",
+    "nogps-story-dark": "12fcb1c6cee71554:124", "nogps-story-light": "376226a1757c1a6a:124",
+    "nogps-square-dark": "b3ef1710ade66a9a:114", "nogps-square-light": "9e3bc60ccf365d57:114",
   };
   for (const [key, expected] of Object.entries(BASELINE)) {
     it(`${key} : même suite d'instructions de dessin qu'avant`, () => {

@@ -45,22 +45,25 @@ export const HIDEABLE_STATS = [
 
 const FONT = '-apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI Variable Display", "Segoe UI", system-ui, Roboto, "Helvetica Neue", sans-serif';
 
+/** Rose de marque Cycling OS : couleur du tracé GPS (et de ses repères) sur les trois fonds exportés. */
+export const SHARE_ROUTE_COLOR = "#D6116B";
+
 export const SHARE_THEMES = {
   dark: {
     bg0: "#0b100e", bg1: "#16201b", grid: "rgba(236,244,239,0.055)", glow: "rgba(52,220,189,0.16)",
-    text: "#f0f4f1", muted: "#9fb0a6", faint: "#6f7f76", route: "#34dcbd", halo: "rgba(7,12,10,0.85)",
-    startFill: "#34dcbd", endFill: "#f0f4f1", markerInk: "#0b100e", profile: "rgba(52,220,189,0.22)",
+    text: "#f0f4f1", muted: "#9fb0a6", faint: "#6f7f76", route: SHARE_ROUTE_COLOR, halo: "rgba(7,12,10,0.85)",
+    startFill: SHARE_ROUTE_COLOR, endFill: "#f0f4f1", markerInk: "#0b100e", profile: "rgba(52,220,189,0.22)",
   },
   light: {
     bg0: "#f4f7f5", bg1: "#e4ebe7", grid: "rgba(16,28,22,0.06)", glow: "rgba(6,117,99,0.10)",
-    text: "#0f1512", muted: "#56615b", faint: "#8a958f", route: "#067563", halo: "rgba(255,255,255,0.95)",
-    startFill: "#067563", endFill: "#0f1512", markerInk: "#ffffff", profile: "rgba(6,117,99,0.18)",
+    text: "#0f1512", muted: "#56615b", faint: "#8a958f", route: SHARE_ROUTE_COLOR, halo: "rgba(255,255,255,0.95)",
+    startFill: SHARE_ROUTE_COLOR, endFill: "#0f1512", markerInk: "#ffffff", profile: "rgba(6,117,99,0.18)",
   },
   // Fond transparent : couleurs claires + contour sombre (`outline`) pour la lisibilité sur photo ; `bg0/bg1/grid/glow` inutilisés.
   transparent: {
     bg0: null, bg1: null, grid: null, glow: null,
-    text: "#ffffff", muted: "rgba(255,255,255,0.92)", faint: "rgba(255,255,255,0.82)", route: "#34dcbd", halo: "rgba(4,8,6,0.62)",
-    startFill: "#34dcbd", endFill: "#ffffff", markerInk: "#04080a", profile: "rgba(255,255,255,0.13)", outline: "rgba(4,8,6,0.58)",
+    text: "#ffffff", muted: "rgba(255,255,255,0.92)", faint: "rgba(255,255,255,0.82)", route: SHARE_ROUTE_COLOR, halo: "rgba(4,8,6,0.9)",
+    startFill: SHARE_ROUTE_COLOR, endFill: "#ffffff", markerInk: "#04080a", profile: "rgba(255,255,255,0.13)", outline: "rgba(4,8,6,0.58)",
   },
 };
 
