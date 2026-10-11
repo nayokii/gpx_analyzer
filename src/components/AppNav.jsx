@@ -1,158 +1,155 @@
 /**
- * Navigation principale PERSISTANTE de l'application — distincte du contexte
- * d'une sortie ouverte (voir GPXAnalyzer.jsx : la bande contextuelle
- * "Sorties / Analyse — {nom}" ne s'affiche qu'en mode "dashboard", séparée
- * de cette nav globale).
+ * Navigation principale PERSISTANTE de l'application : destinations, barre latérale (desktop / rail tablette) et barre
+ * basse (mobile). Rendue par AppShell.jsx — un seul jeu de destinations (NAV_GROUPS), jamais deux listes qui divergent.
  *
- * Un seul jeu d'items est rendu deux fois (desktop : barre horizontale dans
- * le bandeau supérieur ; mobile ≤680px : barre fixe en bas d'écran) plutôt
- * que deux composants différents, pour ne jamais faire diverger les 7
- * destinations entre les deux tailles d'écran. Le bouton "Importer" reste
- * dans le bandeau supérieur uniquement : à autant d'items déjà présents,
- * l'ajouter à la barre basse la rendrait illisible sur mobile (voir consigne §9).
+ * Les clés sont celles du routage existant de GPXAnalyzer.jsx (`mode`) : `onNavigate(key)` reçoit exactement les mêmes
+ * valeurs qu'avant. « rides » ouvre l'historique (mode "historique") ; le détail d'une sortie (mode "dashboard") garde
+ * « rides » actif — c'est le fil d'Ariane du shell qui porte le contexte « sortie ouverte ».
  *
- * "tour" (Phase 10B) : destination vers le Tour Simulator (voir
- * TourView.jsx), un raccourci d'expérience au-dessus du moteur pur de
- * src/lib/simulator/ (Phase 10A) — jamais une nouvelle source de vérité.
- * "coach" (Phase Coach V3A) : destination vers CoachView.jsx, une couche de
- * lecture au-dessus de src/lib/coach/ (jamais un second calcul).
- * "feed" : fil d'activités visuel (ActivityFeedView.jsx), lecture seule de la
- * même source que l'Historique ; ne remplace pas « Sorties ».
+ * Aucune destination sans route réelle : « Sources de données » ouvre le mode `sources` existant ; Carte, Objectifs et
+ * Records n'ont pas de page propre (ils vivent dans le détail d'une sortie, Alter Ego et le Dashboard).
  */
-import { Home, History as HistoryIcon, UserRound, Trophy, Fingerprint, Flag, NotebookText, Newspaper, Upload, LayoutDashboard, Database } from "lucide-react";
-import { ActiveIndicator, useActiveIndicator } from "./ActiveIndicator.jsx";
+import { useEffect, useRef, useState } from "react";
+import {
+  History as HistoryIcon, UserRound, Trophy, Fingerprint, Flag, NotebookText, Newspaper, LayoutDashboard, Database, Ellipsis,
+} from "lucide-react";
 
-export const NAV_ITEMS = [
-  { key: "home", label: "Accueil", icon: Home },
-  { key: "rides", label: "Sorties", icon: HistoryIcon },
-  { key: "feed", label: "Activités", icon: Newspaper },
-  { key: "coach", label: "Coach", icon: NotebookText },
-  { key: "profil", label: "Profil", icon: UserRound },
-  { key: "alterego", label: "Alter Ego", icon: Trophy },
-  { key: "archetype", label: "Archétype", icon: Fingerprint },
-  { key: "tour", label: "Tour", icon: Flag },
-];
-
-/**
- * Variante « cockpit » (barre latérale) : mêmes destinations que NAV_ITEMS, regroupées par usage. Aucune entrée
- * n'est ajoutée sans route réelle — « Sources de données » ouvre le mode `sources` déjà existant.
- * Les libellés peuvent différer de la barre haute (« Dashboard » = Accueil, « Mes sorties » = Sorties) ;
- * les clés, elles, sont identiques, donc `onNavigate` reçoit exactement les mêmes valeurs.
- */
-export const SIDEBAR_GROUPS = [
+export const NAV_GROUPS = [
   {
     key: "pilotage", label: "Pilotage",
     items: [
-      { key: "home", label: "Dashboard", icon: LayoutDashboard },
-      { key: "rides", label: "Mes sorties", icon: HistoryIcon },
-      { key: "feed", label: "Activités", icon: Newspaper },
+      { key: "home", label: "Dashboard", short: "Dashboard", icon: LayoutDashboard },
+      { key: "rides", label: "Mes sorties", short: "Sorties", icon: HistoryIcon },
+      { key: "feed", label: "Activités", short: "Activités", icon: Newspaper },
     ],
   },
   {
-    key: "analyse", label: "Analyses",
+    key: "analyses", label: "Analyses",
     items: [
-      { key: "coach", label: "Coach", icon: NotebookText },
-      { key: "profil", label: "Profil", icon: UserRound },
-      { key: "archetype", label: "Archétype", icon: Fingerprint },
-      { key: "tour", label: "Tour", icon: Flag },
+      { key: "coach", label: "Coach", short: "Coach", icon: NotebookText },
+      { key: "profil", label: "Profil", short: "Profil", icon: UserRound },
+      { key: "archetype", label: "Archétype", short: "Archétype", icon: Fingerprint },
+      { key: "tour", label: "Tour", short: "Tour", icon: Flag },
     ],
   },
-  { key: "progression", label: "Progression", items: [{ key: "alterego", label: "Alter Ego", icon: Trophy }] },
-  { key: "systeme", label: "Système", items: [{ key: "sources", label: "Sources de données", icon: Database }] },
+  { key: "progression", label: "Progression", items: [{ key: "alterego", label: "Alter Ego", short: "Alter Ego", icon: Trophy }] },
+  { key: "systeme", label: "Système", items: [{ key: "sources", label: "Sources de données", short: "Sources", icon: Database }] },
 ];
 
-/**
- * @param {Object} props
- * @param {"top"|"sidebar"} [props.variant="top"] - "sidebar" : barre latérale (tablette : rail d'icônes) + barre basse sur mobile
- * @param {string} props.active - clé de section active (voir NAV_ITEMS)
- * @param {Function} props.onNavigate - (key: string) => void
- * @param {Function} props.onImport - déclenche le sélecteur de fichier (toujours accessible, quelle que soit la section)
- */
-export function AppNav({ variant = "top", active, onNavigate, onImport }) {
-  const items = NAV_ITEMS.map(({ key, label, icon: Icon }) => (
-    <button
-      key={key}
-      className={"gpx-appnav-item" + (active === key ? " active" : "")}
-      onClick={() => onNavigate(key)}
-      aria-current={active === key ? "page" : undefined}
-      title={label}
-    >
-      <Icon size={17} />
-      <span>{label}</span>
-    </button>
-  ));
+/** Les 8 destinations de contenu (hors « Sources de données », qui relève du système). */
+export const NAV_ITEMS = NAV_GROUPS.flatMap((g) => g.items).filter((i) => i.key !== "sources");
 
-  // Un indicateur par barre (haute et basse) : règle d'état actif unique, voir ActiveIndicator.jsx.
-  const top = useActiveIndicator(active);
-  const bottom = useActiveIndicator(active);
+const ALL_ITEMS = NAV_GROUPS.flatMap((g) => g.items);
+/** Destinations prioritaires de la barre basse mobile ; les autres sont dans le menu « Plus ». */
+export const MOBILE_PRIMARY_KEYS = ["home", "rides", "feed", "alterego"];
 
-  if (variant === "sidebar") {
-    return (
-      <>
-        <aside className="gpx-sidebar">
-          <button className="gpx-sidebar-brand" onClick={() => onNavigate("home")} title="Dashboard">
-            <span className="gpx-topbar-brand-dot" />
-            <span className="gpx-sidebar-label">Cycling OS</span>
-          </button>
-          <nav className="gpx-sidebar-nav" aria-label="Navigation principale">
-            {SIDEBAR_GROUPS.map((group) => (
-              <div className="gpx-sidebar-group" role="group" aria-label={group.label} key={group.key}>
-                <p className="gpx-sidebar-heading" aria-hidden="true">{group.label}</p>
-                {group.items.map(({ key, label, icon: Icon }) => (
-                  <button
-                    key={key}
-                    className={"gpx-sidebar-item" + (active === key ? " active" : "")}
-                    onClick={() => onNavigate(key)}
-                    aria-current={active === key ? "page" : undefined}
-                    title={label}
-                  >
-                    <Icon size={17} aria-hidden="true" />
-                    <span className="gpx-sidebar-label">{label}</span>
-                  </button>
-                ))}
-              </div>
+export function findNavItem(key) {
+  return ALL_ITEMS.find((i) => i.key === key) || null;
+}
+export function findNavGroup(key) {
+  return NAV_GROUPS.find((g) => g.items.some((i) => i.key === key)) || null;
+}
+
+/** Barre latérale : groupes logiques sur desktop, rail d'icônes sur tablette (libellés conservés pour les lecteurs d'écran). */
+export function SidebarNav({ active, onNavigate }) {
+  return (
+    <aside className="gpx-sidebar">
+      <button type="button" className="gpx-sidebar-brand" onClick={() => onNavigate("home")} title="Dashboard" aria-label="Cycling OS — Dashboard">
+        <span className="gpx-brand-dot" aria-hidden="true" />
+        <span className="gpx-sidebar-label">Cycling OS</span>
+      </button>
+      <nav className="gpx-sidebar-nav" aria-label="Navigation principale">
+        {NAV_GROUPS.map((group) => (
+          <div className="gpx-sidebar-group" role="group" aria-label={group.label} key={group.key}>
+            <p className="gpx-sidebar-heading" aria-hidden="true">{group.label}</p>
+            {group.items.map(({ key, label, icon: Icon }) => (
+              <button
+                key={key}
+                type="button"
+                className={"gpx-sidebar-item" + (active === key ? " active" : "")}
+                onClick={() => onNavigate(key)}
+                aria-current={active === key ? "page" : undefined}
+                aria-label={label}
+                title={label}
+              >
+                <Icon size={18} aria-hidden="true" />
+                <span className="gpx-sidebar-label">{label}</span>
+              </button>
             ))}
-          </nav>
-          <button className="gpx-btn-primary gpx-sidebar-import" onClick={onImport} title="Importer une sortie">
-            <Upload size={16} aria-hidden="true" /> <span className="gpx-sidebar-label">Importer</span>
-          </button>
-        </aside>
-        <div className="gpx-topbar gpx-topbar--compact">
-          <button className="gpx-topbar-brand" onClick={() => onNavigate("home")} title="Dashboard">
-            <span className="gpx-topbar-brand-dot" />
-            <span className="gpx-topbar-brand-text">Cycling OS</span>
-          </button>
-          <button className="gpx-btn-primary gpx-appnav-import" onClick={onImport} aria-label="Importer une sortie">
-            <Upload size={16} /> <span>Importer</span>
-          </button>
-        </div>
-        <nav ref={bottom.ref} className="gpx-appnav gpx-appnav-bottom gpx-has-indicator" aria-label="Navigation principale">
-          {items}
-          <ActiveIndicator style={bottom.style} ready={bottom.ready} />
-        </nav>
-      </>
-    );
+          </div>
+        ))}
+      </nav>
+    </aside>
+  );
+}
+
+/** Barre basse mobile : 4 destinations prioritaires + « Plus » (menu des autres destinations, y compris les sources). */
+export function BottomNav({ active, onNavigate }) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef(null);
+  const primary = MOBILE_PRIMARY_KEYS.map(findNavItem);
+  const secondary = ALL_ITEMS.filter((i) => !MOBILE_PRIMARY_KEYS.includes(i.key));
+  const moreActive = secondary.some((i) => i.key === active);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const onKey = (e) => { if (e.key === "Escape") setOpen(false); };
+    const onPointer = (e) => { if (rootRef.current && !rootRef.current.contains(e.target)) setOpen(false); };
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("pointerdown", onPointer);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("pointerdown", onPointer);
+    };
+  }, [open]);
+
+  function go(key) {
+    setOpen(false);
+    onNavigate(key);
   }
 
   return (
-    <>
-      <div className="gpx-topbar">
-        <button className="gpx-topbar-brand" onClick={() => onNavigate("home")} title="Accueil">
-          <span className="gpx-topbar-brand-dot" />
-          <span className="gpx-topbar-brand-text">Cycling OS</span>
+    <div className="gpx-bottomnav-wrap" ref={rootRef}>
+      {open && (
+        <div className="gpx-more-menu" id="gpx-more-menu" role="group" aria-label="Autres destinations">
+          {secondary.map(({ key, label, icon: Icon }) => (
+            <button
+              key={key} type="button"
+              className={"gpx-more-item" + (active === key ? " active" : "")}
+              aria-current={active === key ? "page" : undefined}
+              onClick={() => go(key)}
+            >
+              <Icon size={18} aria-hidden="true" />
+              <span>{label}</span>
+            </button>
+          ))}
+        </div>
+      )}
+      <nav className="gpx-bottomnav" aria-label="Navigation principale (mobile)">
+        {primary.map(({ key, short, label, icon: Icon }) => (
+          <button
+            key={key} type="button"
+            className={"gpx-bottomnav-item" + (active === key ? " active" : "")}
+            aria-current={active === key ? "page" : undefined}
+            aria-label={label}
+            onClick={() => go(key)}
+          >
+            <Icon size={22} aria-hidden="true" />
+            <span>{short}</span>
+          </button>
+        ))}
+        <button
+          type="button"
+          className={"gpx-bottomnav-item" + (moreActive ? " active" : "") + (open ? " is-open" : "")}
+          aria-expanded={open}
+          aria-controls="gpx-more-menu"
+          aria-label="Plus de destinations"
+          onClick={() => setOpen((v) => !v)}
+        >
+          <Ellipsis size={22} aria-hidden="true" />
+          <span>Plus</span>
         </button>
-        <nav ref={top.ref} className="gpx-appnav gpx-appnav-top gpx-has-indicator" aria-label="Navigation principale">
-          {items}
-          <ActiveIndicator style={top.style} ready={top.ready} />
-        </nav>
-        <button className="gpx-btn-primary gpx-appnav-import" onClick={onImport}>
-          <Upload size={16} /> <span>Importer</span>
-        </button>
-      </div>
-      <nav ref={bottom.ref} className="gpx-appnav gpx-appnav-bottom gpx-has-indicator" aria-label="Navigation principale">
-        {items}
-        <ActiveIndicator style={bottom.style} ready={bottom.ready} />
       </nav>
-    </>
+    </div>
   );
 }

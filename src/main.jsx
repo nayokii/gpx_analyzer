@@ -14,7 +14,12 @@ import "./styles/sources.css";
 import "./styles/feed.css";
 import "./styles/terrain.css";
 import "./styles/cockpit.css";
+import "./styles/shell.css";
+import "./styles/ds.css";
 import GPXAnalyzer from "./GPXAnalyzer.jsx";
+import { getThemeState } from "./lib/theme.js";
+
+getThemeState(); // initialise le store de thème (reprend la main sur le script précoce d'index.html)
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>

@@ -1,0 +1,376 @@
+/**
+ * Cycling OS — conventions du design system appliquées aux PAGES (titres, panneaux, relevés de chiffres, filtres, tableaux,
+ * publications). Reprend le langage du cockpit : panneaux bordés à angles francs, titres en petites capitales espacées,
+ * chiffres sur filets, tableaux à en-têtes discrets.
+ *
+ * Migration progressive : les règles sont portées par la classe `.gpx-ds` posée sur la racine d'une vue. Une vue qui n'a
+ * pas encore été migrée ne la porte pas et garde son apparence ; migrer une vue = ajouter `gpx-ds` à sa racine.
+ * Aucune couleur en dur : tout vient de tokens.css (thèmes clair et sombre).
+ */
+
+/* ---------- En-tête de page ---------- */
+.gpx-ds .gpx-page-head { padding: 2px 0 16px; align-items: center; }
+.gpx-ds .gpx-page-eyebrow { margin: 0 0 4px; font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--faint); }
+.gpx-ds .gpx-page-title { font-size: clamp(26px, 3.2vw, 34px); font-weight: 700; line-height: 1.1; letter-spacing: -0.035em; }
+.gpx-ds .gpx-page-meta { margin: 6px 0 0; font-size: 14px; letter-spacing: 0; }
+
+/* ---------- Panneaux : bordés, titre en bandeau ---------- */
+.gpx-ds .gpx-panel { padding: 14px; margin-bottom: 12px; border-radius: var(--radius-lg); }
+.gpx-ds .gpx-section-title {
+  margin: -14px -14px 14px; padding: 10px 14px; border-bottom: 1px solid var(--separator);
+  font-size: 11.5px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); line-height: 1.3;
+  gap: 8px 12px;
+}
+.gpx-ds .gpx-section-title-left { gap: 8px; }
+.gpx-ds .gpx-section-icon { width: auto; height: auto; border-radius: 0; background: none; color: var(--brand-ink); }
+.gpx-ds .gpx-section-icon svg { width: 14px; height: 14px; }
+.gpx-ds .gpx-section-title .gpx-icon-btn { width: 28px; height: 28px; }
+@media (max-width: 680px) { .gpx-ds .gpx-panel { padding: 12px; margin-bottom: 10px; border-radius: var(--radius-lg); } .gpx-ds .gpx-section-title { margin: -12px -12px 12px; padding: 10px 12px; } }
+
+/* ---------- Relevé de chiffres : cellules séparées par des filets, comme la télémétrie du cockpit ---------- */
+/* Filets sur les cellules (et non fond + interstices) : une dernière ligne incomplète ne laisse pas de bloc vide. */
+.gpx-ds .gpx-panel .gpx-stats-grid {
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0; margin: 0;
+  border-top: 1px solid var(--separator); border-left: 1px solid var(--separator);
+}
+.gpx-ds .gpx-panel .gpx-stat-card { background: var(--surface); border-radius: 0; border-top: none; border-right: 1px solid var(--separator); border-bottom: 1px solid var(--separator); padding: 10px 12px; gap: 4px; }
+.gpx-ds .gpx-stat-label { font-size: 11px; letter-spacing: 0.02em; }
+.gpx-ds .gpx-stat-value { font-size: 26px; letter-spacing: -0.03em; }
+.gpx-ds .gpx-stat-unit { font-size: 12px; }
+.gpx-ds .gpx-stat-sub { font-size: 11.5px; }
+@media (max-width: 680px) { .gpx-ds .gpx-panel .gpx-stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0; } .gpx-ds .gpx-stat-value { font-size: 22px; } }
+
+/* ---------- Cartes de records / meilleurs efforts : même langage que le relevé de chiffres ---------- */
+.gpx-ds .gpx-best-efforts {
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 0;
+  border-top: 1px solid var(--separator); border-left: 1px solid var(--separator);
+}
+.gpx-ds .gpx-effort-card { background: var(--surface); border-radius: 0; border-right: 1px solid var(--separator); border-bottom: 1px solid var(--separator); padding: 10px 12px; }
+.gpx-ds .gpx-effort-card-label { font-size: 11px; letter-spacing: 0.02em; margin-bottom: 4px; }
+.gpx-ds .gpx-effort-card-value { font-size: 26px; letter-spacing: -0.03em; }
+.gpx-ds .gpx-effort-card-sub { font-size: 11.5px; }
+.gpx-ds .gpx-effort-grid { gap: 20px 28px; }
+.gpx-ds .gpx-stat-label > span { white-space: normal; }
+
+/* ---------- Filtres et recherche ---------- */
+.gpx-ds .gpx-period { margin-bottom: 12px; gap: 8px 12px; }
+.gpx-ds .gpx-period-label { font-size: 10.5px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--faint); }
+.gpx-ds .gpx-history-search, .gpx-ds .gpx-feed-search {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md);
+}
+.gpx-ds .gpx-history-search:focus-within, .gpx-ds .gpx-feed-search:focus-within { border-color: var(--brand); }
+.gpx-ds .gpx-feed-sort select { border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface); }
+.gpx-ds .gpx-feed-sort { font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--faint); }
+.gpx-ds .gpx-history-selection-bar {
+  background: var(--brand-tint); border: 1px solid var(--border); border-radius: var(--radius-md); font-size: 13.5px;
+}
+
+/* ---------- Tableaux ---------- */
+.gpx-ds .gpx-table th {
+  font-size: 10.5px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--faint); padding: 8px 10px;
+}
+.gpx-ds .gpx-table th:hover { color: var(--text); }
+.gpx-ds .gpx-table td { padding: 12px 10px; }
+.gpx-ds .gpx-table--rides td { padding: 12px 10px; }
+.gpx-ds .gpx-ride-title { font-weight: 650; }
+.gpx-ds .gpx-table tr.gpx-row-clickable:hover td { background: var(--surface2); }
+.gpx-ds .gpx-table tr.gpx-row-selected td { background: var(--brand-tint); }
+.gpx-ds .gpx-table tr.gpx-row-selected td:first-child { box-shadow: inset 2px 0 0 var(--brand); }
+
+/* ---------- Bandeaux d'état ---------- */
+.gpx-ds .gpx-storage-box, .gpx-ds .gpx-profile-banner, .gpx-ds .gpx-save-banner, .gpx-ds .gpx-demo-banner {
+  border: 1px solid var(--border); border-radius: var(--radius-md); font-size: 13px;
+}
+.gpx-ds .gpx-statusline { margin-bottom: 12px; gap: 6px; }
+.gpx-ds .gpx-error-box { border: 1px solid var(--alert); border-radius: var(--radius-md); }
+.gpx-ds .gpx-empty-note { font-size: 13px; }
+
+/* ---------- Activités : publications en grille de cartes bordées ---------- */
+.gpx-ds.gpx-feed { max-width: var(--content-max); }
+.gpx-ds .gpx-feed-types { margin-bottom: 14px; }
+.gpx-ds .gpx-feed-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr)); gap: 12px; align-items: start; }
+.gpx-ds .gpx-post { border: 1px solid var(--border); box-shadow: none; border-radius: var(--radius-lg); padding: 14px; gap: 12px; }
+.gpx-ds .gpx-post-eyebrow { font-size: 11.5px; letter-spacing: 0.02em; }
+.gpx-ds .gpx-post-type { border-radius: var(--radius-sm); font-size: 10.5px; padding: 2px 8px; color: var(--brand-ink); background: var(--brand-tint); }
+.gpx-ds .gpx-post-title { font-size: 20px; letter-spacing: -0.02em; margin-top: 4px; }
+.gpx-ds .gpx-post-map { border-radius: var(--radius-md); border: 1px solid var(--separator); }
+.gpx-ds .gpx-post-hero-value { font-size: clamp(40px, 8vw, 56px); letter-spacing: -0.04em; }
+.gpx-ds .gpx-post-hero-unit { font-size: 18px; color: var(--brand-ink); }
+.gpx-ds .gpx-post-stats dt { font-size: 10.5px; letter-spacing: 0.08em; }
+.gpx-ds .gpx-post-stats dd { font-size: clamp(18px, 2.4vw, 22px); }
+.gpx-ds .gpx-post-extra { font-size: 12.5px; }
+.gpx-ds .gpx-feed-empty { padding: 40px 16px; border: 1px dashed var(--borderStrong); border-radius: var(--radius-lg); }
+@media (max-width: 680px) {
+  .gpx-ds .gpx-post { padding: 12px; border-radius: var(--radius-lg); }
+  .gpx-ds .gpx-feed-types { margin-inline: calc(var(--content-pad) * -1); padding-inline: var(--content-pad); }
+}
+
+/* =====================================================================================================================
+   Détail d'une sortie (vue Analyse) : en-tête, onglets, relevés, montées, zones, paramètres
+   ===================================================================================================================== */
+
+/* ---------- En-tête de la sortie : bandeau compact, chiffres en cellules ---------- */
+.gpx-ds .gpx-hero { padding: 14px 16px 16px; margin-bottom: 12px; border: 1px solid var(--border); box-shadow: none; border-radius: var(--radius-lg); }
+.gpx-ds .gpx-hero-eyebrow { font-size: 12px; font-weight: 600; }
+.gpx-ds .gpx-ride-name { margin: 8px 0 0; font-size: clamp(24px, 3vw, 32px); font-weight: 700; letter-spacing: -0.035em; line-height: 1.1; }
+.gpx-ds .gpx-hero-badges { margin-top: 10px; gap: 6px; }
+.gpx-ds .gpx-hero-badge { border-radius: var(--radius-sm); border: 1px solid var(--border); background: transparent; padding: 2px 8px; font-size: 11.5px; }
+.gpx-ds .gpx-hero-badge.is-demo { color: var(--warning-ink); border-color: var(--warning); background: transparent; }
+.gpx-ds .gpx-hero-badge.is-ok { color: var(--success-ink); border-color: var(--success); background: transparent; }
+.gpx-ds .gpx-hero-metrics {
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 0; margin-top: 14px;
+  border-top: 1px solid var(--separator); border-left: 1px solid var(--separator);
+}
+.gpx-ds .gpx-hero-metric { background: var(--surface); padding: 10px 12px; min-width: 0; border-right: 1px solid var(--separator); border-bottom: 1px solid var(--separator); }
+.gpx-ds .gpx-hero-metric-label { font-size: 11px; font-weight: 600; letter-spacing: 0.02em; gap: 6px; }
+.gpx-ds .gpx-hero-metric-label i { width: 7px; height: 7px; }
+.gpx-ds .gpx-hero-metric-value { margin-top: 4px; font-size: clamp(26px, 3.2vw, 34px); letter-spacing: -0.035em; }
+.gpx-ds .gpx-hero-metric-unit { font-size: 13px; }
+.gpx-ds .gpx-hero.has-relief { padding-bottom: 76px; }
+.gpx-ds .gpx-silhouette { height: 52px; opacity: 0.8; }
+@media (max-width: 680px) {
+  .gpx-ds .gpx-hero { padding: 12px 12px 14px; border-radius: var(--radius-lg); }
+  .gpx-ds .gpx-hero-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0; margin-top: 12px; }
+  .gpx-ds .gpx-hero.has-relief { padding-bottom: 64px; }
+  .gpx-ds .gpx-silhouette { height: 44px; }
+  .gpx-ds .gpx-ride-name { margin-top: 10px; }
+}
+
+/* ---------- Onglets de la sortie ---------- */
+.gpx-ds .gpx-nav { margin-bottom: 12px; }
+.gpx-ds .gpx-tab { font-size: 13px; font-weight: 600; letter-spacing: 0; padding: 9px 14px; min-height: 40px; }
+.gpx-ds .gpx-tab.active { color: var(--brand-ink); }
+.gpx-ds .gpx-nav .gpx-active-indicator { height: 2px; border-radius: 0; }
+
+/* ---------- Scène carte + profil ---------- */
+.gpx-ds .gpx-stage { padding: 14px; }
+.gpx-ds .gpx-stage .gpx-section-title { margin: -14px -14px 14px; padding: 10px 14px; }
+.gpx-ds .gpx-stage-profile { margin-top: 14px; padding: 0; }
+@media (max-width: 680px) { .gpx-ds .gpx-stage { padding: 12px; } .gpx-ds .gpx-stage .gpx-section-title { margin: -12px -12px 12px; padding: 10px 12px; } .gpx-ds .gpx-stage-profile { padding: 0; } }
+.gpx-ds .gpx-map-block .gpx-leaflet-container { border-radius: var(--radius-md); }
+
+/* ---------- Groupes de métriques ---------- */
+.gpx-ds .gpx-metric-group { padding-right: 20px; }
+.gpx-ds .gpx-metric-group + .gpx-metric-group { padding-left: 20px; }
+.gpx-ds .gpx-metric-group-head { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.gpx-ds .gpx-metric-hero { margin: 8px 0 10px; }
+.gpx-ds .gpx-metric-hero-value { font-size: 34px; letter-spacing: -0.035em; }
+.gpx-ds .gpx-metric-hero-unit { font-size: 14px; }
+.gpx-ds .gpx-metric-row { font-size: 13px; padding: 7px 0; }
+.gpx-ds .gpx-metric-row dd small { font-size: 11.5px; }
+
+/* ---------- Lecture éditoriale ---------- */
+.gpx-ds .gpx-summary-text { font-size: 15px; line-height: 1.55; font-weight: 450; letter-spacing: 0; margin-bottom: 16px; }
+.gpx-ds .gpx-highlight-grid { padding-top: 14px; gap: 20px; }
+.gpx-ds .gpx-highlight-col-title { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.gpx-ds .gpx-highlight-list li { font-size: 13.5px; }
+.gpx-ds .gpx-highlight-list li::before { width: 6px; height: 6px; border-radius: 1px; }
+
+/* ---------- Pente, montées, efforts ---------- */
+.gpx-ds .gpx-grade-bar { height: 6px; border-radius: 2px; }
+.gpx-ds .gpx-grade-bar > div { border-radius: 2px; }
+.gpx-ds .gpx-climb-cards { gap: 8px; }
+.gpx-ds .gpx-climb-card, .gpx-ds .gpx-panel .gpx-climb-card { background: var(--surface2); box-shadow: none; border: 1px solid transparent; border-radius: var(--radius-md); padding: 10px 12px; }
+.gpx-ds .gpx-climb-card:hover, .gpx-ds .gpx-panel .gpx-climb-card:hover { background: var(--surface3); border-color: var(--borderStrong); box-shadow: none; }
+.gpx-ds .gpx-climb-card.selected, .gpx-ds .gpx-panel .gpx-climb-card.selected { background: var(--brand-tint); border-color: var(--brand); box-shadow: none; }
+.gpx-ds .gpx-climb-card-name { font-size: 13.5px; }
+.gpx-ds .gpx-climb-card-grade { font-size: 20px; letter-spacing: -0.03em; }
+.gpx-ds .gpx-climb-card-meta { font-size: 12px; }
+.gpx-ds .gpx-power-efforts { gap: 8px; margin-bottom: 12px; }
+.gpx-ds .gpx-chart-card-title { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+.gpx-ds .gpx-chart-card-stats { gap: 10px 28px; margin-bottom: 12px; }
+.gpx-ds .gpx-chart-card-stats > span { font-size: 11.5px; }
+.gpx-ds .gpx-chart-card-stats b { font-size: 21px; letter-spacing: -0.03em; }
+
+/* ---------- Zones (FC / puissance) : barres franches, couleurs métier conservées ---------- */
+.gpx-ds .gpx-zone-bar-wrap { gap: 10px; }
+.gpx-ds .gpx-zone-row { font-size: 13px; gap: 12px; }
+.gpx-ds .gpx-zone-track { height: 8px; border-radius: 2px; background: var(--surface3); }
+.gpx-ds .gpx-zone-fill { border-radius: 2px; }
+.gpx-ds .gpx-power-zone-row { font-size: 13px; gap: 12px; }
+.gpx-ds .gpx-hr-config { font-size: 12.5px; }
+
+/* ---------- Arrêts et paramètres ---------- */
+.gpx-ds .gpx-stop-item { font-size: 13px; padding: 9px 0; }
+.gpx-ds .gpx-toggle-row { font-size: 13px; }
+.gpx-ds .gpx-param-row { padding: 10px 0; }
+.gpx-ds .gpx-param-label { font-size: 13.5px; }
+.gpx-ds .gpx-param-control input { width: 90px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); }
+.gpx-ds .gpx-params-hint { font-size: 12px; }
+
+/* =====================================================================================================================
+   Profil, Archétype, Alter Ego
+   ===================================================================================================================== */
+
+/* ---------- Profil ---------- */
+.gpx-ds .gpx-two-up { gap: 12px; margin-bottom: 12px; }
+.gpx-ds .gpx-two-up > .gpx-panel { margin-bottom: 0; }
+.gpx-ds .gpx-panel--quiet { background: transparent; border-color: transparent; padding-left: 0; padding-right: 0; }
+.gpx-ds .gpx-panel--quiet .gpx-section-title { margin-left: 0; margin-right: 0; padding-left: 0; padding-right: 0; }
+
+/* Capteurs disponibles : pastilles bordées */
+.gpx-ds .gpx-profile-dataquality-grid { gap: 6px; }
+.gpx-ds .gpx-profile-dataquality-row { padding: 5px 10px; border-radius: var(--radius-sm); background: transparent; border: 1px solid var(--border); font-size: 12.5px; gap: 8px; }
+
+/* Dimensions : cellules à filets, comme les relevés de chiffres */
+.gpx-ds .gpx-profile-grid { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 0; border-top: 1px solid var(--separator); border-left: 1px solid var(--separator); }
+.gpx-ds .gpx-profile-card { padding: 12px 14px 14px; gap: 4px; border-top: none; border-right: 1px solid var(--separator); border-bottom: 1px solid var(--separator); }
+.gpx-ds .gpx-profile-card-head { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+.gpx-ds .gpx-profile-card-head svg { width: 14px; height: 14px; }
+.gpx-ds .gpx-profile-card-value { font-size: 40px; letter-spacing: -0.04em; margin-top: 2px; }
+.gpx-ds .gpx-profile-card-value-scale { font-size: 13px; }
+.gpx-ds .gpx-profile-card-bar { height: 6px; border-radius: 2px; margin: 6px 0 2px; }
+.gpx-ds .gpx-profile-card-bar-fill { border-radius: 2px; }
+.gpx-ds .gpx-profile-card-status { font-size: 13.5px; }
+.gpx-ds .gpx-profile-card-hint { font-size: 12px; }
+.gpx-ds .gpx-profile-card-limit { border-radius: var(--radius-sm); background: transparent; border: 1px solid var(--warning); color: var(--warning-ink); padding: 2px 8px; }
+.gpx-ds .gpx-profile-card-confidence { font-size: 12.5px; }
+.gpx-ds .gpx-profile-card-confidence b { border-radius: var(--radius-sm); background: transparent; border: 1px solid currentColor; padding: 1px 8px; }
+.gpx-ds .gpx-profile-card-confidence b.gpx-confidence-low { background: transparent; color: var(--warning-ink); }
+.gpx-ds .gpx-profile-card-confidence b.gpx-confidence-medium { background: transparent; color: var(--info-ink); }
+.gpx-ds .gpx-profile-card-confidence b.gpx-confidence-high { background: transparent; color: var(--success-ink); }
+.gpx-ds .gpx-confidence-low { color: var(--warning-ink); }
+.gpx-ds .gpx-confidence-high { color: var(--success-ink); }
+.gpx-ds .gpx-profile-card-meta { font-size: 12.5px; }
+.gpx-ds .gpx-profile-evidence-list li { font-size: 13px; }
+.gpx-ds .gpx-profile-evidence-list li::before { border-radius: 1px; width: 5px; height: 5px; }
+.gpx-ds .gpx-profile-dimension-select { border-radius: var(--radius-md) !important; padding: 7px 12px !important; border: 1px solid var(--border) !important; background: var(--surface) !important; }
+.gpx-ds .gpx-profile-about { font-size: 13px; line-height: 1.65; }
+@media (max-width: 680px) { .gpx-ds .gpx-profile-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0; } .gpx-ds .gpx-profile-card-value { font-size: 34px; } }
+@media (max-width: 440px) { .gpx-ds .gpx-profile-grid { grid-template-columns: 1fr; } }
+
+/* ---------- Archétype ---------- */
+.gpx-ds .gpx-archetype-hero { padding: 16px; }
+.gpx-ds .gpx-archetype-hero-grid { gap: 16px 40px; }
+.gpx-ds .gpx-archetype-headline { font-size: clamp(26px, 3.4vw, 38px); font-weight: 700; letter-spacing: -0.04em; margin-bottom: 12px; }
+.gpx-ds .gpx-archetype-roles { font-size: 14px; gap: 4px; }
+.gpx-ds .gpx-archetype-explain { font-size: 14px; }
+.gpx-ds .gpx-archetype-limits { font-size: 12.5px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface2); margin-top: 14px !important; }
+.gpx-ds .gpx-archetype-lists { gap: 14px 24px; margin-top: 14px; }
+.gpx-ds .gpx-archetype-why .gpx-alterego-subheading { margin: 0 0 8px; }
+.gpx-ds .gpx-archetype-bars { gap: 10px; }
+.gpx-ds .gpx-archetype-bar-row { font-size: 13px; gap: 6px 12px; }
+.gpx-ds .gpx-archetype-bar-influence { font-size: 12px; }
+.gpx-ds .gpx-archetype-rider-grid { gap: 0 24px; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
+.gpx-ds .gpx-archetype-rider-card { padding: 14px 0; }
+.gpx-ds .gpx-archetype-rider-name { font-size: 16px; }
+.gpx-ds .gpx-archetype-rider-similarity { border-radius: var(--radius-sm); font-size: 11.5px; color: var(--brand-ink); background: var(--brand-tint); margin-bottom: 10px; }
+.gpx-ds .gpx-archetype-timeline-row { font-size: 14px; padding: 8px 0; }
+.gpx-ds .gpx-archetype-timeline-row::before { top: 12px; width: 10px; height: 10px; border-width: 2px; border-color: var(--brand); }
+.gpx-ds .gpx-archetype-timeline::before { left: 4px; width: 1px; background: var(--borderStrong); }
+@media (max-width: 860px) { .gpx-ds .gpx-archetype-hero { padding: 14px; } }
+
+/* ---------- Alter Ego : niveau, challenges, trophées (gamification conservée, même système visuel) ---------- */
+.gpx-ds .gpx-alterego-level { padding: 16px; }
+.gpx-ds .gpx-alterego-level-title { font-size: clamp(24px, 3vw, 32px); font-weight: 700; letter-spacing: -0.035em; }
+.gpx-ds .gpx-alterego-level-xp { margin-top: 8px; font-size: 18px; letter-spacing: -0.02em; color: var(--brand-ink); }
+.gpx-ds .gpx-alterego-level-hint { font-size: 13px; }
+.gpx-ds .gpx-alterego-ring { --ring-size: 104px; --ring-fill: var(--brand); }
+.gpx-ds .gpx-alterego-grid { gap: 12px; margin-bottom: 12px; }
+.gpx-ds .gpx-alterego-profile-row { font-size: 13.5px; padding: 9px 0; }
+.gpx-ds .gpx-alterego-profile-bar { height: 6px; border-radius: 2px; }
+.gpx-ds .gpx-alterego-profile-bar i { border-radius: 2px; }
+.gpx-ds .gpx-alterego-archetype { font-size: 20px; letter-spacing: -0.03em; }
+.gpx-ds .gpx-alterego-challenge { padding: 12px 0; }
+.gpx-ds .gpx-alterego-challenge-head { font-size: 14px; margin-bottom: 8px; }
+.gpx-ds .gpx-alterego-challenge .gpx-profile-card-bar { height: 8px; }
+.gpx-ds .gpx-alterego-challenge .gpx-profile-card-bar-fill { background: var(--brand); }
+.gpx-ds .gpx-alterego-challenge-done .gpx-alterego-challenge-head { color: var(--success-ink); font-size: 13px; }
+.gpx-ds .gpx-alterego-xp-badge { border-radius: var(--radius-sm); font-size: 11.5px; color: var(--brand-ink); background: var(--brand-tint); padding: 2px 8px; }
+.gpx-ds .gpx-alterego-subheading { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; margin: 14px 0 2px; padding-top: 14px; }
+.gpx-ds .gpx-alterego-achievement-grid { gap: 8px; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
+.gpx-ds .gpx-alterego-achievement { font-size: 13px; padding: 10px 12px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); }
+.gpx-ds .gpx-alterego-achievement-unlocked { background: var(--brand-tint); border-color: var(--brand); }
+.gpx-ds .gpx-alterego-achievement-check { width: 20px; height: 20px; border-radius: var(--radius-sm); background: var(--brand); color: var(--on-brand); }
+@media (max-width: 680px) { .gpx-ds .gpx-alterego-level { padding: 14px; } .gpx-ds .gpx-alterego-ring { --ring-size: 84px; } }
+
+/* =====================================================================================================================
+   Coach, Tour, Sources de données
+   ===================================================================================================================== */
+
+/* ---------- États (réussite / avertissement / erreur / neutre) : bandeaux de stockage, cloud, synchronisation ---------- */
+.gpx-ds .gpx-storage-box { background: var(--surface); }
+.gpx-ds .gpx-panel .gpx-storage-box { background: var(--surface2); }
+.gpx-ds .gpx-storage-box svg { color: var(--info-ink); }
+.gpx-ds .gpx-storage-box.gpx-storage-ok, .gpx-ds .gpx-panel .gpx-storage-box.gpx-storage-ok { border-color: var(--success); }
+.gpx-ds .gpx-storage-box.gpx-storage-ok svg { color: var(--success-ink); }
+.gpx-ds .gpx-storage-box.gpx-storage-warn, .gpx-ds .gpx-panel .gpx-storage-box.gpx-storage-warn {
+  background: color-mix(in srgb, var(--warning) 10%, var(--surface)); border-color: var(--warning); color: var(--warning-ink);
+}
+.gpx-ds .gpx-storage-box.gpx-storage-warn svg { color: var(--warning-ink); }
+.gpx-ds .gpx-save-banner { color: var(--success-ink); background: color-mix(in srgb, var(--success) 9%, var(--surface)); border-color: var(--success); }
+.gpx-ds .gpx-save-banner-error { color: var(--alert-ink); background: color-mix(in srgb, var(--alert) 9%, var(--surface)); border-color: var(--alert); }
+
+/* ---------- Formulaires (compte cloud) ---------- */
+.gpx-ds .gpx-cloud-form { gap: 12px; }
+.gpx-ds .gpx-cloud-field { font-size: 11.5px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--faint); gap: 5px; }
+.gpx-ds .gpx-cloud-field input { padding: 9px 12px !important; font-size: 14px !important; border: 1px solid var(--border) !important; background: var(--surface) !important; border-radius: var(--radius-md) !important; text-transform: none; letter-spacing: 0; color: var(--text); }
+.gpx-ds .gpx-cloud-field input:focus { border-color: var(--brand) !important; }
+.gpx-ds .gpx-cloud-form-actions { gap: 10px; }
+
+/* ---------- Coach ---------- */
+.gpx-ds .gpx-coach-lede { font-size: 17px; line-height: 1.5; font-weight: 600; letter-spacing: -0.015em; max-width: 44em; margin: 2px 0 14px; }
+.gpx-ds .gpx-coach-list li { padding: 9px 0 9px 18px; font-size: 14px; line-height: 1.5; }
+.gpx-ds .gpx-coach-list li:first-child { padding-top: 0; }
+.gpx-ds .gpx-coach-list li::before { top: 1.05em; width: 6px; height: 6px; border-radius: 1px; }
+.gpx-ds .gpx-coach-list li:first-child::before { top: 0.55em; }
+.gpx-ds .gpx-coach-section--positive .gpx-coach-list li::before { background: var(--success); }
+.gpx-ds .gpx-coach-section--attention .gpx-coach-list li::before { background: var(--warning); }
+.gpx-ds .gpx-coach-section--reco { background: var(--brand-tint); box-shadow: inset 2px 0 0 var(--brand); padding: 14px; }
+.gpx-ds .gpx-coach-section--reco .gpx-section-icon { width: auto; height: auto; border-radius: 0; background: none; color: var(--brand-ink); }
+.gpx-ds .gpx-coach-section--reco .gpx-coach-list li { padding: 10px 0 10px 36px; font-size: 14.5px; font-weight: 550; letter-spacing: 0; border-top-color: var(--separator); }
+.gpx-ds .gpx-coach-section--reco .gpx-coach-list li:first-child { padding-top: 0; }
+.gpx-ds .gpx-coach-section--reco .gpx-coach-list li::before { width: 22px; height: 22px; top: 7px; border-radius: var(--radius-sm); font-size: 12px; }
+.gpx-ds .gpx-coach-section--reco .gpx-coach-list li:first-child::before { top: -3px; }
+.gpx-ds .gpx-coach-section--limits { background: transparent; border-color: transparent; padding: 4px 0 0; }
+.gpx-ds .gpx-coach-section--limits .gpx-section-title { margin-left: 0; margin-right: 0; padding-left: 0; padding-right: 0; }
+.gpx-ds .gpx-coach-section--limits .gpx-coach-list li { font-size: 13px; }
+.gpx-ds .gpx-coach-ride { font-size: 13px; margin-bottom: 12px; }
+.gpx-ds .gpx-coach-power { margin-top: 12px; }
+/* La ligne de puissance est une phrase : elle ne doit pas hériter de la mise en colonne des « chiffres de graphique ». */
+.gpx-ds .gpx-coach-power > span { display: block; flex-direction: row; font-size: 13px; font-weight: 500; color: var(--muted); line-height: 1.7; }
+.gpx-ds .gpx-coach-power b { display: inline; font-size: 15px; font-weight: 700; letter-spacing: -0.01em; color: var(--text); }
+.gpx-ds .gpx-coach-power .gpx-power-source-estimated, .gpx-ds .gpx-coach-power .gpx-power-source { margin: 0 4px; vertical-align: 1px; }
+@media (max-width: 680px) { .gpx-ds .gpx-coach-section--reco { padding: 12px; } .gpx-ds .gpx-coach-lede { font-size: 16px; } }
+
+/* ---------- Tour : l'ancien bloc sombre devient un panneau comme les autres ---------- */
+.gpx-ds .gpx-tour-hero { background: var(--surface); color: var(--text); border: 1px solid var(--border); padding: 14px; }
+.gpx-ds .gpx-tour-hero .gpx-section-title { color: var(--muted); font-size: 11.5px; font-weight: 700; margin-bottom: 14px; }
+.gpx-ds .gpx-tour-hero .gpx-section-icon { background: none; color: var(--brand-ink); }
+.gpx-ds .gpx-tour-hero .gpx-focus-headline { font-size: clamp(22px, 3vw, 30px); font-weight: 700; letter-spacing: -0.035em; color: var(--text); max-width: 20em; }
+.gpx-ds .gpx-tour-hero .gpx-profile-card-meta, .gpx-ds .gpx-tour-hero .gpx-profile-evidence-list li { color: var(--muted); }
+.gpx-ds .gpx-tour-hero .gpx-profile-card-meta[class*="meta"]:not(.gpx-tour-count) { color: var(--text); }
+.gpx-ds .gpx-tour-hero .gpx-profile-evidence-list li::before { background: var(--brand); }
+.gpx-ds .gpx-tour-hero .gpx-btn-ghost { background: var(--surface2); color: var(--text); }
+.gpx-ds .gpx-tour-hero .gpx-btn-ghost:hover { background: var(--surface3); }
+.gpx-ds .gpx-tour-hero .gpx-btn-primary { background: var(--brand); color: var(--on-brand); }
+.gpx-ds .gpx-tour-cta { margin-top: 16px; }
+.gpx-ds .gpx-tour-sub { margin-top: 18px; padding-top: 16px; }
+.gpx-ds .gpx-tour-sub .gpx-section-title { font-size: 11.5px; margin-bottom: 10px; }
+.gpx-ds .gpx-tour-note { font-size: 13px; }
+.gpx-ds .gpx-tour-stage-row { grid-template-columns: 44px 1fr auto; gap: 12px; padding: 10px 0; }
+.gpx-ds .gpx-tour-stage-number { font-size: 22px; letter-spacing: -0.04em; }
+.gpx-ds .gpx-tour-stage-type { font-size: 14px; }
+.gpx-ds .gpx-tour-dot { border-radius: 2px; }
+.gpx-ds .gpx-tour-dot-filled { background: var(--brand); }
+.gpx-ds .gpx-tour-route-head .gpx-home-card-headline { font-size: 20px; }
+.gpx-ds .gpx-tour-progress-bar { height: 8px; border-radius: 2px; }
+.gpx-ds .gpx-tour-progress-bar-fill { border-radius: 2px; }
+.gpx-ds .gpx-tour-progress-bar::after {
+  background: repeating-linear-gradient(90deg, transparent 0, transparent calc(100% / var(--n, 1) - 3px), var(--surface) calc(100% / var(--n, 1) - 3px), var(--surface) calc(100% / var(--n, 1)));
+}
+.gpx-ds .gpx-tour-stage { padding: 14px; }
+.gpx-ds .gpx-tour-stage-title { font-size: clamp(24px, 3.2vw, 34px); font-weight: 700; letter-spacing: -0.035em; }
+.gpx-ds .gpx-tour-stage-head { margin-bottom: 16px; }
+.gpx-ds .gpx-tour-stage-head .gpx-ride-meta { font-size: 13px; }
+.gpx-ds .gpx-tour-stage-grid { gap: 14px 32px; padding-top: 14px; }
+.gpx-ds .gpx-tour-col > .gpx-section-title { font-size: 11.5px; color: var(--muted); }
+/* Titres de colonne et sous-sections : de simples intertitres, pas le bandeau d'un panneau (pas de marges négatives). */
+.gpx-ds .gpx-tour-col > .gpx-section-title, .gpx-ds .gpx-tour-sub > .gpx-section-title { margin: 0 0 10px; padding: 0; border-bottom: none; }
+.gpx-ds .gpx-tour-fatigue-label { font-size: 22px; letter-spacing: -0.03em; }
+.gpx-ds .gpx-tour-fatigue-fill { background: var(--brand); }
+.gpx-ds .gpx-tour-done { font-size: 18px !important; }
+.gpx-ds .gpx-tour-finish-actions { margin-top: 16px; gap: 8px; }
+.gpx-ds .gpx-ride-meta { font-size: 13px; margin-top: 4px; }
+@media (max-width: 860px) { .gpx-ds .gpx-tour-stage-grid { gap: 20px; } .gpx-ds .gpx-tour-stage { padding: 12px; } .gpx-ds .gpx-tour-stage-row { grid-template-columns: 36px 1fr auto; } }
+@media (max-width: 680px) { .gpx-ds .gpx-tour-hero { padding: 12px; } }

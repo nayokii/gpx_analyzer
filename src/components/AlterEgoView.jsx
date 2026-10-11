@@ -285,7 +285,7 @@ export function AlterEgoView({ storage, onConnect, onReconnect, onOpen, onViewAr
   }, [progression, storage.status, storage.rootHandle]);
 
   return (
-    <div className="gpx-dashboard">
+    <div className="gpx-dashboard gpx-ds">
       <PageHead
         title="Alter Ego"
         meta={progression ? (

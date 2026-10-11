@@ -89,24 +89,56 @@ describe("Navigation principale — 6 destinations toujours accessibles", () => 
     await screen.findByText(/Glissez-déposez votre fichier/);
     fireEvent.click(screen.getAllByText("Archétype")[0]);
     await screen.findByRole("heading", { name: "Archétype", level: 1 });
-    fireEvent.click(screen.getAllByText("Accueil")[0]);
+    fireEvent.click(screen.getAllByText("Dashboard")[0]);
     expect(await screen.findByText(/Glissez-déposez votre fichier/)).toBeTruthy();
   });
 });
 
 describe("Contexte 'sortie ouverte' distinct de la navigation globale", () => {
-  it("affiche une bande contextuelle en mode analyse, séparée de la navigation principale, avec un retour vers Sorties", async () => {
+  it("affiche un fil d'Ariane contextuel en mode analyse, séparé de la navigation principale, avec un retour vers Sorties", async () => {
     render(<GPXAnalyzer />);
     await screen.findByText(/Glissez-déposez votre fichier/);
     fireEvent.click(screen.getByText(/Voir un exemple avec des données de démonstration/));
 
-    // Toujours dans l'analyse : la bande contextuelle nomme la sortie ouverte.
-    await waitFor(() => expect(screen.getByText(/Analyse — /)).toBeTruthy());
+    // Toujours dans l'analyse : le fil d'Ariane du shell nomme la sortie ouverte, distinct de la navigation principale.
+    const crumbs = document.querySelector(".gpx-shell-crumbs");
+    expect(within(crumbs).getByText(/Analyse — /).getAttribute("aria-current")).toBe("page");
 
-    // Revenir vers Sorties depuis la bande contextuelle (pas depuis la nav globale) ramène à l'historique.
-    const contextStrip = document.querySelector(".gpx-context-strip");
-    fireEvent.click(within(contextStrip).getByText("Sorties"));
+    // Revenir vers Sorties depuis le fil d'Ariane (pas depuis la nav globale) ramène à l'historique.
+    fireEvent.click(within(crumbs).getByRole("button", { name: "Mes sorties" }));
     expect(await screen.findByRole("heading", { name: "Historique", level: 1 })).toBeTruthy();
+  });
+});
+
+describe("Détail d'une sortie : design system et neuf onglets", () => {
+  it("porte la classe .gpx-ds (conventions du cockpit) et garde ses neuf onglets, tous activables", async () => {
+    render(<GPXAnalyzer />);
+    await screen.findByText(/Glissez-déposez votre fichier/);
+    fireEvent.click(screen.getByText(/Voir un exemple avec des données de démonstration/));
+    await screen.findByText("Sortie de démonstration");
+
+    const root = document.querySelector(".gpx-view-analyse");
+    expect(root.classList.contains("gpx-ds")).toBe(true);
+    const labels = ["Résumé", "Analytique", "Carte", "Performance", "Montées", "Technique", "Graphiques", "Splits", "Paramètres"];
+    const tabs = Array.from(document.querySelectorAll(".gpx-tab")).map((t) => t.textContent);
+    expect(tabs).toEqual(labels);
+
+    for (const label of labels) {
+      const tab = Array.from(document.querySelectorAll(".gpx-tab")).find((t) => t.textContent === label);
+      expect(tab.disabled).toBe(false);
+      fireEvent.click(tab);
+      await waitFor(() => expect(Array.from(document.querySelectorAll(".gpx-tab")).find((t) => t.textContent === label).className).toContain("active"));
+      expect(document.querySelector(".gpx-view-analyse.gpx-ds")).toBeTruthy();
+    }
+  });
+
+  it("ne duplique pas le titre fourni par le shell : un seul h1 (celui de la sortie), le fil d'Ariane n'est pas un titre", async () => {
+    render(<GPXAnalyzer />);
+    await screen.findByText(/Glissez-déposez votre fichier/);
+    fireEvent.click(screen.getByText(/Voir un exemple avec des données de démonstration/));
+    await screen.findByText("Sortie de démonstration");
+    expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
+    expect(document.querySelector(".gpx-shell-crumbs h1, .gpx-shell-header h1")).toBeNull();
   });
 });
 
@@ -152,25 +184,50 @@ describe("Mode démo — isolation", () => {
   });
 });
 
-describe("Navigation — structure responsive", () => {
-  it("les deux jeux de navigation (haut desktop, bas mobile) existent dans le DOM — le choix d'affichage est purement CSS", async () => {
+describe("Navigation : structure responsive", () => {
+  it("un seul shell pour toutes les vues : barre latérale + barre basse mobile, sans barre haute (le choix d'affichage est purement CSS)", async () => {
     render(<GPXAnalyzer />);
     await screen.findByText(/Glissez-déposez votre fichier/);
-    expect(screen.getAllByText("Profil").length).toBeGreaterThanOrEqual(2);
-    // L'accueil est le cockpit : barre latérale (desktop/tablette) + barre basse (mobile). Les autres vues gardent la barre haute.
+    expect(screen.getAllByText("Profil").length).toBeGreaterThanOrEqual(1);
     expect(document.querySelector(".gpx-sidebar")).toBeTruthy();
-    expect(document.querySelector(".gpx-appnav-bottom")).toBeTruthy();
+    expect(document.querySelector(".gpx-bottomnav")).toBeTruthy();
+    expect(document.querySelector(".gpx-shell-header")).toBeTruthy();
     expect(document.querySelector(".gpx-appnav-top")).toBeNull();
-    expect(document.documentElement.getAttribute("data-theme")).toBe("cockpit");
+    // Le thème est global (lib/theme.js) : l'accueil ne force plus le sien.
+    expect(["light", "dark"]).toContain(document.documentElement.getAttribute("data-theme"));
   });
 
-  it("quitter l'accueil rend la barre haute et retire le thème cockpit", async () => {
+  it("la même coque entoure chaque vue, et le thème choisi reste identique d'une route à l'autre", async () => {
     render(<GPXAnalyzer />);
     await screen.findByText(/Glissez-déposez votre fichier/);
-    fireEvent.click(document.querySelector(".gpx-sidebar-item[title='Mes sorties']"));
-    await waitFor(() => expect(document.querySelector(".gpx-appnav-top")).toBeTruthy());
-    expect(document.querySelector(".gpx-sidebar")).toBeNull();
-    expect(document.documentElement.getAttribute("data-theme")).toBeNull();
+    fireEvent.click(screen.getByRole("radio", { name: "Sombre" }));
+    expect(document.documentElement.getAttribute("data-theme")).toBe("dark");
+
+    const sidebar = () => document.querySelector(".gpx-sidebar");
+    const routes = [
+      ["Mes sorties", "Historique"], ["Activités", null], ["Coach", null], ["Profil", "Mon profil cycliste"],
+      ["Archétype", "Archétype"], ["Tour", "Tour Simulator"], ["Alter Ego", "Alter Ego"], ["Sources de données", null],
+    ];
+    for (const [label, heading] of routes) {
+      fireEvent.click(within(sidebar()).getByRole("button", { name: label }));
+      if (heading) await screen.findByRole("heading", { name: heading, level: 1 });
+      await waitFor(() => expect(within(sidebar()).getByRole("button", { name: label }).getAttribute("aria-current")).toBe("page"));
+      expect(document.querySelectorAll(".gpx-sidebar")).toHaveLength(1);
+      expect(document.querySelector(".gpx-shell-header")).toBeTruthy();
+      expect(document.documentElement.getAttribute("data-theme")).toBe("dark");
+      expect(screen.getByRole("radio", { name: "Sombre" }).getAttribute("aria-checked")).toBe("true");
+    }
+    fireEvent.click(within(sidebar()).getByRole("button", { name: "Dashboard" }));
+    expect(await screen.findByText(/Glissez-déposez votre fichier/)).toBeTruthy();
+  });
+
+  it("depuis le menu « Plus » du mobile, toutes les destinations secondaires mènent à leur vue", async () => {
+    render(<GPXAnalyzer />);
+    await screen.findByText(/Glissez-déposez votre fichier/);
+    fireEvent.click(screen.getByRole("button", { name: "Plus de destinations" }));
+    fireEvent.click(within(screen.getByRole("group", { name: "Autres destinations" })).getByText("Profil"));
+    expect(await screen.findByRole("heading", { name: "Mon profil cycliste", level: 1 })).toBeTruthy();
+    expect(screen.queryByRole("group", { name: "Autres destinations" })).toBeNull();
   });
 });
 

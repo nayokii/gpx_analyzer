@@ -69,6 +69,9 @@ export function StateNote({ icon: Icon = AlertTriangle, tone = "neutral", title,
 
 const dateShort = (iso) => (iso ? new Date(iso).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" }) : "date inconnue");
 
+/** Date courte d'une sortie (« 20 sept. 2026 »), sans son nom : le nom n'apparaît qu'une fois, dans le panneau Parcours. */
+export const rideDateLabel = (activity) => dateShort(activity.date);
+
 export function rideOptionLabel(activity) {
   return `${dateShort(activity.date)} · ${activity.name || "Sortie vélo"}`;
 }

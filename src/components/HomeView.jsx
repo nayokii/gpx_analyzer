@@ -30,12 +30,12 @@
  * consigne §15 : "ne fais pas de refactor massif si ce n'est pas
  * nécessaire").
  *
- * État vide (pas de dossier connecté OU aucune sortie) : reprend l'écran
+ * État vide (ni dossier connecté ni compte cloud, OU aucune sortie) : reprend l'écran
  * d'import existant tel quel (mêmes classes `.gpx-upload-zone`/
  * `.gpx-landing-*`, déjà éprouvées) — ne réinvente pas cette expérience,
  * l'accueil l'englobe simplement.
  */
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useMemo } from "react";
 import {
   Mountain, Upload, FileWarning, Sparkles, ArrowRight, Timer, Zap, Flame, Trophy, UserRound, Fingerprint, Target, AlertTriangle,
 } from "lucide-react";
@@ -46,8 +46,7 @@ import { SectionTitle, ProgressRing } from "./UIPrimitives.jsx";
 import { CockpitDashboard } from "./cockpit/CockpitDashboard.jsx";
 import { ProgressionHistoryPanel, ProvenanceLegend } from "./cockpit/CockpitPanels.jsx";
 import { COLORS } from "../lib/colors.js";
-import { listActivities } from "../lib/storage/activityStore.js";
-import { loadCachedActivityDetails } from "../lib/storage/activityCache.js";
+import { useActivityRepository, useUnifiedActivities } from "./useActivityRepository.js";
 import { confidenceLabel } from "../lib/profile/confidence.js";
 import { getXpProgress } from "../lib/progression/levels.js";
 import { getCachedProfile, getCachedProgression, getCachedArchetypeMatch } from "../lib/derivedCache.js";
@@ -322,48 +321,30 @@ function EmptyStateImport({ storage, onConnect, onReconnect, upload, onLoadDemo,
  *   se contente de déclencher son clic, cette vue n'en rend jamais un second (voir GPXAnalyzer.jsx: fileInputRef).
  */
 export function HomeView({ storage, onConnect, onReconnect, onNavigate, onOpenActivity, onLoadDemo, upload, onOpenSources, userSettings = null, maxHR, hrZones }) {
-  const [summaries, setSummaries] = useState(null);
-  const [summariesError, setSummariesError] = useState(null);
-  const [fullActivities, setFullActivities] = useState(null);
-  const [failedCount, setFailedCount] = useState(0);
-
-  const refresh = useCallback(() => {
-    if (storage.status !== "connected" || !storage.rootHandle) return;
-    setSummariesError(null);
-    setSummaries(null);
-    setFullActivities(null);
-    setFailedCount(0);
-    listActivities(storage.rootHandle)
-      .then(setSummaries)
-      .catch((err) => setSummariesError(err.message || "Impossible de lire l'historique."));
-  }, [storage.status, storage.rootHandle]);
-
-  useEffect(() => { refresh(); }, [refresh]);
-
-  useEffect(() => {
-    if (!summaries || summaries.length === 0 || !storage.rootHandle) return;
-    let cancelled = false;
-    const toLoad = summaries.slice(0, MAX_HOME_ACTIVITIES);
-    loadCachedActivityDetails(storage.rootHandle, toLoad).then((results) => {
-      if (cancelled) return;
-      setFullActivities(results.filter((r) => r.status === "fulfilled").map((r) => r.value));
-      setFailedCount(results.filter((r) => r.status === "rejected").length);
-    });
-    return () => { cancelled = true; };
-  }, [summaries, storage.rootHandle]);
+  // Même source que Sorties, Profil, Alter Ego… : le dépôt unifié (dossier local connecté ET/OU compte cloud). Un appareil sans
+  // File System Access API (la plupart des tablettes et téléphones) voit ainsi la dernière sortie de son compte, comme sur PC.
+  // Le dossier n'est transmis que s'il est réellement lisible : permission perdue = pas de lecture (l'écran d'import propose
+  // la reconnexion, comme avant).
+  const readableStorage = useMemo(
+    () => ({ status: storage.status, rootHandle: storage.status === "connected" ? storage.rootHandle : null }),
+    [storage.status, storage.rootHandle]
+  );
+  const { repository } = useActivityRepository(readableStorage, userSettings);
+  const { summaries, summariesError, fullActivities, failedCount } = useUnifiedActivities(repository, { max: MAX_HOME_ACTIVITIES });
+  const hasSource = storage.status === "connected" || repository.hasCloud;
 
   const profile = useMemo(() => (fullActivities ? getCachedProfile(fullActivities) : null), [fullActivities]);
   const progression = useMemo(() => (fullActivities ? getCachedProgression(fullActivities, profile) : null), [fullActivities, profile]);
   const archetypeMatch = useMemo(() => (profile ? getCachedArchetypeMatch(profile) : null), [profile]);
   const lastActivity = fullActivities && fullActivities.length > 0 ? fullActivities[0] : null;
 
-  const isLoading = storage.status === "connected" && (summaries === null || (summaries.length > 0 && fullActivities === null));
-  const isEmpty = storage.status !== "connected" || (summaries != null && summaries.length === 0);
-  const hasData = storage.status === "connected" && !isLoading && !isEmpty && profile != null;
+  const isLoading = hasSource && !summariesError && (summaries === null || (summaries.length > 0 && fullActivities === null));
+  const isEmpty = !hasSource || (summaries != null && summaries.length === 0);
+  const hasData = hasSource && !isLoading && !isEmpty && profile != null;
 
   return (
     <div className={"gpx-dashboard" + (hasData ? " ck-root" : "")}>
-      {summariesError ? (
+      {hasSource && summariesError ? (
         <div className="gpx-panel">
           <div className="gpx-error-box">{summariesError}</div>
         </div>
@@ -398,7 +379,7 @@ export function HomeView({ storage, onConnect, onReconnect, onNavigate, onOpenAc
                 userSettings={userSettings}
                 maxHR={maxHR}
                 hrZones={hrZones}
-                rootHandle={storage.rootHandle}
+                rootHandle={readableStorage.rootHandle}
                 onOpenActivity={onOpenActivity}
               />
             ) : (

@@ -497,7 +497,7 @@ export function TourView({ storage, onConnect, onReconnect, onBack, onViewProfil
   }, []);
 
   return (
-    <div className="gpx-dashboard">
+    <div className="gpx-dashboard gpx-ds">
       <PageHead
         title="Tour Simulator"
         meta={profile ? (

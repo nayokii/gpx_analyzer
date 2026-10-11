@@ -4,6 +4,20 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Analyse de sortie vélo — GPX</title>
+    <!-- Thème appliqué AVANT le premier rendu (aucun flash). Même règle que src/lib/theme.js : préférence enregistrée
+         "light" | "dark", sinon thème du système. localStorage inaccessible → thème du système. -->
+    <script>
+      (function () {
+        try {
+          var pref = null;
+          try { pref = window.localStorage.getItem("cycling-os-theme"); } catch (e) {}
+          var dark = !!(window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches);
+          var theme = pref === "light" || pref === "dark" ? pref : dark ? "dark" : "light";
+          document.documentElement.setAttribute("data-theme", theme);
+          document.documentElement.style.colorScheme = theme;
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

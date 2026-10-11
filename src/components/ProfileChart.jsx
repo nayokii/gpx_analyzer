@@ -115,7 +115,7 @@ export function ProfileChart({
     ctx.clearRect(0, 0, width, height);
 
     const climbColor = resolveColor(COLORS.climb);
-    const gridColor = resolveColor("var(--separator)");
+    const gridColor = resolveColor("var(--chart-grid)");
     const mutedColor = resolveColor(COLORS.textMuted);
     const textColor = resolveColor(COLORS.text);
     const surfaceColor = resolveColor(COLORS.surface);

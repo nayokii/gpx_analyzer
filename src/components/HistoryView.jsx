@@ -106,7 +106,7 @@ export function HistoryView({
   });
 
   return (
-    <div className="gpx-dashboard">
+    <div className="gpx-dashboard gpx-ds">
       {/* Cascade d'apparition (Phase 5A) : groupes visuels, 30 ms d'écart — voir Reveal.jsx. Les lignes du tableau ne sont jamais animées une à une. */}
       <Reveal>
         <PageHead

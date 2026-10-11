@@ -1,154 +1,23 @@
 /**
  * Cycling OS — cockpit de performance (écran d'accueil).
  *
- * Thème « télémétrie » : noir bleuté, panneaux #11151A, filets fins, accent rose #D6116B (principal) et #F5C6D6
- * (secondaire). Il s'active en posant data-theme="cockpit" sur <html> (components/useCockpitTheme.js) et ne REDÉFINIT
- * QUE les tokens de tokens.css : tous les composants existants (carte, profil, panneaux, boutons) s'y adaptent sans
- * être modifiés, et les canvas / tracés Leaflet — qui lisent :root — suivent aussi.
- *
- * Contrastes (sur #11151A) : texte #E9ECF1 ≈ 15:1, gris froid #9AA4B2 ≈ 7:1, rose lisible en texte #FF5FA2 ≈ 6,6:1.
- * Le rose #D6116B (≈ 3,6:1) ne sert qu'aux surfaces, tracés et fonds de bouton (texte blanc dessus ≈ 5,1:1).
+ * Les couleurs et rayons viennent UNIQUEMENT de tokens.css (thèmes clair et sombre) : ce fichier ne contient plus de
+ * jeu de tokens propre ni de forçage de thème. Il porte la grille et les panneaux du cockpit (la coque globale est dans shell.css) et
+ * quelques surcharges de composants communes (panneaux bordés, liens roses lisibles, puces actives).
  */
 
-:root[data-theme="cockpit"] {
-  color-scheme: dark;
-
-  --bg: #0a0b0d;
-  --bgAlt: #0e1013;
-  --surface: #11151a;
-  --surface2: #171c23;
-  --surface3: #212831;
-  --surface-glass: rgba(10, 11, 13, 0.92);
-
-  --separator: rgba(176, 190, 210, 0.11);
-  --border: rgba(176, 190, 210, 0.12);
-  --borderStrong: rgba(176, 190, 210, 0.26);
-
-  --text: #e9ecf1;
-  --muted: #9aa4b2;
-  --faint: #7f8a9b;
-
-  /* Couleurs métier remappées sur la palette : rose = vitesse/accent, rose pâle = altitude, corail = FC, acier = cadence/puissance. */
-  --speed: #d6116b;
-  --climb: #f5c6d6;
-  --effort: #ff7a59;
-  --alert: #ff4d6d;
-  --info: #8fa3c0;
-  --speed-ink: #ff5fa2;
-  --climb-ink: #f5c6d6;
-  --effort-ink: #ff9a80;
-  --alert-ink: #ff8fa3;
-  --info-ink: #a9bad3;
-
-  --brand: #d6116b;
-  --on-brand: #ffffff;
-  --active: #ff5fa2;
-  --active-tint: rgba(214, 17, 107, 0.14);
-
-  --inverse-bg: #161b22;
-  --inverse-text: #e9ecf1;
-  --inverse-muted: #9aa4b2;
-  --inverse-accent: #ff5fa2;
-
-  --shadow-card: none;
-  --shadow-pop: 0 10px 28px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(176, 190, 210, 0.14);
-
-  /* Carte : tuiles OSM assombries (inversion + désaturation) ; halo du tracé = fond de l'app. */
-  --map-halo: #0a0b0d;
-  --map-bg: #0f1216;
-  --map-tile-filter: invert(1) hue-rotate(180deg) saturate(0.3) brightness(0.82) contrast(0.92);
-
-  /* Angles francs : outil d'analyse, pas carte SaaS. */
-  --radius-sm: 4px;
-  --radius-md: 6px;
-  --radius-lg: 8px;
-}
-
-:root[data-theme="cockpit"] body { background: var(--bg); }
-
-/* Les liens/boutons texte utilisent le rose lisible (le rose de marque est trop sombre en petit texte). */
-:root[data-theme="cockpit"] .gpx-app .gpx-link-btn,
-:root[data-theme="cockpit"] .gpx-app .gpx-home-card-link { color: var(--speed-ink); }
-:root[data-theme="cockpit"] .gpx-app :focus-visible { outline-color: var(--speed-ink); }
-:root[data-theme="cockpit"] .gpx-app .gpx-panel { border: 1px solid var(--border); box-shadow: none; }
-:root[data-theme="cockpit"] .gpx-app .gpx-chip-active,
-:root[data-theme="cockpit"] .gpx-app .gpx-chip-active:hover { background: var(--speed); color: #fff; }
-:root[data-theme="cockpit"] .gpx-app .gpx-home-card { border: 1px solid var(--border); box-shadow: none; }
-:root[data-theme="cockpit"] .gpx-app .gpx-home-card:hover { transform: none; border-color: var(--borderStrong); }
-:root[data-theme="cockpit"] .gpx-app .gpx-xp-bar > div { background: var(--speed); }
-:root[data-theme="cockpit"] .gpx-app .gpx-upload-zone { border-radius: var(--radius-lg); }
-
-/* ---------------------------------------------------------------------------------------------------------------
-   Coque : barre latérale + contenu
-   --------------------------------------------------------------------------------------------------------------- */
-
-.gpx-app--cockpit {
-  display: grid;
-  grid-template-columns: 224px minmax(0, 1fr);
-  align-items: start;
-}
-.gpx-app--cockpit > :not(.gpx-sidebar) { grid-column: 2; min-width: 0; }
-.gpx-app--cockpit > .gpx-sidebar { grid-column: 1; grid-row: 1 / span 12; }
-
-.gpx-sidebar {
-  position: sticky; top: 0; align-self: start;
-  height: 100vh; height: 100dvh; overflow-y: auto;
-  display: flex; flex-direction: column; gap: 18px;
-  padding: 18px 12px 16px;
-  background: var(--bgAlt);
-  border-right: 1px solid var(--border);
-}
-.gpx-sidebar-brand {
-  display: flex; align-items: center; gap: 10px; padding: 6px 8px;
-  background: none; border: none; color: var(--text); font-size: 16px; font-weight: 700; letter-spacing: -0.01em;
-}
-.gpx-sidebar-nav { display: flex; flex-direction: column; gap: 16px; flex: 1; }
-.gpx-sidebar-group { display: flex; flex-direction: column; gap: 2px; }
-.gpx-sidebar-heading {
-  margin: 0 0 4px; padding: 0 10px; font-size: 10.5px; font-weight: 700; letter-spacing: 0.1em;
-  text-transform: uppercase; color: var(--faint);
-}
-.gpx-sidebar-item {
-  position: relative; display: flex; align-items: center; gap: 10px; width: 100%;
-  padding: 8px 10px; border: none; border-left: 2px solid transparent; border-radius: var(--radius-sm);
-  background: none; color: var(--muted); font-size: 14px; font-weight: 600; text-align: left;
-  transition: color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
-}
-.gpx-sidebar-item:hover { color: var(--text); background: var(--surface2); }
-.gpx-sidebar-item.active, .gpx-sidebar-item.active:hover {
-  color: var(--speed-ink); background: var(--active-tint); border-left-color: var(--speed);
-}
-.gpx-sidebar-item svg { flex-shrink: 0; }
-.gpx-sidebar-import { width: 100%; justify-content: center; min-height: 40px; font-size: 14px; }
-
-/* La barre compacte (marque + import) n'existe que sur mobile ; la barre basse est déjà gérée par base.css. */
-.gpx-topbar--compact { display: none; }
-
-/* Tablette : rail d'icônes (les libellés restent accessibles via title / aria). */
-@media (min-width: 681px) and (max-width: 1100px) {
-  .gpx-app--cockpit { grid-template-columns: 64px minmax(0, 1fr); }
-  .gpx-sidebar { padding: 14px 8px; align-items: center; }
-  .gpx-sidebar-label, .gpx-sidebar-heading { display: none; }
-  .gpx-sidebar-brand { padding: 6px; }
-  .gpx-sidebar-item { justify-content: center; padding: 10px 0; border-left: none; width: 44px; }
-  .gpx-sidebar-item.active { box-shadow: inset 2px 0 0 var(--speed); }
-  .gpx-sidebar-group { align-items: center; }
-  .gpx-sidebar-import { width: 44px; padding: 0; }
-}
-
-/* Mobile : plus de barre latérale — barre compacte en haut + barre d'onglets en bas. */
-@media (max-width: 680px) {
-  .gpx-app--cockpit { display: block; }
-  .gpx-sidebar { display: none; }
-  .gpx-topbar--compact { display: flex; }
-}
+.gpx-app .gpx-panel { border: 1px solid var(--border); box-shadow: none; }
+.gpx-app .gpx-chip-active,
+.gpx-app .gpx-chip-active:hover { background: var(--speed); color: #fff; }
+.gpx-app .gpx-home-card { border: 1px solid var(--border); box-shadow: none; }
+.gpx-app .gpx-home-card:hover { transform: none; border-color: var(--borderStrong); }
+.gpx-app .gpx-xp-bar > div { background: var(--speed); }
+.gpx-app .gpx-upload-zone { border-radius: var(--radius-lg); }
 
 /* ---------------------------------------------------------------------------------------------------------------
    Contenu
    --------------------------------------------------------------------------------------------------------------- */
 
-.ck-root { max-width: 1560px; padding: 20px 24px 64px; }
-@media (max-width: 680px) { .ck-root { padding: 14px 12px 24px; } }
 
 .ck-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px 24px; flex-wrap: wrap; padding: 4px 0 16px; }
 .ck-head .gpx-home-title { font-size: clamp(28px, 3.4vw, 40px); letter-spacing: -0.04em; }
@@ -175,6 +44,8 @@
 .ck-select { display: inline-flex; align-items: center; gap: 10px; font-size: 12px; font-weight: 600; color: var(--muted); }
 .ck-select span { display: inline-flex; align-items: center; gap: 6px; text-transform: uppercase; letter-spacing: 0.08em; font-size: 10.5px; }
 .ck-select select { max-width: min(520px, 70vw); min-height: 36px; }
+.ck-latest { font-size: 11.5px; font-weight: 650; letter-spacing: 0.02em; color: var(--muted); }
+.ck-latest.is-latest { color: var(--brand-ink); }
 .ck-scope { font-size: 11.5px; font-weight: 600; color: var(--muted); letter-spacing: 0.01em; }
 .ck-scope--game { color: var(--climb-ink); }
 
@@ -190,14 +61,21 @@
   .ck-telemetry, .ck-summary { grid-column: span 6; }
   .ck-route { grid-column: span 12; }
   .ck-grid { gap: 10px; }
-  /* Télémétrie et résumé côte à côte, puis profils, parcours et analyse. */
-  .ck-map { order: 1; }
-  .ck-telemetry { order: 2; }
-  .ck-summary { order: 3; }
-  .ck-elevation { order: 4; }
-  .ck-series { order: 5; }
-  .ck-route { order: 6; }
+  /* Tablette : la sortie (Parcours) d'abord, puis la carte ; télémétrie et résumé côte à côte ; aucun panneau masqué. */
+  .ck-route { order: 1; }
+  .ck-map { order: 2; }
+  .ck-telemetry { order: 3; }
+  .ck-summary { order: 4; }
+  .ck-elevation { order: 5; }
+  .ck-series { order: 6; }
   .ck-analysis { order: 7; }
+}
+/* Parcours en bandeau horizontal sur tablette (nom/date | chiffres | accès au détail) */
+@media (min-width: 681px) and (max-width: 1100px) {
+  .ck-route .ck-panel-body { display: grid; grid-template-columns: minmax(0, 1.2fr) auto minmax(150px, 0.6fr); gap: 4px 28px; align-items: center; }
+  .ck-route .ck-route-stats { margin: 0; grid-column: 2; grid-row: 1 / span 2; }
+  .ck-route .ck-hint { grid-column: 1; margin: 6px 0 0; }
+  .ck-route .ck-route-cta { grid-column: 3; grid-row: 1 / span 2; margin: 0; }
 }
 /* Mobile : le résumé et le parcours passent avant la carte (informations essentielles sans défilement). */
 @media (max-width: 680px) {
@@ -343,7 +221,7 @@
 .ck-badges li { padding: 3px 9px; font-size: 12px; font-weight: 600; color: var(--climb-ink); border: 1px solid var(--borderStrong); border-radius: 3px; }
 
 /* Focus clavier visible sur les éléments propres au cockpit */
-.ck-climb:focus-visible, .ck-tab:focus-visible, .gpx-sidebar-item:focus-visible, .gpx-sidebar-brand:focus-visible,
+.ck-climb:focus-visible, .ck-tab:focus-visible,
 .ck-panel canvas:focus-visible { outline: 2px solid var(--speed-ink); outline-offset: 2px; }
 
 /* Les animations d'apparition (Reveal) sont déjà neutralisées par tokens.css sous prefers-reduced-motion. */

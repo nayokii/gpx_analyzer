@@ -1,72 +1,35 @@
 /**
- * Cycling OS — tokens du design system (source de vérité unique).
+ * Cycling OS — tokens du design system : SOURCE DE VÉRITÉ UNIQUE des couleurs et propriétés visuelles communes.
  *
- * Deux thèmes réellement dessinés (pas une inversion) :
- *  - clair (défaut) : fond légèrement teinté, surfaces blanches, ombres très douces ;
- *  - sombre (prefers-color-scheme: dark) : surfaces étagées vert-graphite, accents plus lumineux,
- *    pas d'ombres — la hiérarchie vient de l'élévation des surfaces.
+ * Deux thèmes aboutis, choisis par l'attribut data-theme sur <html> ("light" | "dark") — voir lib/theme.js (préférence
+ * system / light / dark, persistance, suivi du système) et le script précoce d'index.html (aucun flash au chargement).
+ * Les deux blocs définissent EXACTEMENT les mêmes tokens ; sans attribut (avant le script), le clair s'applique.
  *
- * Les noms historiques (--bg, --surface, --surface2, --text, --muted, --faint, --speed, --climb,
- * --effort, --alert, --info, --border, --borderStrong) sont conservés : les vues non encore migrées
- * les utilisent. Les couleurs `-ink` sont les variantes lisibles en TEXTE (contraste AA sur --surface).
+ * Marque (identique dans les deux thèmes) : rose #D6116B, rose pastel #F5C6D6.
+ *  - En texte de petite taille sur fond clair, le rose de marque est assombri (--brand-ink) pour tenir le contraste AA.
+ *  - Le rose pastel sert de teinte de fond en clair, et de couleur d'altitude / accent secondaire en sombre.
+ *
+ * Familles de tokens : fonds et surfaces · séparateurs · texte · couleurs métier (remplissages) et leurs variantes -ink
+ * (lisibles en TEXTE) · marque et action · états (succès, avertissement, erreur) · ombres · carte · graphiques ·
+ * rayons · espacements · mouvement · typographie · focus.
+ *
+ * Les noms historiques (--bg, --surface, --surface2, --text, --muted, --faint, --speed, --climb, --effort, --alert, --info,
+ * --border, --borderStrong) sont conservés : les vues non encore migrées les utilisent.
  */
+
+/* ------------------------------------------------------------------ */
+/* Tokens indépendants du thème                                        */
+/* ------------------------------------------------------------------ */
 :root {
-  color-scheme: light dark;
-
-  /* Fonds et surfaces */
-  --bg: #f1f4f2;
-  --bgAlt: #e8ece9;
-  --surface: #ffffff;
-  --surface2: #f4f6f5;   /* champs, lignes imbriquées, pistes de barres */
-  --surface3: #e6ebe8;   /* pistes de jauges, états pressés */
-  --surface-glass: rgba(241, 244, 242, 0.86);
-
-  /* Séparateurs */
-  --separator: rgba(16, 28, 22, 0.08);
-  --border: rgba(16, 28, 22, 0.08);
-  --borderStrong: rgba(16, 28, 22, 0.18);
-
-  /* Texte */
-  --text: #0f1512;
-  --muted: #56615b;
-  --faint: #6e7973;
-
-  /* Couleurs métier : remplissages (graphiques, barres) */
-  --speed: #00a98e;
-  --climb: #f28b00;
-  --effort: #e5484d;
-  --alert: #d6264a;
-  --info: #5a63e6;
-  /* Variantes lisibles en texte sur surface claire */
-  --speed-ink: #007a68;
-  --climb-ink: #a35a00;
-  --effort-ink: #c0262d;
-  --alert-ink: #b81d3d;
-  --info-ink: #3f48c2;
-
-  /* Marque / action principale */
-  --brand: #067563;
+  /* Marque : constantes */
+  --brand-pink: #d6116b;
+  --brand-pastel: #f5c6d6;
   --on-brand: #ffffff;
 
-  /* Bloc inversé (un seul par écran, pour ancrer la composition) */
-  --inverse-bg: #111a16;
-  --inverse-text: #f0f4f1;
-  --inverse-muted: #a3b3aa;
-  --inverse-accent: #34dcbd;
-
-  /* Ombres : une seule, très discrète */
-  --shadow-card: 0 1px 2px rgba(15, 30, 22, 0.05), 0 12px 32px -18px rgba(15, 30, 22, 0.16);
-  --shadow-pop: 0 2px 6px rgba(15, 30, 22, 0.08), 0 18px 40px -12px rgba(15, 30, 22, 0.22);
-
-  /* Carte (Leaflet) */
-  --map-halo: #ffffff;
-  --map-bg: #e9eeeb;
-  --map-tile-filter: saturate(0.5) contrast(0.92) brightness(1.04);
-
-  /* Rayons : 8 = contrôles, 14 = éléments internes, 22 = conteneurs */
-  --radius-sm: 8px;
-  --radius-md: 14px;
-  --radius-lg: 22px;
+  /* Rayons : angles francs (outil d'analyse) */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
   --radius-pill: 999px;
 
   /* Échelle d'espacement (grille de 4) */
@@ -86,57 +49,168 @@
   --dur-slow: 400ms;
   --ease: cubic-bezier(0.2, 0, 0, 1);
 
-  /* État actif unique : texte/icône en accent + capsule teintée qui glisse (ActiveIndicator) */
-  --active: var(--speed-ink);
-  --active-line: 2px;
-  --active-tint: color-mix(in srgb, var(--active) 11%, transparent);
-  --disabled-opacity: 0.4;
-
-  /* Typographie : polices système natives (SF sur Apple, Segoe UI Variable sur Windows) */
+  /* Typographie : polices système natives, échelle et graisses */
   --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Segoe UI Variable Display", "Segoe UI", system-ui, Roboto, "Helvetica Neue", sans-serif;
   --font-mono: ui-monospace, "SF Mono", "Cascadia Mono", Consolas, monospace;
+  --text-xs: 11px;
+  --text-sm: 13px;
+  --text-md: 15px;
+  --text-lg: 18px;
+  --text-xl: 24px;
+  --text-2xl: 32px;
+  --fw-regular: 400;
+  --fw-medium: 500;
+  --fw-semibold: 650;
+  --fw-bold: 700;
+
+  /* Focus clavier et états désactivés */
+  --focus-width: 2px;
+  --focus-offset: 2px;
+  --active-line: 2px;
+  --disabled-opacity: 0.4;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #0f1311;
-    --bgAlt: #151a17;
-    --surface: #1a201d;
-    --surface2: #232a26;
-    --surface3: #2d3531;
-    --surface-glass: rgba(15, 19, 17, 0.86);
+/* ------------------------------------------------------------------ */
+/* Thème clair                                                         */
+/* ------------------------------------------------------------------ */
+:root,
+:root[data-theme="light"] {
+  color-scheme: light;
 
-    --separator: rgba(236, 244, 239, 0.09);
-    --border: rgba(236, 244, 239, 0.08);
-    --borderStrong: rgba(236, 244, 239, 0.2);
+  /* Fonds et surfaces : blanc cassé / blanc */
+  --bg: #f7f6f4;
+  --bgAlt: #efedea;
+  --surface: #ffffff;
+  --surface2: #f3f1ef;   /* champs, lignes imbriquées, pistes de barres */
+  --surface3: #e7e4e1;   /* pistes de jauges, états pressés */
+  --surface-glass: rgba(247, 246, 244, 0.9);
 
-    --text: #f0f4f1;
-    --muted: #a3afa8;
-    --faint: #78847d;
+  /* Séparateurs */
+  --separator: rgba(24, 18, 30, 0.09);
+  --border: rgba(24, 18, 30, 0.11);
+  --borderStrong: rgba(24, 18, 30, 0.24);
 
-    --speed: #34dcbd;
-    --climb: #ffb13d;
-    --effort: #ff6c5f;
-    --alert: #ff5b7d;
-    --info: #8e9aff;
-    --speed-ink: #34dcbd;
-    --climb-ink: #ffb13d;
-    --effort-ink: #ff8a7f;
-    --alert-ink: #ff7d98;
-    --info-ink: #a6b0ff;
+  /* Texte */
+  --text: #17141b;
+  --muted: #55505d;
+  --faint: #6c6775;
 
-    --brand: #34dcbd;
-    --on-brand: #04211b;
+  /* Couleurs métier : remplissages (graphiques, barres, tracés) */
+  --speed: #d6116b;
+  --climb: #b0457a;
+  --effort: #d9480f;
+  --alert: #c62828;
+  --info: #3e5a85;
+  /* Variantes lisibles en TEXTE sur surface claire */
+  --speed-ink: #b30d58;
+  --climb-ink: #8f2d60;
+  --effort-ink: #b23a0b;
+  --alert-ink: #a31f1f;
+  --info-ink: #2f4a72;
 
-    --inverse-bg: #26302b;
+  /* États */
+  --success: #1b8a52;
+  --success-ink: #14673c;
+  --warning: #b7791f;
+  --warning-ink: #8a5a00;
+  --error: var(--alert);
+  --error-ink: var(--alert-ink);
 
-    --shadow-card: 0 0 0 1px rgba(236, 244, 239, 0.04);
-    --shadow-pop: 0 18px 44px -10px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(236, 244, 239, 0.08);
+  /* Marque / action principale */
+  --brand: #d6116b;
+  --brand-ink: #b30d58;
+  --brand-tint: rgba(214, 17, 107, 0.09);
 
-    --map-halo: #0f1311;
-    --map-bg: #1b211e;
-    --map-tile-filter: invert(1) hue-rotate(180deg) saturate(0.45) brightness(0.92) contrast(0.95);
-  }
+  /* Navigation / état actif */
+  --active: var(--brand-ink);
+  --active-tint: rgba(214, 17, 107, 0.1);
+
+  /* Bloc inversé (un seul par écran, pour ancrer la composition) */
+  --inverse-bg: #1d1a24;
+  --inverse-text: #f5f3f6;
+  --inverse-muted: #b0aab8;
+  --inverse-accent: #ff7eb6;
+
+  /* Ombres : discrètes */
+  --shadow-card: 0 1px 2px rgba(24, 18, 30, 0.05), 0 12px 30px -20px rgba(24, 18, 30, 0.2);
+  --shadow-pop: 0 2px 6px rgba(24, 18, 30, 0.1), 0 18px 40px -14px rgba(24, 18, 30, 0.28);
+
+  /* Carte (Leaflet) : tuiles OSM légèrement désaturées */
+  --map-halo: #ffffff;
+  --map-bg: #e9e7e4;
+  --map-tile-filter: saturate(0.55) contrast(0.94) brightness(1.03);
+
+  /* Graphiques (canvas + Recharts) */
+  --chart-grid: var(--separator);
+  --chart-axis: var(--muted);
+
+  /* Focus */
+  --focus-ring: var(--brand-ink);
+}
+
+/* ------------------------------------------------------------------ */
+/* Thème sombre : direction du cockpit                                 */
+/* ------------------------------------------------------------------ */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --bg: #0a0b0d;
+  --bgAlt: #0e1013;
+  --surface: #11151a;
+  --surface2: #171c23;
+  --surface3: #212831;
+  --surface-glass: rgba(10, 11, 13, 0.92);
+
+  --separator: rgba(176, 190, 210, 0.11);
+  --border: rgba(176, 190, 210, 0.12);
+  --borderStrong: rgba(176, 190, 210, 0.26);
+
+  --text: #e9ecf1;
+  --muted: #9aa4b2;
+  --faint: #7f8a9b;
+
+  --speed: #d6116b;
+  --climb: #f5c6d6;
+  --effort: #ff7a59;
+  --alert: #ff4d6d;
+  --info: #8fa3c0;
+  --speed-ink: #ff5fa2;
+  --climb-ink: #f5c6d6;
+  --effort-ink: #ff9a80;
+  --alert-ink: #ff8fa3;
+  --info-ink: #a9bad3;
+
+  --success: #3ddc97;
+  --success-ink: #5be3a9;
+  --warning: #ffb13d;
+  --warning-ink: #ffc966;
+  --error: var(--alert);
+  --error-ink: var(--alert-ink);
+
+  --brand: #d6116b;
+  --brand-ink: #ff5fa2;
+  --brand-tint: rgba(214, 17, 107, 0.16);
+
+  --active: var(--brand-ink);
+  --active-tint: rgba(214, 17, 107, 0.14);
+
+  --inverse-bg: #161b22;
+  --inverse-text: #e9ecf1;
+  --inverse-muted: #9aa4b2;
+  --inverse-accent: #ff5fa2;
+
+  --shadow-card: none;
+  --shadow-pop: 0 10px 28px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(176, 190, 210, 0.14);
+
+  /* Carte : tuiles OSM assombries (inversion + désaturation) ; halo du tracé = fond de l'app */
+  --map-halo: #0a0b0d;
+  --map-bg: #0f1216;
+  --map-tile-filter: invert(1) hue-rotate(180deg) saturate(0.3) brightness(0.82) contrast(0.92);
+
+  --chart-grid: var(--separator);
+  --chart-axis: var(--muted);
+
+  --focus-ring: var(--brand-ink);
 }
 
 /* Si l'utilisateur demande moins de mouvement, tout est neutralisé. */

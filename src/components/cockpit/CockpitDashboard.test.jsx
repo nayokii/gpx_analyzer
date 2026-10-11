@@ -276,3 +276,24 @@ describe("CockpitDashboard — analyse", () => {
     expect(screen.queryByText(/TSS|calories|kcal/i)).toBeNull();
   });
 });
+
+describe("CockpitDashboard : la sortie affichée est annoncée dès le haut", () => {
+  it("annonce « Dernière sortie » avec sa date, y compris avec une seule sortie", () => {
+    render(<CockpitDashboard activities={[fullSensorActivity({ date: "2026-09-20T08:00:00.000Z" })]} {...baseProps} />);
+    expect(screen.getByText(/Dernière sortie · 20 sept\. 2026/)).toBeTruthy();
+  });
+
+  it("passe à « Sortie sélectionnée » quand on choisit une sortie plus ancienne, et revient à « Dernière sortie »", () => {
+    const rides = [
+      fullSensorActivity({ id: "new", name: "Récente", date: "2026-09-20T08:00:00.000Z" }),
+      makeActivity({ id: "old", name: "Ancienne", date: "2026-08-01T08:00:00.000Z" }),
+    ];
+    render(<CockpitDashboard activities={rides} {...baseProps} />);
+    const select = screen.getByLabelText("Sortie affichée dans le cockpit");
+    expect(screen.getByText(/Dernière sortie · 20 sept/)).toBeTruthy();
+    fireEvent.change(select, { target: { value: "old" } });
+    expect(screen.getByText(/Sortie sélectionnée · 1 août 2026/)).toBeTruthy();
+    fireEvent.change(select, { target: { value: "new" } });
+    expect(screen.getByText(/Dernière sortie · 20 sept/)).toBeTruthy();
+  });
+});
