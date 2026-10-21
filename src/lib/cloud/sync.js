@@ -11,8 +11,8 @@
 
 import { computeFileHash, activityToRow } from "./types.js";
 import { createCloudActivity, findCloudActivityByHash, deleteCloudActivity } from "./activities.js";
-import { uploadActivityFile } from "./files.js";
-import { CloudDuplicateActivityError, CloudUnsupportedSourceError } from "./errors.js";
+import { uploadActivityFile, activityFileExists } from "./files.js";
+import { CloudDuplicateActivityError, CloudUnsupportedSourceError, CloudStorageError } from "./errors.js";
 
 /**
  * Synchronise une activité locale vers le cloud : hash du fichier original,
@@ -69,4 +69,27 @@ export async function uploadActivity({ activity, originalFileContent, sourceForm
   }
 
   return created;
+}
+
+/**
+ * Répare (sans jamais rien supprimer) une ligne cloud dont le fichier original
+ * manque dans Storage, en le renvoyant depuis une copie locale qui a le même
+ * contenu (même empreinte, donc même sortie). Idempotent : si le fichier est
+ * déjà là, ne téléverse rien. Si l'état de Storage ne peut pas être connu
+ * (réseau), l'erreur remonte — jamais « réparé » à tort.
+ *
+ * @param {import('./types.js').CloudActivity} cloudActivity
+ * @param {string|ArrayBuffer} originalFileContent
+ * @returns {Promise<{repaired: boolean}>}
+ */
+export async function repairCloudActivityFile(cloudActivity, originalFileContent) {
+  const ext = cloudActivity.sourceFormat;
+  if (await activityFileExists({ activityId: cloudActivity.id, ext })) return { repaired: false };
+  const localHash = await computeFileHash(originalFileContent);
+  if (localHash !== cloudActivity.fileHash) {
+    // Contenu différent de celui attendu par la ligne : ne rien écrire sous cette ligne.
+    throw new CloudStorageError("La copie locale ne correspond pas à la sortie cloud (empreinte différente) ; réparation refusée.");
+  }
+  await uploadActivityFile({ activityId: cloudActivity.id, ext, content: originalFileContent });
+  return { repaired: true };
 }

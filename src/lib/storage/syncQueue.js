@@ -79,8 +79,8 @@ export function enqueueUpload({ activityId, fileHash = null }) {
  * @param {{activityId: string}} params
  * @returns {SyncQueueEntry}
  */
-export function enqueueDelete({ activityId }) {
-  return enqueue({ type: "delete", activityId });
+export function enqueueDelete({ activityId, cloudId = null }) {
+  return enqueue({ type: "delete", activityId, cloudId });
 }
 
 /** @returns {SyncQueueEntry[]} copie de toute la file (uploads + suppressions), dans l'ordre d'ajout */

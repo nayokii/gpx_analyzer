@@ -105,15 +105,18 @@ export function useActivityRepository(storage, userSettings = null) {
   // `getCurrentUser()` résout une session déjà persistée, voir consigne §1).
   // Dépend de `cloudUser?.id`, pas de l'objet entier : un rafraîchissement de
   // jeton (même session, nouvel objet) ne doit pas redéclencher une synchro.
+  // On attend aussi que le stockage local (dossier ou IndexedDB) soit résolu :
+  // une synchro lancée avant téléchargerait tout sans pouvoir le conserver.
+  const storageReady = storage.status !== "checking";
   useEffect(() => {
-    if (!cloudUser) return;
+    if (!cloudUser || !storageReady) return;
     repositoryRef.current.sync().catch(() => {
       // Erreur déjà exposée à l'utilisateur ailleurs (CloudAccountPanel) —
       // un échec de synchro automatique ne doit jamais remonter comme une
       // exception non gérée ni bloquer la vue courante (consigne §9).
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cloudUser?.id]);
+  }, [cloudUser?.id, storageReady]);
 
   // Déclencheur "retour en ligne" (voir consigne §1 : `window.addEventListener("online", ...)`).
   useEffect(() => {

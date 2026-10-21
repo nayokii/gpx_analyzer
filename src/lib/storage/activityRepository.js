@@ -44,7 +44,7 @@
 
 import * as localStore from "./activityStore.js";
 import { getCachedActivityDetail, invalidateActivityCache } from "./activityCache.js";
-import { enqueueUpload, enqueueDelete, dequeue, listQueuedDeletes } from "./syncQueue.js";
+import { enqueueUpload, enqueueDelete, dequeue, listQueuedDeletes, listQueuedOperations } from "./syncQueue.js";
 import { parseGPXString } from "../parsers/gpxParser.js";
 import { parseFITArrayBuffer } from "../parsers/fitParser.js";
 import { computeAnalysis } from "../analysis.js";
@@ -54,8 +54,11 @@ import {
   deleteCloudActivity,
   uploadActivity as cloudUploadActivity,
   downloadActivityFile,
+  getCloudActivity,
+  repairCloudActivityFile,
   CloudDuplicateActivityError,
   CloudNotAuthenticatedError,
+  CloudStorageError,
 } from "../cloud/index.js";
 
 /** Tolérance (km) avant de considérer un écart de distance comme un conflit plutôt qu'un simple arrondi — voir consigne 11B §22. */
@@ -172,29 +175,51 @@ function detectConflict(localSummary, cloudEntry) {
  * @returns {Array} résumés fusionnés, chacun annoté d'un `syncStatus`:
  *   'local-only' | 'cloud-only' | 'synced' | 'conflict'
  */
-export function mergeActivitySummaries(localSummaries, cloudSummaries) {
+export function mergeActivitySummaries(localSummaries, cloudSummaries, { ownerId = null } = {}) {
   const cloudByKey = new Map();
-  for (const c of cloudSummaries) cloudByKey.set(mergeKeyForCloud(c), c);
+  const cloudById = new Map();
+  for (const c of cloudSummaries) {
+    cloudByKey.set(mergeKeyForCloud(c), c);
+    cloudById.set(c.id, c);
+  }
 
   const merged = [];
-  const seenKeys = new Set();
+  const matchedCloudIds = new Set();
 
   for (const local of localSummaries) {
-    const cloudEntry = cloudByKey.get(local.id) || null;
-    seenKeys.add(local.id);
+    // Cache partagé par plusieurs comptes sur le même appareil : une sortie
+    // confirmée synchronisée pour un AUTRE compte n'est ni montrée, ni envoyée,
+    // ni supprimée par ce compte (elle reste intacte pour son propriétaire).
+    const owner = local.source && local.source.cloudUserId;
+    if (owner && ownerId && owner !== ownerId) continue;
+
+    // Identité entre appareils : la clé de fusion (`local_id`) est celle de
+    // l'appareil qui a uploadé en premier. Un second appareil qui importe le
+    // MÊME fichier (doublon détecté par empreinte) garde son propre id local
+    // mais mémorise l'id de la ligne cloud dans `source.sourceId` : on
+    // rapproche donc aussi par là, pour ne jamais prendre cette copie pour
+    // une sortie « supprimée » ni la télécharger une seconde fois.
+    const linkedId = local.source && local.source.sourceId;
+    const cloudEntry = cloudByKey.get(local.id) || (linkedId ? cloudById.get(linkedId) : null) || null;
     if (!cloudEntry) {
-      // `source.sourceId` est renseigné (voir materializeFromCloud/saveActivity/
-      // runSync ci-dessous) UNIQUEMENT une fois qu'une synchronisation cloud a
-      // réellement été confirmée pour cette activité. S'il est présent mais
-      // qu'aucune ligne cloud ne correspond plus, la ligne a été supprimée
-      // ailleurs — jamais un simple "pas encore envoyé" : la re-uploader
-      // silencieusement la ressusciterait après une suppression légitime sur
-      // un autre appareil (voir consigne 11C §6 : idempotence, jamais de
-      // doublon ; §19 : une suppression hors-ligne doit se propager, jamais
-      // être annulée par une resynchronisation).
-      const previouslySynced = !!(local.source && local.source.sourceId);
-      merged.push({ ...local, cloudId: null, fileHash: null, syncStatus: previouslySynced ? "cloud-deleted" : "local-only" });
+      // `source.sourceId` est renseigné UNIQUEMENT une fois qu'une synchronisation
+      // cloud a réellement été confirmée pour cette activité. S'il est présent
+      // mais qu'aucune ligne cloud ne correspond plus, la ligne a été supprimée
+      // ailleurs : la re-uploader la ressusciterait (voir consigne 11C §6/§19).
+      // Propriétaire INCONNU (sortie « legacy » : sourceId mémorisé avant l'ajout de
+      // `cloudUserId`) sans ligne correspondante dans CE compte : impossible de
+      // savoir si elle a été supprimée ou si elle appartient à un autre compte.
+      // Jamais supprimée, jamais envoyée, jamais rattachée à ce compte.
+      const ownerUnknown = !!linkedId && !owner;
+      const previouslySynced = !!linkedId;
+      merged.push({
+        ...local,
+        cloudId: null,
+        fileHash: null,
+        syncStatus: ownerUnknown ? "owner-unknown" : previouslySynced ? "cloud-deleted" : "local-only",
+      });
     } else {
+      matchedCloudIds.add(cloudEntry.id);
       const conflict = detectConflict(local, cloudEntry);
       merged.push({
         ...local,
@@ -209,8 +234,8 @@ export function mergeActivitySummaries(localSummaries, cloudSummaries) {
     }
   }
 
-  for (const [key, cloudEntry] of cloudByKey) {
-    if (seenKeys.has(key)) continue;
+  for (const cloudEntry of cloudSummaries) {
+    if (matchedCloudIds.has(cloudEntry.id)) continue;
     merged.push({ ...cloudSummaryToLocalShape(cloudEntry), cloudId: cloudEntry.id, fileHash: cloudEntry.fileHash, syncStatus: "cloud-only" });
   }
 
@@ -250,6 +275,25 @@ async function mapWithConcurrency(items, limit, fn) {
   return results;
 }
 
+/** @returns la ligne cloud liée à une sortie locale : par clé de fusion, sinon par id de ligne mémorisé à la synchronisation. */
+function findCloudEntryFor(cloudSummaries, id, linkedCloudId = null) {
+  return (
+    cloudSummaries.find((c) => mergeKeyForCloud(c) === id) ||
+    (linkedCloudId ? cloudSummaries.find((c) => c.id === linkedCloudId) : null) ||
+    null
+  );
+}
+
+/** @returns {boolean} true si une suppression en attente vise cette sortie (par id local/clé de fusion ou par id de ligne cloud). */
+function isPendingDeleteFor(pendingDeletes, entry) {
+  return pendingDeletes.some((op) => op.activityId === entry.id || (op.cloudId && entry.cloudId && op.cloudId === entry.cloudId));
+}
+
+/** Fichier original absent de Storage (ligne cloud orpheline) — à signaler, jamais à supprimer automatiquement. */
+function isMissingCloudFile(err) {
+  return err instanceof CloudStorageError && /not found|does not exist|404/i.test(err.message || "");
+}
+
 /**
  * @param {Object} params
  * @param {FileSystemDirectoryHandle|null} [params.rootHandle] - dossier local connecté, ou `null`
@@ -260,6 +304,7 @@ export function createActivityRepository({ rootHandle = null, cloudUser = null, 
   const hasLocal = !!rootHandle;
   const hasCloud = !!cloudUser;
   const accountId = cloudUser ? cloudUser.id || cloudUser.email || "cloud-account" : null;
+  const ownerId = cloudUser ? cloudUser.id || null : null;
 
   // ../storage/activityStore.js: saveActivity() fait un lire-modifier-écrire
   // non atomique sur index.json (lit l'index, ajoute une entrée, réécrit) :
@@ -311,6 +356,7 @@ export function createActivityRepository({ rootHandle = null, cloudUser = null, 
     // cloud (voir mergeActivitySummaries : sert à distinguer "jamais envoyé"
     // de "supprimé du cloud" si elle disparaît plus tard de la liste cloud).
     activity.source.sourceId = cloudEntry.id;
+    activity.source.cloudUserId = ownerId;
 
     if (hasLocal) {
       try {
@@ -363,7 +409,12 @@ export function createActivityRepository({ rootHandle = null, cloudUser = null, 
     const localSummaries = await listLocalSummariesLenient();
     try {
       const cloudSummaries = await listCloudActivities();
-      return { items: mergeActivitySummaries(localSummaries, cloudSummaries), source: "cloud", cloudError: null };
+      // Une sortie dont la suppression est en attente ne doit pas « revenir » dans la liste.
+      const pending = listQueuedDeletes();
+      const items = mergeActivitySummaries(localSummaries, cloudSummaries, { ownerId }).filter(
+        (m) => !(m.syncStatus === "cloud-only" && isPendingDeleteFor(pending, m))
+      );
+      return { items, source: "cloud", cloudError: null };
     } catch (err) {
       // Cloud inaccessible (hors ligne, panne...) : ne jamais bloquer sur une
       // erreur réseau (consigne 11B §20) — retomber sur le local disponible, sauf
@@ -371,7 +422,11 @@ export function createActivityRepository({ rootHandle = null, cloudUser = null, 
       // l'erreur cloud est alors la seule information utile à remonter.
       if (!hasLocal) throw err;
       const offline = typeof navigator !== "undefined" && navigator.onLine === false;
-      return { items: localSummaries, source: offline ? "offline" : "error", cloudError: err };
+      // Statut issu de la dernière confirmation serveur connue (sourceId), jamais supposé.
+      const items = localSummaries
+        .filter((l) => !(l.source?.cloudUserId && ownerId && l.source.cloudUserId !== ownerId))
+        .map((l) => ({ ...l, syncStatus: l.source?.sourceId ? "synced" : "local-only" }));
+      return { items, source: offline ? "offline" : "error", cloudError: err };
     }
   }
 
@@ -420,12 +475,12 @@ export function createActivityRepository({ rootHandle = null, cloudUser = null, 
     if (!hasLocal) return;
     try {
       const detail = await localStore.loadActivityDetail(rootHandle, activityId);
-      if (detail.source && detail.source.sourceId === cloudId) return; // déjà à jour
+      if (detail.source && detail.source.sourceId === cloudId && detail.source.cloudUserId === ownerId) return; // déjà à jour
       const ext = detail.source.type;
       const content = ext === "fit"
         ? await localStore.loadActivitySourceArrayBuffer(rootHandle, activityId)
         : await localStore.loadActivitySourceText(rootHandle, activityId);
-      const updated = { ...detail, source: { ...detail.source, sourceId: cloudId } };
+      const updated = { ...detail, source: { ...detail.source, sourceId: cloudId, cloudUserId: ownerId } };
       await withLocalWriteLock(() => localStore.saveActivity(rootHandle, updated, content, ext));
       invalidateActivityCache(rootHandle, activityId);
     } catch {
@@ -434,50 +489,79 @@ export function createActivityRepository({ rootHandle = null, cloudUser = null, 
   }
 
   /**
+   * Envoie UNE sortie locale au cloud et ne rend la main qu'une fois le
+   * serveur a confirmé que la ligne ET le fichier existent. Cas « doublon »
+   * (même fichier déjà présent, p. ex. importé depuis un autre appareil) : la
+   * ligne existante est adoptée, et son fichier est vérifié/réparé depuis la
+   * copie locale (jamais supprimé) — sans quoi on déclarerait « synchronisé »
+   * une ligne orpheline.
+   * @returns {Promise<{cloudId: string, duplicate: boolean, repaired: boolean}>}
+   * @throws toute erreur réseau/serveur : l'appelant ne doit alors JAMAIS afficher « synchronisé »
+   */
+  async function uploadLocalToCloud(activity, content, ext) {
+    try {
+      const created = await cloudUploadActivity({ activity, originalFileContent: content, sourceFormat: ext });
+      return { cloudId: created.id, duplicate: false, repaired: false };
+    } catch (err) {
+      if (!(err instanceof CloudDuplicateActivityError)) throw err;
+      if (!err.existingActivity) throw new Error("Sortie déjà présente côté cloud mais introuvable : nouvelle tentative nécessaire.");
+      const { repaired } = await repairCloudActivityFile(err.existingActivity, content);
+      // Réimportation volontaire d'une sortie dont la suppression était restée en
+      // file : la copie locale vivante prime, l'ancienne suppression est annulée
+      // (sinon elle effacerait la ligne à laquelle cette copie est rattachée).
+      const existing = err.existingActivity;
+      for (const op of listQueuedDeletes()) {
+        if (op.cloudId === existing.id || op.activityId === mergeKeyForCloud(existing)) dequeue(op.activityId);
+      }
+      return { cloudId: existing.id, duplicate: true, repaired };
+    }
+  }
+
+  /**
    * Enregistre localement IMMÉDIATEMENT (attendu par l'appelant), puis lance
    * l'upload cloud en ARRIÈRE-PLAN sans bloquer (voir consigne 11C §10 :
    * "l'import ne doit pas être rendu inutilement lent par le réseau").
-   * L'appelant peut observer `cloudSyncPromise` pour mettre à jour son UI
-   * une fois l'upload résolu (réussi, en doublon, ou mis en attente).
+   * L'appelant observe `cloudSyncPromise` pour mettre à jour son UI.
+   *
+   * `state` est explicite et n'est `synced` qu'après confirmation du serveur :
+   *  - `local`   : pas de compte cloud connecté, copie locale uniquement ;
+   *  - `synced`  : le serveur a confirmé (ligne + fichier) ;
+   *  - `offline` : appareil hors ligne, envoi mis en file, rejoué au retour du réseau ;
+   *  - `error`   : l'envoi a échoué (message dans `cloudError`), mis en file et réessayable.
    *
    * @param {import('../types.js').Activity} activity
    * @param {string|ArrayBuffer} sourceContent
    * @param {'gpx'|'fit'} sourceExt
    * @returns {Promise<{
    *   activity: import('../types.js').Activity,
-   *   cloudSyncPromise: Promise<{cloudSynced: boolean, cloudError: string|null}>,
+   *   cloudSyncPromise: Promise<{state: 'local'|'synced'|'offline'|'error', cloudSynced: boolean, cloudError: string|null}>,
    * }>}
    */
   async function saveActivity(activity, sourceContent, sourceExt) {
-    if (!hasLocal) throw new Error("Aucun dossier de stockage local connecté.");
+    if (!hasLocal) throw new Error("Aucun stockage local disponible pour enregistrer cette sortie.");
     const saved = await withLocalWriteLock(() => localStore.saveActivity(rootHandle, activity, sourceContent, sourceExt));
 
     // Une sortie 'demo' n'atteint structurellement jamais cette fonction
-    // (voir GPXAnalyzer.jsx: loadDemo() ne l'enregistre jamais) — voir
-    // consigne 11B §32/11C §22 : rien à filtrer ici, l'isolation est déjà
-    // garantie en amont, à aucun moment une activité demo n'a de
-    // sourceContent/sourceExt à sauvegarder par ce chemin.
+    // (voir GPXAnalyzer.jsx: loadDemo() ne l'enregistre jamais).
     let cloudSyncPromise;
-    if (hasCloud && SYNCABLE_SOURCE_TYPES.has(sourceExt)) {
-      cloudSyncPromise = cloudUploadActivity({ activity: saved, originalFileContent: sourceContent, sourceFormat: sourceExt })
-        .then(async (created) => {
-          await markSyncedLocally(saved.id, created.id);
-          notifySyncCompleted({ uploaded: 1, downloaded: 0 });
-          return { cloudSynced: true, cloudError: null };
-        })
-        .catch(async (err) => {
-          if (err instanceof CloudDuplicateActivityError) {
-            // déjà présente côté cloud (même fichier) : rien à réessayer, mais
-            // marquer quand même le lien vers la ligne existante (voir
-            // markSyncedLocally) pour ne jamais la re-uploader plus tard.
-            if (err.existingActivity) await markSyncedLocally(saved.id, err.existingActivity.id);
-            return { cloudSynced: true, cloudError: null };
-          }
-          enqueueUpload({ activityId: saved.id });
-          return { cloudSynced: false, cloudError: err.message || "Échec de la synchronisation cloud." };
-        });
+    if (!hasCloud || !SYNCABLE_SOURCE_TYPES.has(sourceExt)) {
+      cloudSyncPromise = Promise.resolve({ state: "local", cloudSynced: false, cloudError: null });
+    } else if (typeof navigator !== "undefined" && navigator.onLine === false) {
+      enqueueUpload({ activityId: saved.id });
+      cloudSyncPromise = Promise.resolve({ state: "offline", cloudSynced: false, cloudError: "Appareil hors ligne." });
     } else {
-      cloudSyncPromise = Promise.resolve({ cloudSynced: false, cloudError: null });
+      cloudSyncPromise = uploadLocalToCloud(saved, sourceContent, sourceExt)
+        .then(async ({ cloudId }) => {
+          await markSyncedLocally(saved.id, cloudId);
+          dequeue(saved.id);
+          notifySyncCompleted({ uploaded: 1, downloaded: 0 });
+          return { state: "synced", cloudSynced: true, cloudError: null };
+        })
+        .catch((err) => {
+          enqueueUpload({ activityId: saved.id });
+          const offline = typeof navigator !== "undefined" && navigator.onLine === false;
+          return { state: offline ? "offline" : "error", cloudSynced: false, cloudError: err.message || "Échec de la synchronisation cloud." };
+        });
     }
 
     return { activity: saved, cloudSyncPromise };
@@ -487,34 +571,37 @@ export function createActivityRepository({ rootHandle = null, cloudUser = null, 
    * Supprime une activité localement (immédiat) puis, si une ligne cloud
    * correspondante existe, dans le cloud. Si la suppression cloud échoue,
    * elle est mise en file d'attente (voir consigne 11C §5/§19 — jamais
-   * perdue silencieusement, contrairement à la version 11B "best-effort").
+   * perdue silencieusement).
    */
   async function deleteActivity(id) {
+    // Mémorise l'id de la ligne cloud liée AVANT de supprimer la copie locale :
+    // une sortie importée depuis un 2e appareil a un id local différent de la
+    // clé de fusion cloud et ne se retrouve que par ce lien.
+    let linkedCloudId = null;
+    if (hasLocal && hasCloud) {
+      const local = (await listLocalSummariesLenient()).find((s) => s.id === id);
+      linkedCloudId = local?.source?.sourceId || null;
+    }
+
     if (hasLocal) {
       try {
         await withLocalWriteLock(() => localStore.deleteActivity(rootHandle, id));
         invalidateActivityCache(rootHandle, id);
       } catch (err) {
-        if (!hasCloud) throw err; // comportement inchangé pour un utilisateur non connecté
+        if (!hasCloud) throw err; // comportement inchangé pour un utilisateur non connecté au cloud
         // sinon : peut être une activité cloud-only jamais matérialisée localement — pas une vraie erreur
       }
     }
 
-    if (!hasCloud) {
-      dequeue(id); // plus la peine de réessayer un upload pour une activité supprimée
-      return;
-    }
-
     dequeue(id); // annule un upload en attente éventuel (voir syncQueue.js : un id n'a qu'une opération à la fois)
+    if (!hasCloud) return;
 
     try {
       const cloudSummaries = await listCloudActivities();
-      const cloudEntry = cloudSummaries.find((c) => mergeKeyForCloud(c) === id);
+      const cloudEntry = findCloudEntryFor(cloudSummaries, id, linkedCloudId);
       if (cloudEntry) await deleteCloudActivity(cloudEntry.id);
     } catch {
-      // La suppression locale a déjà eu lieu ; si le cloud est inaccessible,
-      // la suppression est mise en attente plutôt que silencieusement perdue.
-      enqueueDelete({ activityId: id });
+      enqueueDelete({ activityId: id, cloudId: linkedCloudId });
     }
   }
 
@@ -537,11 +624,15 @@ export function createActivityRepository({ rootHandle = null, cloudUser = null, 
     if (queuedDeletes.length === 0) return { processed: 0, cloudSummaries: cloudSummariesHint };
     let cloudSummaries = cloudSummariesHint;
     let processed = 0;
+    const liveLocals = await listLocalSummariesLenient();
     for (const op of queuedDeletes) {
       try {
         if (!cloudSummaries) cloudSummaries = await listCloudActivities();
-        const cloudEntry = cloudSummaries.find((c) => mergeKeyForCloud(c) === op.activityId);
-        if (cloudEntry) await deleteCloudActivity(cloudEntry.id);
+        const cloudEntry = findCloudEntryFor(cloudSummaries, op.activityId, op.cloudId || null);
+        // Une copie locale VIVANTE (autre id que celle supprimée) rattachée à cette
+        // ligne a été (ré)importée depuis : la suppression est périmée, on l'annule.
+        const inUse = cloudEntry && liveLocals.some((l) => l.id !== op.activityId && (l.source?.sourceId === cloudEntry.id || l.id === mergeKeyForCloud(cloudEntry)));
+        if (cloudEntry && !inUse) await deleteCloudActivity(cloudEntry.id);
         dequeue(op.activityId);
         processed += 1;
       } catch {
@@ -561,26 +652,40 @@ export function createActivityRepository({ rootHandle = null, cloudUser = null, 
 
     const localSummaries = await listLocalSummariesLenient();
     const cloudSummaries = deleteOutcome.cloudSummaries || (await listCloudActivities());
-    const merged = mergeActivitySummaries(localSummaries, cloudSummaries);
+    const merged = mergeActivitySummaries(localSummaries, cloudSummaries, { ownerId });
 
     const toUpload = merged.filter((m) => m.syncStatus === "local-only" && SYNCABLE_SOURCE_TYPES.has(m.source?.type));
-    const toDownload = merged.filter((m) => m.syncStatus === "cloud-only");
     // Supprimée du cloud depuis un autre appareil (voir mergeActivitySummaries) :
-    // honore la suppression plutôt que de la re-uploader — voir consigne 11C
-    // §6 (idempotence, jamais de doublon) et §19 (une suppression doit se
-    // propager, jamais être annulée par une resynchronisation).
-    const toDeleteLocally = merged.filter((m) => m.syncStatus === "cloud-deleted");
-    const total = toUpload.length + toDownload.length + toDeleteLocally.length;
+    // honore la suppression plutôt que de la re-uploader — voir consigne 11C §6/§19.
+    let toDeleteLocally = merged.filter((m) => m.syncStatus === "cloud-deleted");
+    // M2 : une suppression restée en file (échec partiel) ne doit pas faire re-télécharger la sortie.
+    const pendingDeletes = listQueuedDeletes();
+    const notPendingDelete = (m) => !isPendingDeleteFor(pendingDeletes, m);
+    let toDownload = merged.filter((m) => m.syncStatus === "cloud-only").filter(notPendingDelete);
+    let total = toUpload.length + toDownload.length + toDeleteLocally.length;
     let done = 0;
     const result = {
       uploaded: 0,
       downloaded: 0,
       deletedLocally: 0,
+      repaired: 0,
       alreadySynced: merged.filter((m) => m.syncStatus === "synced").length,
       deletesProcessed: deleteOutcome.processed,
       errors: [],
+      // Cas où une décision (suppression locale) n'a PAS été prise faute de preuve suffisante.
+      uncertain: [],
+      // Lignes cloud dont le fichier original manque dans Storage : détectées et
+      // signalées, jamais supprimées automatiquement (décision laissée à l'utilisateur).
+      orphans: [],
     };
     const report = () => reportProgress({ current: done, total });
+
+    // M5 : sorties sans propriétaire connu laissées strictement intactes ; celles qui
+    // correspondent à une ligne de CE compte reçoivent enfin leur propriétaire.
+    for (const entry of merged) {
+      if (entry.syncStatus === "owner-unknown") result.uncertain.push({ activityId: entry.id, code: "owner-unknown" });
+      else if (entry.syncStatus === "synced" && entry.source?.sourceId && !entry.source?.cloudUserId) await markSyncedLocally(entry.id, entry.cloudId);
+    }
 
     for (const entry of toUpload) {
       try {
@@ -589,46 +694,91 @@ export function createActivityRepository({ rootHandle = null, cloudUser = null, 
         const content = ext === "fit"
           ? await localStore.loadActivitySourceArrayBuffer(rootHandle, entry.id)
           : await localStore.loadActivitySourceText(rootHandle, entry.id);
-        const created = await cloudUploadActivity({ activity: detail, originalFileContent: content, sourceFormat: ext });
-        await markSyncedLocally(entry.id, created.id);
+        const { cloudId, repaired } = await uploadLocalToCloud(detail, content, ext);
+        await markSyncedLocally(entry.id, cloudId);
         dequeue(entry.id);
         result.uploaded += 1;
+        if (repaired) result.repaired += 1;
       } catch (err) {
-        if (err instanceof CloudDuplicateActivityError) {
-          if (err.existingActivity) await markSyncedLocally(entry.id, err.existingActivity.id);
-          dequeue(entry.id);
-          result.uploaded += 1;
+        result.errors.push({ activityId: entry.id, code: "upload-failed", message: err.message || String(err) });
+        enqueueUpload({ activityId: entry.id });
+      }
+      done += 1;
+      report();
+    }
+
+    // Un upload « doublon » rattache une copie locale à une ligne cloud qui
+    // figurait peut-être dans `toDownload` (même sortie, autre id local) :
+    // recalcule les listes pour ne JAMAIS télécharger cette sortie une seconde fois.
+    let cloudNow = cloudSummaries;
+    if (result.uploaded > 0) {
+      try {
+        // Liste cloud FRAÎCHE : elle contient les lignes que cette synchronisation vient de créer.
+        cloudNow = await listCloudActivities();
+        const refreshed = mergeActivitySummaries(await listLocalSummariesLenient(), cloudNow, { ownerId });
+        toDownload = refreshed.filter((m) => m.syncStatus === "cloud-only").filter(notPendingDelete);
+        toDeleteLocally = refreshed.filter((m) => m.syncStatus === "cloud-deleted");
+      } catch (err) {
+        // Impossible de recalculer de façon fiable : ne rien télécharger ni supprimer ce tour-ci.
+        toDownload = [];
+        toDeleteLocally = [];
+        result.errors.push({ code: "refresh-failed", message: err.message || String(err) });
+      }
+      total = toUpload.length + toDownload.length + toDeleteLocally.length;
+    }
+
+    for (const entry of toDownload) {
+      try {
+        const rawCloudEntry = cloudNow.find((c) => mergeKeyForCloud(c) === entry.id);
+        await materializeFromCloud(rawCloudEntry);
+        result.downloaded += 1;
+      } catch (err) {
+        if (isMissingCloudFile(err)) {
+          result.orphans.push({ activityId: entry.id, cloudId: entry.cloudId, name: entry.name || null });
+          result.errors.push({ activityId: entry.id, code: "cloud-file-missing", message: "Le fichier original de cette sortie est introuvable dans le cloud." });
         } else {
-          result.errors.push({ activityId: entry.id, message: err.message || String(err) });
-          enqueueUpload({ activityId: entry.id });
+          result.errors.push({ activityId: entry.id, code: "download-failed", message: err.message || String(err) });
         }
       }
       done += 1;
       report();
     }
 
-    for (const entry of toDownload) {
+    // Suppression locale d'une sortie « supprimée ailleurs » : UNIQUEMENT avec des
+    // preuves convergentes, jamais sur une absence seule. Conditions :
+    //  1. la liste cloud est complète (pagination + total exact, sinon listCloudActivities lève) ;
+    //  2. elle n'est pas vide (un cloud vide est indiscernable d'une session/de droits cassés) ;
+    //  3. un accès direct à la ligne liée confirme qu'elle n'existe plus.
+    // Au moindre doute, la copie locale est conservée et l'incertitude est signalée.
+    for (const entry of toDeleteLocally) {
+      if (cloudNow.length === 0) {
+        result.uncertain.push({ activityId: entry.id, code: "cloud-empty-uncertain" });
+        done += 1;
+        report();
+        continue;
+      }
       try {
-        const rawCloudEntry = cloudSummaries.find((c) => mergeKeyForCloud(c) === entry.id);
-        await materializeFromCloud(rawCloudEntry);
-        result.downloaded += 1;
+        const stillThere = entry.source?.sourceId ? await getCloudActivity(entry.source.sourceId) : undefined;
+        if (stillThere === null) {
+          await withLocalWriteLock(() => localStore.deleteActivity(rootHandle, entry.id));
+          invalidateActivityCache(rootHandle, entry.id);
+          result.deletedLocally += 1;
+        } else {
+          // Toujours présente (liste incohérente) ou lien inexploitable : on ne supprime pas.
+          result.uncertain.push({ activityId: entry.id, code: "deletion-not-confirmed" });
+        }
       } catch (err) {
-        result.errors.push({ activityId: entry.id, message: err.message || String(err) });
+        result.uncertain.push({ activityId: entry.id, code: "deletion-check-failed" });
+        result.errors.push({ activityId: entry.id, code: "delete-check-failed", message: err.message || String(err) });
       }
       done += 1;
       report();
     }
-
-    for (const entry of toDeleteLocally) {
-      try {
-        await withLocalWriteLock(() => localStore.deleteActivity(rootHandle, entry.id));
-        invalidateActivityCache(rootHandle, entry.id);
-        result.deletedLocally += 1;
-      } catch (err) {
-        result.errors.push({ activityId: entry.id, message: err.message || String(err) });
-      }
-      done += 1;
-      report();
+    if (result.uncertain.some((u) => u.code === "cloud-empty-uncertain")) {
+      result.errors.push({
+        code: "cloud-empty-uncertain",
+        message: "Le cloud ne renvoie aucune sortie alors que des sorties synchronisées existent ici : copies locales conservées par sécurité. Vérifie ta connexion au compte ; supprime-les toi-même si c'est voulu.",
+      });
     }
 
     return result;
@@ -657,11 +807,18 @@ export function createActivityRepository({ rootHandle = null, cloudUser = null, 
       return existing.promise;
     }
 
+    // Le cooldown n'absorbe qu'une rafale d'évènements après un cycle RÉUSSI et
+    // SANS rien en attente : il ne doit jamais retarder la reprise d'une file
+    // d'envois/suppressions (p. ex. retour du réseau quelques secondes après
+    // une synchro réussie), ni resservir le résultat d'un cycle qui a échoué.
     const lastAttempt = lastAttemptByAccount.get(accountId) || 0;
-    if (!force && Date.now() - lastAttempt < SYNC_COOLDOWN_MS && lastResultByAccount.has(accountId)) {
-      return lastResultByAccount.get(accountId);
+    const cached = lastResultByAccount.get(accountId);
+    const cacheUsable = !!cached && cached.errors.length === 0 && listQueuedOperations().length === 0;
+    if (!force && Date.now() - lastAttempt < SYNC_COOLDOWN_MS && cacheUsable) {
+      return cached;
     }
     lastAttemptByAccount.set(accountId, Date.now());
+    lastResultByAccount.delete(accountId);
 
     const progressCallbacks = new Set();
     if (onProgress) progressCallbacks.add(onProgress);
@@ -698,7 +855,8 @@ export function createActivityRepository({ rootHandle = null, cloudUser = null, 
     if (resolution.action === "none") return resolution;
 
     const cloudSummaries = await listCloudActivities();
-    const cloudEntry = cloudSummaries.find((c) => mergeKeyForCloud(c) === id);
+    const linkedCloudId = (await listLocalSummariesLenient()).find((x) => x.id === id)?.source?.sourceId || null;
+    const cloudEntry = findCloudEntryFor(cloudSummaries, id, linkedCloudId);
 
     if (resolution.action === "upload-local") {
       if (!hasLocal) throw new Error("Aucun dossier de stockage local connecté.");

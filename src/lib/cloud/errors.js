@@ -68,6 +68,20 @@ export class CloudDuplicateActivityError extends CloudError {
   }
 }
 
+/**
+ * La liste des activités cloud n'a pas pu être récupérée EN ENTIER (pagination
+ * interrompue, total annoncé différent du nombre de lignes reçues). Une liste
+ * partielle ne doit jamais servir de preuve qu'une sortie a été supprimée.
+ */
+export class CloudIncompleteListError extends CloudError {
+  constructor(received, expected) {
+    super(`Liste cloud incomplète (${received} reçue(s) sur ${expected}) : aucune décision de suppression n'est prise.`, "incomplete_list");
+    this.name = "CloudIncompleteListError";
+    this.received = received;
+    this.expected = expected;
+  }
+}
+
 /** Format de fichier source non pris en charge par la synchronisation cloud (voir consigne §6 : GPX/FIT uniquement). */
 export class CloudUnsupportedSourceError extends CloudError {
   constructor(sourceType) {

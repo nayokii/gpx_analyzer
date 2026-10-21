@@ -17,6 +17,15 @@ export function StorageSettings({ storage, onConnect, onReconnect, onDisconnect,
     );
   }
 
+  if (storage.status === "connected" && storage.kind === "browser") {
+    return (
+      <div className="gpx-storage-box gpx-storage-ok">
+        <Info size={14} />
+        <span>Sorties conservées sur cet appareil (navigateur). Connecte un compte pour les synchroniser dans le cloud.</span>
+      </div>
+    );
+  }
+
   if (storage.status === "connected") {
     return (
       <div className="gpx-storage-box gpx-storage-ok">

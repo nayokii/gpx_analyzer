@@ -27,7 +27,10 @@ export function createFakeSupabaseBackend() {
   const resetRequests = []; // appels à resetPasswordForEmail
   const recoveryTokens = new Map(); // access_token de récupération -> email
   let sessionUser = null;
+  let networkDown = false; // simule une panne réseau (fetch échoue) pour Postgres et Storage
+  const NETWORK_ERROR = { message: "Failed to fetch" };
   let idCounter = 0;
+  const serverState = { maxRows: null, onListPage: null }; // réglages de test : plafond de lignes, interception de pages
 
   function nextId(prefix) {
     idCounter += 1;
@@ -51,8 +54,12 @@ export function createFakeSupabaseBackend() {
     const filters = {};
     let wantSingle = false;
     let wantMaybeSingle = false;
+    let wantCount = false;
+    let rangeFrom = null;
+    let rangeTo = null;
 
     async function execute() {
+      if (networkDown) return { data: null, error: NETWORK_ERROR };
       if (mode === "insert") {
         if (!sessionUser) return { data: null, error: { message: "new row violates row-level security policy", code: "42501" } };
         const dup = activitiesTable.find((r) => r.user_id === sessionUser.id && r.file_hash === insertRow.file_hash);
@@ -99,13 +106,29 @@ export function createFakeSupabaseBackend() {
       let rows = ownRows.filter((r) => matchesFilters(r, filters));
       rows = [...rows].sort((a, b) => (b.started_at || "").localeCompare(a.started_at || ""));
 
+      if (wantCount || rangeFrom !== null) {
+        const total = rows.length;
+        // Simule le plafond serveur (max_rows) : jamais plus de `maxRows` lignes par réponse.
+        let end = rangeTo === null ? total : rangeTo + 1;
+        if (serverState.maxRows) end = Math.min(end, (rangeFrom || 0) + serverState.maxRows);
+        const page = rows.slice(rangeFrom || 0, end);
+        const hook = serverState.onListPage ? serverState.onListPage({ from: rangeFrom, page, total }) : null;
+        if (hook && hook.error) return { data: null, error: hook.error, count: null };
+        return { data: hook && hook.data ? hook.data : page, error: null, count: hook && "count" in hook ? hook.count : wantCount ? total : null };
+      }
       if (wantSingle) return rows[0] ? { data: rows[0], error: null } : { data: null, error: { message: "no rows returned" } };
       if (wantMaybeSingle) return { data: rows[0] || null, error: null };
       return { data: rows, error: null };
     }
 
     const builder = {
-      select() {
+      select(_cols, opts) {
+        if (opts && opts.count) wantCount = true;
+        return builder;
+      },
+      range(from, to) {
+        rangeFrom = from;
+        rangeTo = to;
         return builder;
       },
       insert(row) {
@@ -210,6 +233,7 @@ export function createFakeSupabaseBackend() {
       from(bucket) {
         return {
           async upload(path, content, opts = {}) {
+            if (networkDown) return { data: null, error: NETWORK_ERROR };
             if (!sessionUser) return { data: null, error: { message: "not authenticated" } };
             if (!path.startsWith(`${sessionUser.id}/`)) {
               return { data: null, error: { message: "new row violates row-level security policy" } };
@@ -221,6 +245,7 @@ export function createFakeSupabaseBackend() {
             return { data: { path }, error: null };
           },
           async download(path) {
+            if (networkDown) return { data: null, error: NETWORK_ERROR };
             if (!sessionUser) return { data: null, error: { message: "not authenticated" } };
             if (!path.startsWith(`${sessionUser.id}/`)) return { data: null, error: { message: "Object not found" } };
             const obj = storageObjects.get(`${bucket}/${path}`);
@@ -234,7 +259,19 @@ export function createFakeSupabaseBackend() {
               error: null,
             };
           },
+          async list(folder, opts = {}) {
+            if (networkDown) return { data: null, error: NETWORK_ERROR };
+            if (!sessionUser) return { data: null, error: { message: "not authenticated" } };
+            if (folder !== sessionUser.id) return { data: [], error: null };
+            const prefix = `${bucket}/${folder}/`;
+            const data = [...storageObjects.keys()]
+              .filter((k) => k.startsWith(prefix))
+              .map((k) => ({ name: k.slice(prefix.length) }))
+              .filter((o) => !opts.search || o.name.includes(opts.search));
+            return { data, error: null };
+          },
           async remove(paths) {
+            if (networkDown) return { data: null, error: NETWORK_ERROR };
             if (!sessionUser) return { data: null, error: { message: "not authenticated" } };
             for (const p of paths) {
               if (!p.startsWith(`${sessionUser.id}/`)) return { data: null, error: { message: "Object not found" } };
@@ -267,6 +304,18 @@ export function createFakeSupabaseBackend() {
       const token = `recovery-${nextId("tok")}`;
       recoveryTokens.set(token, email);
       return `#access_token=${token}&expires_in=3600&refresh_token=r-${token}&token_type=bearer&type=recovery`;
+    },
+    /** Plafonne le nombre de lignes renvoyées par requête (comme `max_rows` de PostgREST). */
+    setMaxRows(n) {
+      serverState.maxRows = n;
+    },
+    /** Intercepte une page de la liste des activités : retourne {error}, {data}, {count} pour simuler un échec partiel ou une réponse tronquée. */
+    setListPageHook(fn) {
+      serverState.onListPage = fn;
+    },
+    /** Coupe/rétablit le réseau (Postgres + Storage) ; l'auth locale (getSession) reste disponible. */
+    setNetworkDown(down) {
+      networkDown = !!down;
     },
     /** Retourne l'utilisateur de la session courante (vérifications de test). */
     getSessionUser: () => sessionUser,
