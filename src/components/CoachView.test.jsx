@@ -135,6 +135,25 @@ describe("CoachView — rendu avec une vraie analyse (vrai fichier FIT)", () => 
     }
   });
 
+  it("« Copier le journal » place dans le presse-papiers la consigne de coaching et les stats réelles", async () => {
+    const root = new MemoryDirectoryHandle();
+    const { activity, arrayBuffer } = await loadRealFitActivity();
+    await saveActivity(root, activity, arrayBuffer, "fit");
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
+
+    render(<CoachView storage={connectedStorage(root)} onConnect={noop} onReconnect={noop} onBack={noop} />);
+    await waitFor(() => expect(screen.getByText("Me faire coacher par Claude")).toBeTruthy());
+    screen.getByRole("button", { name: /Copier le journal/ }).click();
+
+    await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
+    const text = writeText.mock.calls[0][0];
+    expect(text).toContain("Tu es mon coach cycliste");
+    expect(text).toContain("## Toutes mes sorties");
+    expect(text).toContain("=== Contexte coach");
+    await waitFor(() => expect(screen.getByRole("status").textContent).toMatch(/Journal copié/));
+  });
+
   it("1 seule sortie : signale l'analyse en construction (analyse partielle)", async () => {
     const root = new MemoryDirectoryHandle();
     const { activity, arrayBuffer } = await loadRealFitActivity();

@@ -22,10 +22,10 @@
  * Lecture seule stricte : ce composant n'appelle jamais saveActivity/
  * deleteActivity/sync.
  */
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
   ArrowLeft, Route, Clock, TrendingUp, PauseCircle, Heart, RefreshCw, Gauge,
-  ThumbsUp, Eye, Lightbulb, ShieldAlert, Info, AlertTriangle,
+  ThumbsUp, Eye, Lightbulb, ShieldAlert, Info, AlertTriangle, Download, Copy,
 } from "lucide-react";
 
 import { StorageSettings } from "./StorageSettings.jsx";
@@ -33,6 +33,7 @@ import { SectionTitle, StatCard, PageHead } from "./UIPrimitives.jsx";
 import { useActivityRepository, useUnifiedActivities } from "./useActivityRepository.js";
 import { buildCoachContext } from "../lib/coach/context.js";
 import { analyzeCoachContext } from "../lib/coach/analysis.js";
+import { buildCoachExport } from "../lib/coach/exportLog.js";
 import { confidenceLabel } from "../lib/profile/confidence.js";
 import { COLORS } from "../lib/colors.js";
 import { fmt1, fmtInt, fmtDuration, fmtDateFull } from "../lib/utils.js";
@@ -141,6 +142,33 @@ export function CoachView({ storage, onConnect, onReconnect, onOpen, onBack, use
   const context = useMemo(() => (fullActivities ? buildCoachContext(fullActivities, { recentCount: 5 }) : null), [fullActivities]);
   const analysis = useMemo(() => (context ? analyzeCoachContext(context) : null), [context]);
 
+  const [exportMsg, setExportMsg] = useState(null);
+
+  // Journal Markdown (consigne de coaching + stats) à donner à Claude : aucun appel IA ici.
+  function buildExport() {
+    return buildCoachExport({ context, analysis, activities: fullActivities });
+  }
+  async function copyExport() {
+    try {
+      await navigator.clipboard.writeText(buildExport().text);
+      setExportMsg("Journal copié : colle-le dans une conversation Claude.");
+    } catch {
+      setExportMsg("Copie impossible sur ce navigateur : utilise « Télécharger le journal ».");
+    }
+  }
+  function downloadExport() {
+    const { filename, text } = buildExport();
+    const url = URL.createObjectURL(new Blob([text], { type: "text/markdown;charset=utf-8" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    setExportMsg(`Journal téléchargé (${filename}) : joins-le à une conversation Claude.`);
+  }
+
   const overallLabel = context ? confidenceLabel(context.profile.overallConfidence) : null;
 
   return (
@@ -214,6 +242,18 @@ export function CoachView({ storage, onConnect, onReconnect, onOpen, onBack, use
               )}
 
               <p className="gpx-summary-text gpx-coach-lede">{analysis.summary}</p>
+
+              <div className="gpx-panel">
+                <SectionTitle icon={Download}>Me faire coacher par Claude</SectionTitle>
+                <p className="gpx-empty-note">
+                  Exporte un journal de tes stats (toutes tes sorties, profil, progression, records — sans trace GPS) avec une consigne de coaching prête à l'emploi, puis donne-le à Claude pour un bilan, des pistes d'amélioration et un plan de la semaine.
+                </p>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
+                  <button className="gpx-btn-primary" onClick={copyExport}><Copy size={14} /> Copier le journal</button>
+                  <button className="gpx-btn-ghost" onClick={downloadExport}><Download size={14} /> Télécharger (.md)</button>
+                </div>
+                {exportMsg && <p className="gpx-empty-note" style={{ marginTop: 8 }} role="status">{exportMsg}</p>}
+              </div>
 
               <ListSection
                 icon={Lightbulb}
