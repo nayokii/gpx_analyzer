@@ -21,9 +21,9 @@ export {
   deleteCloudActivity,
 } from "./activities.js";
 
-export { uploadActivityFile, downloadActivityFile, deleteActivityFile } from "./files.js";
+export { uploadActivityFile, downloadActivityFile, deleteActivityFile, activityFileExists } from "./files.js";
 
-export { uploadActivity } from "./sync.js";
+export { uploadActivity, repairCloudActivityFile } from "./sync.js";
 
 export { computeFileHash, ACTIVITY_FILES_BUCKET } from "./types.js";
 

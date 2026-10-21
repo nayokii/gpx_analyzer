@@ -70,3 +70,21 @@ export async function deleteActivityFile({ activityId, ext }) {
   const { error } = await client.storage.from(ACTIVITY_FILES_BUCKET).remove([path]);
   if (error) throw new CloudStorageError(error.message);
 }
+
+/**
+ * Vérifie que le fichier original d'une ligne cloud existe réellement dans
+ * Storage (sans le télécharger). Sert à détecter une ligne orpheline — jamais
+ * à la supprimer (voir sync.js: repairCloudActivityFile).
+ * @returns {Promise<boolean>}
+ * @throws {CloudStorageError} si Storage est injoignable : l'état est alors inconnu, jamais présumé absent
+ */
+export async function activityFileExists({ activityId, ext }) {
+  const user = await requireUser();
+  const client = getSupabaseClient();
+  const { data, error } = await client.storage.from(ACTIVITY_FILES_BUCKET).list(user.id, {
+    search: `${activityId}.${ext}`,
+    limit: 5,
+  });
+  if (error) throw new CloudStorageError(error.message);
+  return (data || []).some((o) => o.name === `${activityId}.${ext}`);
+}

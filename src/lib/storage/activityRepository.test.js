@@ -127,12 +127,22 @@ describe("mergeActivitySummaries", () => {
     expect(merged[0].cloudVersion).toBeUndefined();
   });
 
-  it("(Phase 11C) marque 'cloud-deleted' — pas 'local-only' — une activité locale déjà confirmée synchronisée dont la ligne cloud a disparu", () => {
+  it("(Phase 11C) marque 'cloud-deleted' — pas 'local-only' — une activité locale déjà confirmée synchronisée (propriétaire connu) dont la ligne cloud a disparu", () => {
     const merged = mergeActivitySummaries(
-      [{ id: "a", date: "2026-09-01", distance: 30, source: { type: "gpx", sourceId: "cloud-uuid-ancien" } }],
-      [] // la ligne cloud a été supprimée (par un autre appareil)
+      [{ id: "a", date: "2026-09-01", distance: 30, source: { type: "gpx", sourceId: "cloud-uuid-ancien", cloudUserId: "u1" } }],
+      [], // la ligne cloud a été supprimée (par un autre appareil)
+      { ownerId: "u1" }
     );
     expect(merged[0].syncStatus).toBe("cloud-deleted");
+  });
+
+  it("(M5) une activité legacy (sourceId SANS propriétaire connu) absente du cloud est 'owner-unknown', jamais 'cloud-deleted' ni 'local-only'", () => {
+    const merged = mergeActivitySummaries(
+      [{ id: "a", date: "2026-09-01", distance: 30, source: { type: "gpx", sourceId: "cloud-uuid-ancien" } }],
+      [],
+      { ownerId: "u2" }
+    );
+    expect(merged[0].syncStatus).toBe("owner-unknown");
   });
 
   it("(Phase 11C) reste 'local-only' pour une activité jamais synchronisée (source.sourceId absent)", () => {

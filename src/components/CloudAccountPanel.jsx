@@ -307,6 +307,14 @@ function StatusSection({ status, counts, queuedCount, syncProgress, lastSyncAt, 
           ⚠ Synchronisation interrompue — {failedCount} opération{failedCount > 1 ? "s n'ont" : " n'a"} pas pu être synchronisée{failedCount > 1 ? "s" : ""}.
         </span>
         <button className="gpx-link-btn" onClick={onSync}>Réessayer</button>
+        {lastSyncResult && lastSyncResult.errors.slice(0, 3).map((e, i) => (
+          <span key={i} style={{ display: "block", flexBasis: "100%" }}>{e.message}</span>
+        ))}
+        {lastSyncResult && lastSyncResult.orphans && lastSyncResult.orphans.length > 0 && (
+          <span style={{ display: "block", flexBasis: "100%" }}>
+            {lastSyncResult.orphans.length} sortie{lastSyncResult.orphans.length > 1 ? "s" : ""} cloud sans fichier original : rien n'a été supprimé. Réimporte le fichier d'origine sur un appareil qui le possède pour réparer.
+          </span>
+        )}
       </div>
     );
   }

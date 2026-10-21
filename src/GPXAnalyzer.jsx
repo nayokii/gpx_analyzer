@@ -67,6 +67,7 @@ import {
   verifyPermission,
   forgetDataDirectory,
 } from "./lib/storage/directoryAccess.js";
+import { getBrowserStoreRoot, isBrowserStoreSupported, requestPersistentStorage } from "./lib/storage/browserStore.js";
 import {
   saveActivity,
   loadActivityDetail,
@@ -200,7 +201,15 @@ export default function GPXAnalyzer() {
   // Reconnexion silencieuse au dossier de stockage local mémorisé (si permission déjà accordée).
   useEffect(() => {
     if (!isFileSystemAccessSupported()) {
-      setStorage({ status: "unsupported", rootHandle: null, dirName: null });
+      // Téléphone / Safari / Firefox : pas de dossier local possible. Le stockage
+      // durable de l'appareil est alors IndexedDB (cache + copie de sécurité d'une
+      // sortie pas encore confirmée par le cloud), au lieu de ne rien enregistrer.
+      if (isBrowserStoreSupported()) {
+        requestPersistentStorage();
+        setStorage({ status: "connected", kind: "browser", rootHandle: getBrowserStoreRoot(), dirName: "Cet appareil" });
+      } else {
+        setStorage({ status: "unsupported", rootHandle: null, dirName: null });
+      }
       return;
     }
     let cancelled = false;
@@ -523,6 +532,32 @@ export default function GPXAnalyzer() {
     return buckets;
   }, [analysis]);
 
+  // Message d'import honnête : « synchronisé » uniquement si le serveur l'a confirmé.
+  function saveStatusFromOutcome({ state, cloudError }) {
+    if (state === "synced") return { ok: true, message: "✓ Sortie synchronisée dans le cloud." };
+    if (state === "offline") return { ok: true, message: "Sortie enregistrée sur cet appareil. ◌ Hors ligne : envoi au cloud en attente, il reprendra au retour du réseau.", canRetry: true };
+    if (state === "error") return { ok: false, message: "Sortie enregistrée sur cet appareil, mais PAS encore dans le cloud" + (cloudError ? ` (${cloudError})` : "") + ".", canRetry: true };
+    return { ok: true, message: "Sortie enregistrée sur cet appareil." };
+  }
+
+  const retryCloudSync = useCallback(async () => {
+    if (!repository.hasCloud) {
+      setSaveStatus({ ok: false, message: "Connecte-toi à ton compte pour envoyer cette sortie dans le cloud.", canRetry: false });
+      return;
+    }
+    setSaveStatus({ ok: true, message: "☁ Nouvelle tentative d'envoi vers le cloud…", syncing: true });
+    try {
+      const result = await repository.sync({ force: true });
+      const failed = result.errors.length > 0;
+      setSaveStatus(failed
+        ? { ok: false, message: `L'envoi vers le cloud a échoué (${result.errors[0].message}). La sortie reste enregistrée sur cet appareil.`, canRetry: true }
+        : { ok: true, message: "✓ Sortie synchronisée dans le cloud." });
+    } catch (err) {
+      const offline = typeof navigator !== "undefined" && navigator.onLine === false;
+      setSaveStatus({ ok: offline, message: offline ? "Toujours hors ligne : envoi en attente." : `L'envoi vers le cloud a échoué (${err.message || err}).`, canRetry: true });
+    }
+  }, [repository]);
+
   const loadFile = useCallback(async (file) => {
     if (!file) return;
     setError(null);
@@ -565,17 +600,15 @@ export default function GPXAnalyzer() {
         const { activity: saved, cloudSyncPromise } = await repository.saveActivity(activity, sourceContent, format);
         setActiveActivityId(saved.id);
         if (!cloudUser) {
-          setSaveStatus({ ok: true, message: "Sortie enregistrée dans l'historique." });
-        } else {
-          setSaveStatus({ ok: true, message: "Sortie importée. ☁ Synchronisation…" });
-          cloudSyncPromise.then(({ cloudSynced, cloudError }) => {
-            setSaveStatus({
-              ok: true,
-              message: cloudSynced
-                ? "✓ Sortie synchronisée."
-                : "Sortie enregistrée localement. ◌ Synchronisation en attente" + (cloudError ? ` (${cloudError})` : "") + ".",
-            });
+          setSaveStatus({
+            ok: true,
+            message: storage.kind === "browser"
+              ? "Sortie enregistrée sur cet appareil uniquement. Connecte-toi à ton compte pour la sauvegarder dans le cloud."
+              : "Sortie enregistrée dans l'historique.",
           });
+        } else {
+          setSaveStatus({ ok: true, message: "Sortie enregistrée sur cet appareil. ☁ Envoi vers le cloud…", syncing: true });
+          cloudSyncPromise.then((outcome) => setSaveStatus(saveStatusFromOutcome(outcome)));
         }
       } catch (err) {
         setSaveStatus({ ok: false, message: "Sortie analysée mais non enregistrée : " + (err.message || err) });
@@ -841,6 +874,9 @@ export default function GPXAnalyzer() {
           {saveStatus && (
             <div className={"gpx-save-banner" + (saveStatus.ok ? "" : " gpx-save-banner-error")}>
               <Info size={14} /> {saveStatus.message}
+              {saveStatus.canRetry && !saveStatus.syncing && (
+                <button className="gpx-link-btn" style={{ marginLeft: 8 }} onClick={retryCloudSync}>Réessayer</button>
+              )}
             </div>
           )}
 
@@ -1652,7 +1688,12 @@ export default function GPXAnalyzer() {
             <div className="gpx-panel">
               <SectionTitle icon={HistoryIcon}>Stockage local & historique</SectionTitle>
               <StorageSettings storage={storage} onConnect={connectStorage} onReconnect={reconnectStorage} onDisconnect={disconnectStorage} />
-              {storage.status === "connected" && (
+              {storage.status === "connected" && storage.kind === "browser" && (
+                <p className="gpx-params-hint" style={{ marginTop: 10 }}>
+                  Sur cet appareil, les sorties sont conservées dans le navigateur (copie locale durable). Le cloud est la sauvegarde commune entre tes appareils.
+                </p>
+              )}
+              {storage.status === "connected" && storage.kind !== "browser" && (
                 <p className="gpx-params-hint" style={{ marginTop: 10 }}>
                   Le fichier GPX original et une version JSON normalisée sont conservés dans « {storage.dirName} / activities ».
                 </p>

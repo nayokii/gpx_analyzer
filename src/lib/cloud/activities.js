@@ -13,7 +13,10 @@
 
 import { getSupabaseClient } from "./client.js";
 import { mapRowToCloudActivity } from "./types.js";
-import { CloudApiError, CloudNotAuthenticatedError } from "./errors.js";
+import { CloudApiError, CloudNotAuthenticatedError, CloudIncompleteListError } from "./errors.js";
+
+/** Taille de page : PostgREST plafonne une requête (1000 lignes par défaut) — on pagine donc explicitement. */
+export const LIST_PAGE_SIZE = 500;
 import { getCurrentUser } from "./auth.js";
 
 async function requireUser() {
@@ -30,9 +33,29 @@ async function requireUser() {
 export async function listCloudActivities() {
   await requireUser();
   const client = getSupabaseClient();
-  const { data, error } = await client.from("activities").select("*").order("started_at", { ascending: false });
-  if (error) throw new CloudApiError(error.message, error);
-  return data.map(mapRowToCloudActivity);
+  // Pagination complète, ordre stable (started_at puis id), total exact annoncé
+  // par le serveur : si le nombre de lignes reçues diffère, la liste est
+  // considérée comme INCOMPLÈTE et on lève plutôt que de la renvoyer.
+  const rows = [];
+  let expected = null;
+  for (;;) {
+    const from = rows.length;
+    const { data, error, count } = await client
+      .from("activities")
+      .select("*", { count: "exact" })
+      .order("started_at", { ascending: false })
+      .order("id", { ascending: true })
+      .range(from, from + LIST_PAGE_SIZE - 1);
+    if (error) throw new CloudApiError(error.message, error);
+    if (typeof count === "number") expected = count;
+    rows.push(...data);
+    if (data.length === 0) break;
+    // Avec un total connu on continue jusqu'à l'atteindre (même si le serveur
+    // plafonne une réponse sous la taille de page) ; sinon on s'arrête à la première page courte.
+    if (expected !== null ? rows.length >= expected : data.length < LIST_PAGE_SIZE) break;
+  }
+  if (expected !== null && rows.length !== expected) throw new CloudIncompleteListError(rows.length, expected);
+  return rows.map(mapRowToCloudActivity);
 }
 
 /**
