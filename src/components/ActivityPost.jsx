@@ -8,7 +8,7 @@
  * (IntersectionObserver) et mis en cache en mémoire.
  */
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Pencil, Check, X, Share2, ExternalLink, MapPinOff, Loader2 } from "lucide-react";
+import { Pencil, Check, X, Share2, Trash2, ExternalLink, MapPinOff, Loader2 } from "lucide-react";
 
 import {
   extractRoute, simplifyRoute, projectRoute, pointsToPath, elevationProfile, buildStats, activityTypeLabel, displayName,
@@ -86,7 +86,7 @@ function fmtPostDate(iso) {
   return d.toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "long", year: "numeric" });
 }
 
-export function ActivityPost({ summary, overrides, onRename, onOpen, onShare, repository }) {
+export function ActivityPost({ summary, overrides, onRename, onOpen, onShare, onDelete, repository }) {
   const ref = useRef(null);
   const [detail, setDetail] = useState(() => detailCache.get(summary.id) || null);
   const [state, setState] = useState(detail ? "ready" : "idle"); // idle | loading | ready | error
@@ -217,6 +217,9 @@ export function ActivityPost({ summary, overrides, onRename, onOpen, onShare, re
       <footer className="gpx-post-actions">
         <button className="gpx-btn-primary" onClick={() => onOpen(summary.id)}><ExternalLink size={15} /> <span>Ouvrir la sortie</span></button>
         <button className="gpx-btn-ghost" onClick={() => onShare(summary, merged)} disabled={state !== "ready"}><Share2 size={15} /> <span>Partager</span></button>
+        {onDelete && (
+          <button className="gpx-btn-ghost" onClick={() => onDelete(summary.id, name)} aria-label={`Supprimer ${name}`}><Trash2 size={15} /> <span>Supprimer</span></button>
+        )}
       </footer>
     </article>
   );

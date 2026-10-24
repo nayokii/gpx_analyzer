@@ -6,7 +6,8 @@
  * `repository.listActivities()` (voir ../lib/storage/activityRepository.js),
  * rafraîchie par `onSyncCompleted`. Aucun second stockage de sorties : seuls
  * les noms personnalisés sont conservés à part (voir ../lib/feed/nameOverrides.js).
- * Lecture seule : cette vue n'appelle jamais saveActivity/deleteActivity/sync.
+ * Seule écriture : la suppression d'une sortie (deleteActivity, avec confirmation) ;
+ * jamais saveActivity/sync.
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ArrowLeft, Search, Newspaper } from "lucide-react";
@@ -62,6 +63,15 @@ export function ActivityFeedView({ storage, onConnect, onReconnect, onOpen, onBa
   useEffect(() => { setVisible(PAGE_SIZE); }, [query, type, sort]);
 
   const rename = useCallback((id, name) => setOverrides((o) => saveNameOverride(o, id, name)), []);
+  const remove = useCallback(async (id, name) => {
+    if (!window.confirm(`Supprimer définitivement « ${name || "cette sortie"} » (fichier original inclus) ?`)) return;
+    try {
+      await repository.deleteActivity(id);
+    } catch (err) {
+      setError(err.message || "Impossible de supprimer cette sortie.");
+    }
+    setReloadKey((k) => k + 1);
+  }, [repository]);
   const openShare = useCallback((summary, full) => setSharing({ name: displayName(summary, overrides), activity: full }), [overrides]);
 
   const meta = items
@@ -126,7 +136,7 @@ export function ActivityFeedView({ storage, onConnect, onReconnect, onOpen, onBa
             <>
               <div className="gpx-feed-list">
                 {shown.map((s) => (
-                  <ActivityPost key={s.id} summary={s} overrides={overrides} repository={repository} onRename={rename} onOpen={onOpen} onShare={openShare} />
+                  <ActivityPost key={s.id} summary={s} overrides={overrides} repository={repository} onRename={rename} onOpen={onOpen} onShare={openShare} onDelete={remove} />
                 ))}
               </div>
               {results.length > shown.length && (
