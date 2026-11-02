@@ -102,9 +102,12 @@ describe("HistoryDashboard — plusieurs activités", () => {
     await seed(root, activities);
     render(<HistoryDashboard storage={connectedStorage(root)} onConnect={noop} onReconnect={noop} onOpen={noop} onBack={noop} />);
 
+    // La période par défaut (30 jours glissants) dépend de la date du jour : on choisit "Tout" pour ne pas en dépendre.
+    await waitFor(() => expect(screen.getByText("Tout")).toBeTruthy());
+    fireEvent.click(screen.getByText("Tout"));
     await waitFor(() => expect(screen.getByText(/Historique —/)).toBeTruthy());
     expect(screen.getByText("Sorties")).toBeTruthy();
-    // Distance totale = 20+30+40 = 90 (toutes dans "Tout" par défaut si période 30j les couvre toutes, sinon ajusté par le test de période plus bas)
+    expect(screen.getByText("90,0")).toBeTruthy(); // distance totale = 20+30+40
   });
 
   it("affiche les filtres de période sans dates codées en dur (utilise dateUtils)", async () => {
