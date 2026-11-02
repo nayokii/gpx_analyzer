@@ -24,11 +24,12 @@
  * performance professionnelle.
  */
 
-import { blendedScale, percentileValue } from "../normalization.js";
+import { blendedScale, percentileValue, recentEntries } from "../normalization.js";
 import { computeConfidence, confidenceLabel, insufficientData } from "../confidence.js";
 import { buildEvidenceEntry } from "../evidence.js";
 
 const STARTUP_RANGE_KMH = { min: 15, max: 38 };
+const RECENT_RIDE_COUNT = 10; // sorties récentes qui représentent le niveau actuel (voir recentEntries)
 const DISTANCE_PREFERENCE = ["k20", "k10", "k5", "k1"];
 
 function bestSustainedEffort(bestEfforts) {
@@ -48,6 +49,7 @@ export function computeTimeTrial(activitySignals) {
     if (!best) continue;
     efforts.push({
       activityId: s.activityId,
+      date: s.date,
       distanceKey: best.key,
       avgSpeedKmh: best.avgSpeed,
       durationSec: best.duration,
@@ -58,7 +60,7 @@ export function computeTimeTrial(activitySignals) {
   if (efforts.length === 0) return insufficientData();
 
   const speeds = efforts.map((e) => e.avgSpeedKmh);
-  const benchmark = percentileValue(speeds, 80);
+  const benchmark = percentileValue(recentEntries(efforts, RECENT_RIDE_COUNT).map((e) => e.avgSpeedKmh), 80);
   const scale = blendedScale(benchmark, speeds, STARTUP_RANGE_KMH);
 
   const contributingActivities = new Set(efforts.map((e) => e.activityId)).size;

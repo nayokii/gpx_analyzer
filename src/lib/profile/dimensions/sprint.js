@@ -21,11 +21,12 @@
  * pour ne jamais laisser croire à une comparaison professionnelle).
  */
 
-import { blendedScale, percentileValue } from "../normalization.js";
+import { blendedScale, percentileValue, recentEntries } from "../normalization.js";
 import { computeConfidence, confidenceLabel, insufficientData } from "../confidence.js";
 import { buildEvidenceEntry } from "../evidence.js";
 
 const STARTUP_RANGE_WATTS = { min: 200, max: 1000 };
+const RECENT_RIDE_COUNT = 10; // sorties récentes qui représentent le niveau actuel (voir recentEntries)
 
 export function computeSprint(activitySignals) {
   const peaks = [];
@@ -34,7 +35,7 @@ export function computeSprint(activitySignals) {
     if (s.powerSource !== "measured" || !s.bestPowerEfforts) continue;
     const best = s.bestPowerEfforts.s5 || s.bestPowerEfforts.s30;
     if (!best || !(best.power > 0)) continue;
-    peaks.push({ activityId: s.activityId, watts: best.power, duration: best.duration });
+    peaks.push({ activityId: s.activityId, date: s.date, watts: best.power, duration: best.duration });
   }
 
   if (peaks.length === 0) {
@@ -44,7 +45,7 @@ export function computeSprint(activitySignals) {
   }
 
   const wattsList = peaks.map((p) => p.watts);
-  const benchmark = percentileValue(wattsList, 90);
+  const benchmark = percentileValue(recentEntries(peaks, RECENT_RIDE_COUNT).map((p) => p.watts), 90);
   const scale = blendedScale(benchmark, wattsList, STARTUP_RANGE_WATTS);
 
   const contributingActivities = new Set(peaks.map((p) => p.activityId)).size;

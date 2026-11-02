@@ -22,10 +22,11 @@
  * benchmark.
  */
 
-import { blendedScale, percentileValue } from "../normalization.js";
+import { blendedScale, percentileValue, recentEntries } from "../normalization.js";
 import { computeConfidence, confidenceLabel, insufficientData } from "../confidence.js";
 import { buildEvidenceEntry, aggregateDataQuality } from "../evidence.js";
 
+const RECENT_RIDE_COUNT = 10; // sorties récentes qui représentent le niveau actuel (voir recentEntries)
 const PUNCH_MIN_SEC = 60;
 const PUNCH_MAX_SEC = 300;
 const STARTUP_RANGE_RATE = { min: 0, max: 6 }; // efforts punchy par heure
@@ -47,15 +48,16 @@ export function computePunch(activitySignals) {
     const hours = (s.movingTimeSec ?? s.durationSec ?? 0) / 3600;
     if (!(hours > 0)) continue;
     const punchy = (s.efforts || []).filter((e) => e.durationSec >= PUNCH_MIN_SEC && e.durationSec <= PUNCH_MAX_SEC);
-    rates.push(punchy.length / hours);
+    rates.push({ date: s.date, rate: punchy.length / hours });
     for (const e of punchy) allPunchyEfforts.push({ ...e, activityId: s.activityId });
   }
 
   if (allPunchyEfforts.length === 0) return insufficientData();
 
   const contributingActivities = new Set(allPunchyEfforts.map((e) => e.activityId)).size;
-  const benchmarkRate = percentileValue(rates, 80);
-  const scale = blendedScale(benchmarkRate, rates, STARTUP_RANGE_RATE);
+  const allRates = rates.map((r) => r.rate);
+  const benchmarkRate = percentileValue(recentEntries(rates, RECENT_RIDE_COUNT).map((r) => r.rate), 80);
+  const scale = blendedScale(benchmarkRate, allRates, STARTUP_RANGE_RATE);
 
   const dataQuality = aggregateDataQuality(allPunchyEfforts.map((e) => ({ dataQuality: evidenceQuality(e.powerSource) })));
 

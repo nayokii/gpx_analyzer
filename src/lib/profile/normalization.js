@@ -129,6 +129,28 @@ export function blendedScale(value, historicalValues, startupRange, options = {}
 }
 
 /**
+ * Les `count` entrées les plus récentes (par `entry.date`, ISO), pour mesurer le
+ * niveau ACTUEL. Un benchmark pris sur tout l'historique puis replacé dans ce
+ * même historique donne un rang constant (ex. le 80e percentile d'une liste a
+ * toujours un rang ~80) : le score ne bougerait plus jamais, même en
+ * progressant. On calcule donc le benchmark sur le récent, et on le situe dans
+ * l'historique complet (`blendedScale`). Sans aucune date, l'ordre d'entrée est
+ * conservé.
+ *
+ * @template T
+ * @param {Array<T & {date?: string|null}>} entries
+ * @param {number} count
+ * @returns {T[]}
+ */
+export function recentEntries(entries, count) {
+  const list = entries || [];
+  const sorted = list.some((e) => e.date)
+    ? list.slice().sort((a, b) => String(b.date ?? "").localeCompare(String(a.date ?? "")))
+    : list;
+  return sorted.slice(0, count);
+}
+
+/**
  * Valeur au p-ième percentile de `values` (interpolation linéaire entre les
  * deux points encadrants), PAS un rang — utilisé par les dimensions qui ont
  * besoin d'un "représentant" robuste de leur propre historique avant de

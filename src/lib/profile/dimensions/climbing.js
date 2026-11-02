@@ -22,7 +22,7 @@
  * produit un VAM de cet ordre), PAS un référentiel professionnel.
  */
 
-import { blendedScale, percentileValue } from "../normalization.js";
+import { blendedScale, percentileValue, recentEntries } from "../normalization.js";
 import { computeConfidence, confidenceLabel, insufficientData } from "../confidence.js";
 import { buildEvidenceEntry } from "../evidence.js";
 
@@ -71,11 +71,7 @@ export function computeClimbing(activitySignals) {
 
   const vamList = climbsWithVam.map((c) => c.vam);
   const medianVam = percentileValue(vamList, 50);
-  // Montées les plus récentes d'abord (sans date, l'ordre d'entrée est conservé : tout l'historique compte).
-  const byRecency = climbsWithVam.some((c) => c.date)
-    ? climbsWithVam.slice().sort((a, b) => String(b.date ?? "").localeCompare(String(a.date ?? "")))
-    : climbsWithVam;
-  const recentVam = percentileValue(byRecency.slice(0, RECENT_CLIMB_COUNT).map((c) => c.vam), 50);
+  const recentVam = percentileValue(recentEntries(climbsWithVam, RECENT_CLIMB_COUNT).map((c) => c.vam), 50);
   const scale = blendedScale(recentVam, vamList, STARTUP_RANGE_VAM);
 
   const evidence = climbsWithVam

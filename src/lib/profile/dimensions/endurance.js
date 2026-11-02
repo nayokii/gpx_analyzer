@@ -25,12 +25,13 @@
  * un référentiel de performance (voir normalization.js).
  */
 
-import { blendedScale, percentileValue } from "../normalization.js";
+import { blendedScale, percentileValue, recentEntries } from "../normalization.js";
 import { computeConfidence, confidenceLabel, insufficientData } from "../confidence.js";
 import { buildEvidenceEntry } from "../evidence.js";
 
 const STARTUP_RANGE_HOURS = { min: 0, max: 5 };
 const BENCHMARK_PERCENTILE = 80;
+const RECENT_RIDE_COUNT = 10; // sorties récentes qui représentent le niveau actuel (voir recentEntries)
 
 export function computeEndurance(activitySignals) {
   const eligible = (activitySignals || [])
@@ -43,7 +44,7 @@ export function computeEndurance(activitySignals) {
   if (eligible.length === 0) return insufficientData();
 
   const hoursList = eligible.map((e) => e.hours);
-  const benchmarkHours = percentileValue(hoursList, BENCHMARK_PERCENTILE);
+  const benchmarkHours = percentileValue(recentEntries(eligible, RECENT_RIDE_COUNT).map((e) => e.hours), BENCHMARK_PERCENTILE);
 
   const scale = blendedScale(benchmarkHours, hoursList, STARTUP_RANGE_HOURS);
 
