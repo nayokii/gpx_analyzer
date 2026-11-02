@@ -33,7 +33,7 @@ export function sameClimb(a, b) {
  * @param {Array} activitySignals - voir ../profile/activitySignals.js (deriveAllActivitySignals)
  * @returns {Array<{
  *   id: string, startLat: number, startLon: number, endLat: number, endLon: number,
- *   distanceM: number, gainM: number, avgGrade: number,
+ *   distanceM: number, gainM: number, avgGrade: number, path: Array<[number, number]>,
  *   attempts: Array<{activityId: string, date: string|null, durationSec: number|null, avgSpeedKmh: number|null, vam: number|null, avgPowerW: number|null, avgHeartRateBpm: number|null, gainM: number, distanceM: number}>,
  * }>} groupes, les plus pratiquées d'abord
  */
@@ -76,6 +76,7 @@ export function buildClimbGroups(activitySignals) {
       return {
         id: `${g.startLat.toFixed(4)},${g.startLon.toFixed(4)}`,
         startLat: g.startLat, startLon: g.startLon, endLat: g.endLat, endLon: g.endLon,
+        path: g.members[0].path || [],
         distanceM: avg("distanceM"), gainM: avg("gainM"), avgGrade: avg("avgGrade"),
         attempts,
       };

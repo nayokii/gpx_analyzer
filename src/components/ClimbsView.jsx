@@ -12,6 +12,7 @@ import { useMemo, useState } from "react";
 import { ArrowLeft, Mountain, TrendingUp, Timer, Pencil } from "lucide-react";
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip } from "recharts";
 
+import { ClimbMap } from "./ClimbMap.jsx";
 import { StorageSettings } from "./StorageSettings.jsx";
 import { SectionTitle, StatCard, PageHead } from "./UIPrimitives.jsx";
 import { useActivityRepository, useUnifiedActivities } from "./useActivityRepository.js";
@@ -80,6 +81,7 @@ function ClimbDetail({ group, name, summary, onSaveName, onOpen }) {
     <div className="gpx-panel">
       <SectionTitle icon={Mountain}>{name || "Montée sans nom"}</SectionTitle>
       <ClimbNameField key={group.id} name={name} onSave={onSaveName} />
+      <ClimbMap key={group.id} path={group.path} />
       <div className="gpx-stats-grid">
         <StatCard icon={Mountain} label="Longueur" value={fmt1(group.distanceM / 1000)} unit="km" accent={COLORS.climb} />
         <StatCard icon={TrendingUp} label="D+" value={fmtInt(group.gainM)} unit="m" accent={COLORS.climb} />

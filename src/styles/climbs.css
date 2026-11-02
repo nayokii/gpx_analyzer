@@ -14,3 +14,4 @@
   background: var(--surface2); color: var(--text); font: inherit;
 }
 .gpx-climb-name input:focus { outline: 2px solid var(--climb); outline-offset: 1px; }
+.gpx-climb-map { width: 100%; border-radius: 10px; overflow: hidden; margin: 0 0 14px; border: 1px solid var(--separator); }

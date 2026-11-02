@@ -10,6 +10,16 @@
  * de FIT puisqu'elle n'opère que sur `analysis.series`/`analysis.dist`.
  */
 
+const MAX_PATH_POINTS = 60;
+
+/** Tracé [lat, lon] de la montée, sous-échantillonné (suffisant pour la dessiner sur une carte). */
+function climbPath(series, startIdx, endIdx) {
+  const slice = series.slice(startIdx, endIdx + 1).filter((p) => p.lat != null && p.lon != null);
+  const step = Math.max(1, Math.ceil(slice.length / MAX_PATH_POINTS));
+  const path = slice.filter((_, i) => i % step === 0 || i === slice.length - 1).map((p) => [p.lat, p.lon]);
+  return path;
+}
+
 /**
  * @param {Object} analysis - Résultat de computeAnalysis()
  * @returns {Array<{
@@ -17,6 +27,7 @@
  *   name: string,
  *   startTime: Date|null,
  *   endTime: Date|null,
+ *   path: Array<[number, number]>,
  *   startLat: number|null, startLon: number|null, endLat: number|null, endLon: number|null,
  *   durationSec: number|null,
  *   distanceM: number,
@@ -34,6 +45,7 @@ export function computeClimbs(analysis) {
     name: c.name,
     startTime: analysis.series[c.startIdx].time || null,
     endTime: analysis.series[c.endIdx].time || null,
+    path: climbPath(analysis.series, c.startIdx, c.endIdx),
     startLat: analysis.series[c.startIdx].lat ?? null,
     startLon: analysis.series[c.startIdx].lon ?? null,
     endLat: analysis.series[c.endIdx].lat ?? null,
