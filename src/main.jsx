@@ -13,6 +13,7 @@ import "./styles/coach.css";
 import "./styles/sources.css";
 import "./styles/feed.css";
 import "./styles/terrain.css";
+import "./styles/climbs.css";
 import "./styles/cockpit.css";
 import "./styles/shell.css";
 import "./styles/ds.css";

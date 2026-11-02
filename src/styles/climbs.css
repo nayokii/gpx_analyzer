@@ -1,0 +1,16 @@
+.gpx-climb-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.gpx-climb-item {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; width: 100%; text-align: left;
+  padding: 12px 14px; border: 1px solid var(--separator); border-radius: 10px;
+  background: transparent; color: var(--text); cursor: pointer; font: inherit;
+}
+.gpx-climb-item:hover { background: var(--surface2); }
+.gpx-climb-item.active { border-color: var(--climb); background: color-mix(in srgb, var(--climb) 9%, transparent); }
+.gpx-climb-item-name { font-weight: 600; flex: 1 1 100%; }
+.gpx-climb-item-meta { font-size: 13px; opacity: 0.75; font-variant-numeric: tabular-nums; }
+.gpx-climb-name { display: flex; align-items: center; gap: 8px; margin: 4px 0 14px; }
+.gpx-climb-name input {
+  flex: 1; min-width: 0; padding: 9px 12px; border-radius: 8px; border: 1px solid var(--separator);
+  background: var(--surface2); color: var(--text); font: inherit;
+}
+.gpx-climb-name input:focus { outline: 2px solid var(--climb); outline-offset: 1px; }

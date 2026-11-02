@@ -45,6 +45,7 @@ import { ProfileView } from "./components/ProfileView.jsx";
 import { AlterEgoView } from "./components/AlterEgoView.jsx";
 import { ArchetypeView } from "./components/ArchetypeView.jsx";
 import { TourView } from "./components/TourView.jsx";
+import { ClimbsView } from "./components/ClimbsView.jsx";
 import { CoachView } from "./components/CoachView.jsx";
 import { AppShell } from "./components/AppShell.jsx";
 import { ActivityFeedView } from "./components/ActivityFeedView.jsx";
@@ -1771,6 +1772,17 @@ export default function GPXAnalyzer() {
           onConnect={connectStorage}
           onReconnect={reconnectStorage}
           onViewProfile={() => setMode("profil")}
+          onBack={() => setMode(points ? "dashboard" : "home")}
+          userSettings={userSettings}
+        />
+      )}
+
+      {mode === "climbs" && (
+        <ClimbsView
+          storage={storage}
+          onConnect={connectStorage}
+          onReconnect={reconnectStorage}
+          onOpen={openActivityFromHistory}
           onBack={() => setMode(points ? "dashboard" : "home")}
           userSettings={userSettings}
         />

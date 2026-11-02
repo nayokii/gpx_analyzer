@@ -65,3 +65,20 @@ describe("computeClimbing", () => {
     expect(many.confidence).toBeGreaterThan(one.confidence);
   });
 });
+
+describe("computeClimbing — progression", () => {
+  it("battre ses chronos récents fait monter le score (le rythme récent est situé dans tout l'historique)", () => {
+    const day = (i) => `2026-0${1 + Math.floor(i / 28)}-${String((i % 28) + 1).padStart(2, "0")}`;
+    const build = (lastDurationSec) => {
+      const signals = [];
+      for (let i = 0; i < 20; i++) {
+        const durationSec = i >= 12 ? lastDurationSec : 600; // les 8 dernières montées changent
+        signals.push({ activityId: `a${i}`, date: day(i), elevationGainM: null, distanceKm: null, climbs: [climb({ gainM: 100, durationSec })] });
+      }
+      return computeClimbing(signals);
+    };
+    const same = build(600);
+    const faster = build(450);
+    expect(faster.value).toBeGreaterThan(same.value);
+  });
+});

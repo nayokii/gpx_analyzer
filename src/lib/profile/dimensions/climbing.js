@@ -9,6 +9,8 @@
  * analysis.js). On prend la MÉDIANE des VAM plutôt que le maximum : un pic
  * unique (souvent un artefact GPS/altitude sur une portion courte) ne doit
  * pas dominer le score — la médiane reflète le rythme de montée "typique".
+ * Le score mesure le rythme RÉCENT (médiane des dernières montées) situé dans
+ * l'historique complet : battre ses chronos fait donc monter le score.
  *
  * Signaux d'EXPOSITION (n'alimentent que `signals`/la confiance, jamais
  * `value` directement) : D+ total, D+ relatif à la distance, nombre de
@@ -25,6 +27,13 @@ import { computeConfidence, confidenceLabel, insufficientData } from "../confide
 import { buildEvidenceEntry } from "../evidence.js";
 
 const STARTUP_RANGE_VAM = { min: 200, max: 1000 };
+
+// Nombre de montées les plus récentes qui représentent le niveau ACTUEL. Le
+// score place ce rythme récent dans la distribution de TOUT l'historique : si
+// on y plaçait la médiane de tout l'historique, on obtiendrait mécaniquement
+// ~50 une fois l'historique assez long (rang d'une médiane dans sa propre
+// distribution) et le score ne bougerait plus, même en battant ses chronos.
+const RECENT_CLIMB_COUNT = 8;
 
 // Exportée (Coach V2) pour que src/lib/coach/ réutilise CETTE formule plutôt
 // que d'en dupliquer une équivalente — logique inchangée.
@@ -53,7 +62,7 @@ export function computeClimbing(activitySignals) {
       const vam = vamOf(c);
       if (vam == null) continue;
       hasVam = true;
-      climbsWithVam.push({ activityId: s.activityId, vam, gainM: c.gainM, avgGrade: c.avgGrade, durationSec: c.durationSec });
+      climbsWithVam.push({ activityId: s.activityId, date: s.date ?? null, vam, gainM: c.gainM, avgGrade: c.avgGrade, durationSec: c.durationSec });
     }
     if (hasVam) activitiesWithClimb++;
   }
@@ -62,7 +71,12 @@ export function computeClimbing(activitySignals) {
 
   const vamList = climbsWithVam.map((c) => c.vam);
   const medianVam = percentileValue(vamList, 50);
-  const scale = blendedScale(medianVam, vamList, STARTUP_RANGE_VAM);
+  // Montées les plus récentes d'abord (sans date, l'ordre d'entrée est conservé : tout l'historique compte).
+  const byRecency = climbsWithVam.some((c) => c.date)
+    ? climbsWithVam.slice().sort((a, b) => String(b.date ?? "").localeCompare(String(a.date ?? "")))
+    : climbsWithVam;
+  const recentVam = percentileValue(byRecency.slice(0, RECENT_CLIMB_COUNT).map((c) => c.vam), 50);
+  const scale = blendedScale(recentVam, vamList, STARTUP_RANGE_VAM);
 
   const evidence = climbsWithVam
     .slice()
@@ -94,6 +108,7 @@ export function computeClimbing(activitySignals) {
     dataQuality: "measured",
     signals: {
       medianVam: medianVam != null ? Math.round(medianVam) : null,
+      recentMedianVam: recentVam != null ? Math.round(recentVam) : null,
       climbCount: climbsWithVam.length,
       normalizationMethod: scale.method,
       exposure: {

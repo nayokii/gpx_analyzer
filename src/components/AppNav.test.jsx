@@ -7,9 +7,9 @@ afterEach(cleanup);
 const ALL_KEYS = NAV_GROUPS.flatMap((g) => g.items.map((i) => i.key));
 
 describe("destinations de navigation", () => {
-  it("expose les 8 destinations de contenu existantes (Historique « rides » conservé) + les sources de données", () => {
-    expect([...NAV_ITEMS.map((i) => i.key)].sort()).toEqual(["alterego", "archetype", "coach", "feed", "home", "profil", "rides", "tour"]);
-    expect([...ALL_KEYS].sort()).toEqual(["alterego", "archetype", "coach", "feed", "home", "profil", "rides", "sources", "tour"]);
+  it("expose les 9 destinations de contenu existantes (Historique « rides » conservé) + les sources de données", () => {
+    expect([...NAV_ITEMS.map((i) => i.key)].sort()).toEqual(["alterego", "archetype", "climbs", "coach", "feed", "home", "profil", "rides", "tour"]);
+    expect([...ALL_KEYS].sort()).toEqual(["alterego", "archetype", "climbs", "coach", "feed", "home", "profil", "rides", "sources", "tour"]);
   });
 
   it("regroupe en Pilotage / Analyses / Progression / Système, sans doublon de clé", () => {
