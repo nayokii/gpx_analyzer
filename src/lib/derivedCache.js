@@ -42,6 +42,8 @@
 import { computeCyclistProfile, buildProfileTimeline } from "./profile/profile.js";
 import { computeProgression } from "./progression/progression.js";
 import { matchArchetypes, matchReferenceRiders } from "./archetypes/matching.js";
+import { deriveAllActivitySignals } from "./profile/activitySignals.js";
+import { buildClimbGroups } from "./climbs/climbRegistry.js";
 
 const MAX_ENTRIES_PER_FN = 12;
 
@@ -75,6 +77,7 @@ const boundedCaches = {
   timeline: createBoundedCache(MAX_ENTRIES_PER_FN),
   progression: createBoundedCache(MAX_ENTRIES_PER_FN),
   archetypeTimeline: createBoundedCache(MAX_ENTRIES_PER_FN),
+  climbGroups: createBoundedCache(MAX_ENTRIES_PER_FN),
 };
 const profileCache = boundedCaches.profile;
 const timelineCache = boundedCaches.timeline;
@@ -136,6 +139,22 @@ export function getCachedProgression(activities, profile, options = {}) {
   if (hit) return hit;
   const result = computeProgression(activities, profile, options);
   progressionCache.set(key, result);
+  return result;
+}
+
+/**
+ * Montées regroupées par col/route (voir climbs/climbRegistry.js), mémoïsées :
+ * l'onglet Montées et l'accueil (records battus) en ont besoin, et la
+ * détection relance computeAnalysis() sur chaque sortie.
+ * @param {import('./types.js').Activity[]} activities
+ * @returns {Array}
+ */
+export function getCachedClimbGroups(activities) {
+  const key = activitiesSignature(activities);
+  const hit = boundedCaches.climbGroups.get(key);
+  if (hit) return hit;
+  const result = buildClimbGroups(deriveAllActivitySignals(activities));
+  boundedCaches.climbGroups.set(key, result);
   return result;
 }
 

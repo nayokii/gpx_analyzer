@@ -85,6 +85,68 @@ export function buildClimbGroups(activitySignals) {
 }
 
 /**
+ * Records battus lors d'une sortie : les montées où le passage de cette sortie
+ * est plus rapide que tous les passages précédents (au moins un passage
+ * chronométré avant, sinon ce n'est pas un « record » mais un premier temps).
+ *
+ * @param {ReturnType<typeof buildClimbGroups>} groups
+ * @param {string} activityId
+ * @returns {Array<{group: Object, attempt: Object, previousBest: Object, gainSec: number}>}
+ */
+export function recordsForActivity(groups, activityId) {
+  const out = [];
+  for (const group of groups || []) {
+    const timed = group.attempts.filter((a) => a.durationSec != null && a.durationSec > 0);
+    const mine = timed.filter((a) => a.activityId === activityId);
+    if (mine.length === 0) continue;
+    const best = mine.reduce((m, a) => (a.durationSec < m.durationSec ? a : m));
+    const firstIndex = timed.indexOf(mine[0]);
+    const earlier = timed.slice(0, firstIndex).filter((a) => a.activityId !== activityId);
+    if (earlier.length === 0) continue; // premier passage connu : un temps, pas un record
+    const previousBest = earlier.reduce((m, a) => (a.durationSec < m.durationSec ? a : m));
+    if (best.durationSec < previousBest.durationSec) {
+      out.push({ group, attempt: best, previousBest, gainSec: previousBest.durationSec - best.durationSec });
+    }
+  }
+  return out;
+}
+
+const POWER_NOISE_RATIO = 0.03; // sous ±3 % de puissance, on parle de puissance « similaire »
+
+/**
+ * Lecture du dernier passage face au meilleur temps précédent, pour distinguer
+ * une vraie progression (plus vite ET plus de puissance) d'un chrono porté par
+ * les conditions (plus vite à puissance égale ou moindre : vent, route,
+ * efficacité). Ce sont des hypothèses, jamais des certitudes.
+ *
+ * @returns {{timeDeltaSec: number, powerDeltaW: number|null, hrDeltaBpm: number|null, kind: "progress"|"conditions"|"harder"|"easier"|"time-only", message: string}|null}
+ */
+export function compareLatestToBest(attempts) {
+  const timed = (attempts || []).filter((a) => a.durationSec != null && a.durationSec > 0);
+  if (timed.length < 2) return null;
+  const latest = timed[timed.length - 1];
+  const reference = timed.slice(0, -1).reduce((m, a) => (a.durationSec < m.durationSec ? a : m));
+
+  const timeDeltaSec = latest.durationSec - reference.durationSec;
+  const powerDeltaW = latest.avgPowerW != null && reference.avgPowerW != null ? latest.avgPowerW - reference.avgPowerW : null;
+  const hrDeltaBpm = latest.avgHeartRateBpm != null && reference.avgHeartRateBpm != null ? latest.avgHeartRateBpm - reference.avgHeartRateBpm : null;
+  const faster = timeDeltaSec < 0;
+
+  if (powerDeltaW == null) {
+    return { timeDeltaSec, powerDeltaW, hrDeltaBpm, kind: "time-only", message: "Pas de puissance sur les deux passages : impossible de dire si le chrono vient de ta forme ou des conditions." };
+  }
+  const noise = reference.avgPowerW * POWER_NOISE_RATIO;
+  const morePower = powerDeltaW > noise;
+  const lessPower = powerDeltaW < -noise;
+  const w = Math.round(Math.abs(powerDeltaW));
+
+  if (faster && morePower) return { timeDeltaSec, powerDeltaW, hrDeltaBpm, kind: "progress", message: `Plus rapide avec plus de puissance (+${w} W) : progression réelle probable.` };
+  if (faster) return { timeDeltaSec, powerDeltaW, hrDeltaBpm, kind: "conditions", message: `Plus rapide à puissance ${lessPower ? `inférieure (−${w} W)` : "similaire"} : meilleures conditions (vent, route) ou meilleure efficacité.` };
+  if (morePower) return { timeDeltaSec, powerDeltaW, hrDeltaBpm, kind: "harder", message: `Plus lent malgré plus de puissance (+${w} W) : conditions difficiles (vent, chaleur) ou fatigue probables.` };
+  return { timeDeltaSec, powerDeltaW, hrDeltaBpm, kind: "easier", message: `Plus lent avec ${lessPower ? `moins de puissance (−${w} W)` : "une puissance similaire"} : effort moins soutenu ou conditions moins favorables.` };
+}
+
+/**
  * Évolution des chronos d'une montée.
  * @returns {{timed: number, best: Object|null, latest: Object|null, previousBest: Object|null, deltaVsPreviousBestSec: number|null, isLatestBest: boolean}}
  */

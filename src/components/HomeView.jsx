@@ -49,7 +49,11 @@ import { COLORS } from "../lib/colors.js";
 import { useActivityRepository, useUnifiedActivities } from "./useActivityRepository.js";
 import { confidenceLabel } from "../lib/profile/confidence.js";
 import { getXpProgress } from "../lib/progression/levels.js";
-import { getCachedProfile, getCachedProgression, getCachedArchetypeMatch } from "../lib/derivedCache.js";
+import { getCachedProfile, getCachedProgression, getCachedArchetypeMatch, getCachedClimbGroups } from "../lib/derivedCache.js";
+import { useClimbNames } from "./useClimbNames.js";
+import { recordsForActivity } from "../lib/climbs/climbRegistry.js";
+import { findClimbName } from "../lib/climbs/climbNames.js";
+import { fmtDuration } from "../lib/utils.js";
 
 /** "vendredi 9 octobre" → "Vendredi 9 octobre" (la casse du mois reste française). */
 function formatToday() {
@@ -239,6 +243,28 @@ function ProfilePreviewSection({ profile, onOpen }) {
 }
 
 /* ------------------------------------------------------------------ */
+/* Records de montée battus lors de la dernière sortie                  */
+/* ------------------------------------------------------------------ */
+
+/** Rien à afficher (aucun record) : le panneau n'existe pas, jamais un bloc vide. */
+function ClimbRecordsPanel({ records, names, onOpen }) {
+  if (!records || records.length === 0) return null;
+  return (
+    <div className="gpx-panel">
+      <SectionTitle icon={Trophy}>Record{records.length > 1 ? "s" : ""} de montée battu{records.length > 1 ? "s" : ""}</SectionTitle>
+      <ul className="gpx-highlight-list">
+        {records.map((r) => (
+          <li key={r.group.id}>
+            <b>{findClimbName(names, r.group) || "Montée sans nom"}</b> : {fmtDuration(r.attempt.durationSec)}, soit {fmtDuration(r.gainSec)} de mieux que ton ancien record ({fmtDuration(r.previousBest.durationSec)}).
+          </li>
+        ))}
+      </ul>
+      <button className="gpx-link-btn" onClick={onOpen}>Voir mes montées</button>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /* Aucune sortie exploitable                                            */
 /* ------------------------------------------------------------------ */
 
@@ -337,6 +363,11 @@ export function HomeView({ storage, onConnect, onReconnect, onNavigate, onOpenAc
   const progression = useMemo(() => (fullActivities ? getCachedProgression(fullActivities, profile) : null), [fullActivities, profile]);
   const archetypeMatch = useMemo(() => (profile ? getCachedArchetypeMatch(profile) : null), [profile]);
   const lastActivity = fullActivities && fullActivities.length > 0 ? fullActivities[0] : null;
+  const { names: climbNames } = useClimbNames(readableStorage.rootHandle);
+  const climbRecords = useMemo(
+    () => (lastActivity ? recordsForActivity(getCachedClimbGroups(fullActivities), lastActivity.id) : []),
+    [fullActivities, lastActivity]
+  );
 
   const isLoading = hasSource && !summariesError && (summaries === null || (summaries.length > 0 && fullActivities === null));
   const isEmpty = !hasSource || (summaries != null && summaries.length === 0);
@@ -386,6 +417,8 @@ export function HomeView({ storage, onConnect, onReconnect, onNavigate, onOpenAc
               <NoRideSection />
             )}
           </Reveal>
+
+          <ClimbRecordsPanel records={climbRecords} names={climbNames} onOpen={() => onNavigate("climbs")} />
 
           <div className="gpx-home-grid ck-progress-grid">
             <Reveal className="gpx-span-8"><FocusSection profile={profile} progression={progression} onViewChallenges={() => onNavigate("alterego")} /></Reveal>

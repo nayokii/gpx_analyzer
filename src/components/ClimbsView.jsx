@@ -16,9 +16,10 @@ import { ClimbMap } from "./ClimbMap.jsx";
 import { StorageSettings } from "./StorageSettings.jsx";
 import { SectionTitle, StatCard, PageHead } from "./UIPrimitives.jsx";
 import { useActivityRepository, useUnifiedActivities } from "./useActivityRepository.js";
-import { deriveAllActivitySignals } from "../lib/profile/activitySignals.js";
-import { buildClimbGroups, summarizeAttempts } from "../lib/climbs/climbRegistry.js";
-import { loadClimbNames, findClimbName, saveClimbName, MAX_NAME_LENGTH } from "../lib/climbs/climbNames.js";
+import { useClimbNames } from "./useClimbNames.js";
+import { getCachedClimbGroups } from "../lib/derivedCache.js";
+import { summarizeAttempts, compareLatestToBest } from "../lib/climbs/climbRegistry.js";
+import { findClimbName, MAX_NAME_LENGTH } from "../lib/climbs/climbNames.js";
 import { COLORS, CHART_TOOLTIP_STYLE, CHART_AXIS } from "../lib/colors.js";
 import { fmt1, fmtInt, fmtDuration } from "../lib/utils.js";
 
@@ -77,6 +78,7 @@ function ProgressionChart({ attempts }) {
 
 function ClimbDetail({ group, name, summary, onSaveName, onOpen }) {
   const rows = group.attempts.slice().reverse();
+  const comparison = compareLatestToBest(group.attempts);
   return (
     <div className="gpx-panel">
       <SectionTitle icon={Mountain}>{name || "Montée sans nom"}</SectionTitle>
@@ -96,6 +98,17 @@ function ClimbDetail({ group, name, summary, onSaveName, onOpen }) {
         />
         <StatCard icon={Mountain} label="Passages" value={fmtInt(group.attempts.length)} accent={COLORS.info} />
       </div>
+
+      {comparison && (
+        <p className={"gpx-climb-insight gpx-climb-insight--" + comparison.kind}>
+          <b>Dernier passage vs meilleur précédent ({fmtDelta(comparison.timeDeltaSec)})</b>
+          <br />
+          {comparison.message}
+          {comparison.hrDeltaBpm != null && Math.abs(comparison.hrDeltaBpm) >= 1 && (
+            <> FC moyenne {comparison.hrDeltaBpm > 0 ? "+" : "−"}{Math.abs(Math.round(comparison.hrDeltaBpm))} bpm.</>
+          )}
+        </p>
+      )}
 
       <div className="gpx-chart-card-title" style={{ marginTop: 14 }}>Progression du chrono</div>
       <ProgressionChart attempts={group.attempts} />
@@ -141,15 +154,12 @@ function ClimbDetail({ group, name, summary, onSaveName, onOpen }) {
 export function ClimbsView({ storage, onConnect, onReconnect, onOpen, onBack, userSettings }) {
   const { repository } = useActivityRepository(storage, userSettings);
   const { summaries, summariesError, fullActivities } = useUnifiedActivities(repository, { max: MAX_CLIMB_ACTIVITIES });
-  const [names, setNames] = useState(() => loadClimbNames());
+  const { names, rename } = useClimbNames(storage.status === "connected" ? storage.rootHandle : null);
   const [selectedId, setSelectedId] = useState(null);
 
   const ready = storage.status === "connected" || repository.hasCloud;
 
-  const groups = useMemo(
-    () => (fullActivities ? buildClimbGroups(deriveAllActivitySignals(fullActivities)) : null),
-    [fullActivities]
-  );
+  const groups = useMemo(() => (fullActivities ? getCachedClimbGroups(fullActivities) : null), [fullActivities]);
   const selected = groups ? groups.find((g) => g.id === selectedId) || groups[0] || null : null;
 
   return (
@@ -207,7 +217,7 @@ export function ClimbsView({ storage, onConnect, onReconnect, onOpen, onBack, us
                   group={selected}
                   name={findClimbName(names, selected)}
                   summary={summarizeAttempts(selected.attempts)}
-                  onSaveName={(raw) => setNames((prev) => saveClimbName(prev, selected, raw))}
+                  onSaveName={(raw) => rename(selected, raw)}
                   onOpen={onOpen}
                 />
               )}

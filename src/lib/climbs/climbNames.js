@@ -8,8 +8,11 @@
  * d'une sortie à l'autre ne fait pas perdre le nom.
  */
 import { sameClimb } from "./climbRegistry.js";
+import { readTextFile, writeTextFile } from "../storage/activityStore.js";
 
-const KEY = "cyclingos.climbs.names.v1";
+export const STORAGE_KEY = "cyclingos.climbs.names.v1";
+const KEY = STORAGE_KEY;
+const FILE = "climbs.json"; // à la racine du dossier choisi, à côté de athlete.json
 export const MAX_NAME_LENGTH = 80;
 
 export function sanitizeName(raw) {
@@ -47,4 +50,37 @@ export function saveClimbName(names, group, rawName) {
     // stockage indisponible (navigation privée…) : le nom reste valable pour la session
   }
   return next;
+}
+
+/** Union de deux listes de noms ; pour une même montée, l'entrée de `preferred` l'emporte. */
+export function mergeClimbNames(base, preferred) {
+  const kept = (base || []).filter((e) => !(preferred || []).some((p) => sameClimb(p, e)));
+  return [...kept, ...(preferred || [])];
+}
+
+/**
+ * Noms enregistrés dans le dossier de sorties (ils suivent le dossier d'un
+ * appareil à l'autre). Jamais d'exception : absent ou illisible = aucun nom.
+ */
+export async function readClimbNamesFile(rootHandle) {
+  if (!rootHandle) return [];
+  try {
+    const parsed = JSON.parse(await readTextFile(rootHandle, FILE));
+    return Array.isArray(parsed)
+      ? parsed.filter((e) => e && e.name && e.startLat != null && e.startLon != null && e.endLat != null && e.endLon != null)
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+/** @returns {Promise<boolean>} true si l'écriture a réussi */
+export async function writeClimbNamesFile(rootHandle, names) {
+  if (!rootHandle) return false;
+  try {
+    await writeTextFile(rootHandle, FILE, JSON.stringify(names, null, 2));
+    return true;
+  } catch {
+    return false;
+  }
 }

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildClimbGroups, summarizeAttempts } from "./climbRegistry.js";
+import { buildClimbGroups, summarizeAttempts, recordsForActivity, compareLatestToBest } from "./climbRegistry.js";
 
 function climb(overrides = {}) {
   return {
@@ -52,5 +52,41 @@ describe("summarizeAttempts", () => {
     const s = summarizeAttempts([at(500, "1")]);
     expect(s.isLatestBest).toBe(false);
     expect(s.deltaVsPreviousBestSec).toBeNull();
+  });
+});
+
+describe("recordsForActivity", () => {
+  const groupsFor = (times) => buildClimbGroups(times.map(([id, date, durationSec]) => ride(id, date, [climb({ durationSec })])));
+
+  it("renvoie le record battu lors de la sortie, avec le temps gagné", () => {
+    const groups = groupsFor([["a", "2026-09-01", 500], ["b", "2026-09-10", 480], ["c", "2026-10-01", 450]]);
+    const records = recordsForActivity(groups, "c");
+    expect(records).toHaveLength(1);
+    expect(records[0].gainSec).toBe(30);
+  });
+
+  it("pas de record : plus lent, premier passage, ou montée absente de la sortie", () => {
+    const groups = groupsFor([["a", "2026-09-01", 450], ["b", "2026-10-01", 500]]);
+    expect(recordsForActivity(groups, "b")).toEqual([]);
+    expect(recordsForActivity(groups, "a")).toEqual([]);
+    expect(recordsForActivity(groups, "zzz")).toEqual([]);
+  });
+});
+
+describe("compareLatestToBest", () => {
+  const at = (durationSec, avgPowerW, date) => ({ durationSec, avgPowerW, avgHeartRateBpm: null, date, activityId: date });
+
+  it("plus vite avec plus de puissance : progression", () => {
+    expect(compareLatestToBest([at(500, 200, "1"), at(470, 220, "2")]).kind).toBe("progress");
+  });
+  it("plus vite à puissance égale : conditions", () => {
+    expect(compareLatestToBest([at(500, 200, "1"), at(470, 201, "2")]).kind).toBe("conditions");
+  });
+  it("plus lent malgré plus de puissance : passage difficile", () => {
+    expect(compareLatestToBest([at(500, 200, "1"), at(530, 230, "2")]).kind).toBe("harder");
+  });
+  it("sans puissance : le dit sans conclure ; un seul passage : rien", () => {
+    expect(compareLatestToBest([at(500, null, "1"), at(470, null, "2")]).kind).toBe("time-only");
+    expect(compareLatestToBest([at(500, 200, "1")])).toBeNull();
   });
 });
