@@ -4,27 +4,24 @@
  * (date, distance, temps, D+, type) : aucun fichier de sortie n'est chargé. Les calculs sont dans lib/progress/.
  */
 import { useMemo, useState } from "react";
-import { ArrowLeft, ChevronLeft, ChevronRight, Flame, TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { ArrowLeft, ChevronLeft, ChevronRight, Flame, TrendingUp, TrendingDown, Minus, Share2 } from "lucide-react";
 import {
   ResponsiveContainer, AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
 } from "recharts";
 
 import { StorageSettings } from "./StorageSettings.jsx";
+import { RecapShareDialog } from "./RecapShareDialog.jsx";
 import { PageHead, SectionTitle } from "./UIPrimitives.jsx";
 import { useActivityRepository, useUnifiedActivities } from "./useActivityRepository.js";
 import {
   PERIOD_KINDS, periodStart, shiftPeriod, periodLabel, sportKeys, filterBySport, buildSeries, totalsForPeriod,
-  delta, avgHoursPerWeek, monthlyComparison, weekStreak, dayCells,
+  delta, avgHoursPerWeek, formatHours, monthlyComparison, weekStreak, dayCells,
 } from "../lib/progress/progress.js";
 import { activityTypeLabel } from "../lib/feed/feedModel.js";
 import { COLORS, CHART_TOOLTIP_STYLE, CHART_AXIS } from "../lib/colors.js";
 import { fmt1, fmtInt } from "../lib/utils.js";
 
-const hoursLabel = (sec) => {
-  const h = Math.floor(sec / 3600);
-  const m = Math.round((sec % 3600) / 60);
-  return m === 60 ? `${h + 1} h 00` : `${h} h ${String(m).padStart(2, "0")}`;
-};
+const hoursLabel = formatHours;
 
 /** Métriques affichables dans les graphiques : valeur numérique, formatage, couleur. */
 const METRICS = {
@@ -204,6 +201,7 @@ export function ProgressView({ storage, onConnect, onReconnect, onBack, userSett
   const [kind, setKind] = useState("week");
   const [metric, setMetric] = useState("distance");
   const [anchor, setAnchor] = useState(() => new Date());
+  const [recapOpen, setRecapOpen] = useState(false);
 
   const all = summaries || [];
   const sports = useMemo(() => sportKeys(all), [all]);
@@ -261,6 +259,10 @@ export function ProgressView({ storage, onConnect, onReconnect, onBack, userSett
               <button className="gpx-icon-btn" aria-label="Période suivante" disabled={isCurrent} onClick={() => setAnchor(shiftPeriod(kind, start, 1))}><ChevronRight size={18} /></button>
             </div>
 
+            <button className="gpx-btn-ghost gpx-progress-share" onClick={() => setRecapOpen(true)}>
+              <Share2 size={15} aria-hidden="true" /> <span>Partager le récap</span>
+            </button>
+
             <Headline kind={kind} start={start} totals={totals} previous={previous} />
 
             <div className="gpx-map-modes gpx-progress-metrics" role="group" aria-label="Métrique du graphique">
@@ -272,6 +274,7 @@ export function ProgressView({ storage, onConnect, onReconnect, onBack, userSett
             <SeriesChart series={series} metric={metric} selectedStart={start} onSelect={setAnchor} />
           </div>
 
+          {recapOpen && <RecapShareDialog activities={activities} kind={kind} start={start} sportLabel={sport === "all" ? null : activityTypeLabel(sport)} onClose={() => setRecapOpen(false)} />}
           <StreakCard activities={activities} />
           <MonthlyComparison activities={activities} metric={metric} setMetric={setMetric} />
         </>

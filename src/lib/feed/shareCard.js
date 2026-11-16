@@ -97,7 +97,7 @@ export const HIDEABLE_STATS = [
   { key: "elevationGain", label: "Dénivelé" },
 ];
 
-const FONT = SHARE_FONTS[0].stack;
+export const FONT = SHARE_FONTS[0].stack;
 
 /** Rose de marque Cycling OS : couleur du tracé GPS (et de ses repères) sur les trois fonds exportés. */
 export const SHARE_ROUTE_COLOR = "#D6116B";
@@ -272,7 +272,7 @@ export function buildShareModel(activity, options = {}) {
 // ------------------------------------------------------------------ dessin
 
 /** fillText, précédé d'un contour sombre quand le thème en définit un (fond transparent). Aucun effet sur clair/sombre. */
-function put(ctx, t, text, x, y, size) {
+export function put(ctx, t, text, x, y, size) {
   if (t.outline) {
     ctx.strokeStyle = t.outline;
     ctx.lineWidth = Math.min(14, Math.max(4, Math.round(size * 0.1)));
@@ -282,7 +282,7 @@ function put(ctx, t, text, x, y, size) {
   ctx.fillText(text, x, y);
 }
 
-function fitText(ctx, text, maxWidth, size, minSize, weight = 700, family = FONT) {
+export function fitText(ctx, text, maxWidth, size, minSize, weight = 700, family = FONT) {
   let s = size;
   ctx.font = `${weight} ${s}px ${family}`;
   while (s > minSize && ctx.measureText(text).width > maxWidth) {
@@ -320,11 +320,11 @@ function wrapText(ctx, text, maxWidth, maxLines) {
 }
 
 /** Thème + couleur d'accent choisie : l'accent remplace le rose pour le tracé, ses repères et les unités. */
-function withAccent(theme, accent) {
+export function withAccent(theme, accent) {
   return accent ? { ...theme, route: accent, startFill: accent } : theme;
 }
 
-function drawBackground(ctx, model, t) {
+export function drawBackground(ctx, model, t) {
   const { width: W, height: H } = model;
   const g = ctx.createLinearGradient(0, 0, 0, H);
   g.addColorStop(0, t.bg0);

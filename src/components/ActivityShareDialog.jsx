@@ -8,8 +8,9 @@ import { X, Download, Share2, ShieldCheck, RotateCcw } from "lucide-react";
 
 import { ActivityShareCard } from "./ActivityShareCard.jsx";
 import { useColorScheme } from "../lib/theme.js";
+import { Slider, FormatPicker, BackgroundPicker, FontPicker, AccentPicker } from "./ShareControls.jsx";
 import {
-  SHARE_FORMATS, SHARE_BACKGROUNDS, SHARE_STYLES, SHARE_FONTS, SHARE_ACCENTS, SHARE_PARTS, SHARE_ADJUST, SHARE_THEMES,
+  SHARE_FORMATS, SHARE_STYLES, SHARE_PARTS, SHARE_ADJUST,
   HIDEABLE_STATS, EXTRA_STATS, buildShareModel, exportShareCardPng, shareFileName, shareOrDownload, downloadBlob,
 } from "../lib/feed/shareCard.js";
 import { extractRoute } from "../lib/feed/feedModel.js";
@@ -43,15 +44,6 @@ function loadPrefs() {
 
 function savePrefs(prefs) {
   try { window.localStorage.setItem(STORAGE_KEY, JSON.stringify(prefs)); } catch { /* stockage indisponible : réglages non mémorisés */ }
-}
-
-function Slider({ id, label, spec, value, onChange, format = (v) => String(v) }) {
-  return (
-    <label className="gpx-share-slider" htmlFor={id}>
-      <span>{label}<b>{format(value)}</b></span>
-      <input id={id} type="range" min={spec.min} max={spec.max} step={spec.step} value={value} onChange={(e) => onChange(Number(e.target.value))} />
-    </label>
-  );
 }
 
 export function ActivityShareDialog({ activity, name, onClose }) {
@@ -100,7 +92,6 @@ export function ActivityShareDialog({ activity, name, onClose }) {
   }
 
   const f = SHARE_FORMATS[format];
-  const accentValue = prefs.accent || "#D6116B";
   return (
     <div className="gpx-share-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="gpx-share-dialog" role="dialog" aria-modal="true" aria-labelledby="gpx-share-title">
@@ -124,16 +115,7 @@ export function ActivityShareDialog({ activity, name, onClose }) {
             <div className="gpx-share-panel" role="tabpanel">
               {tab === "style" && (
                 <>
-                  <fieldset className="gpx-share-group">
-                    <legend>Format</legend>
-                    <div className="gpx-seg" role="radiogroup" aria-label="Format de l'image">
-                      {Object.values(SHARE_FORMATS).map((o) => (
-                        <button key={o.key} role="radio" aria-checked={format === o.key} className={"gpx-seg-btn" + (format === o.key ? " active" : "")} onClick={() => set("format", o.key)}>
-                          {o.label}<small>{o.width}×{o.height}</small>
-                        </button>
-                      ))}
-                    </div>
-                  </fieldset>
+                  <FormatPicker format={format} onChange={(v) => set("format", v)} />
 
                   <fieldset className="gpx-share-group">
                     <legend>Mise en page</legend>
@@ -146,39 +128,13 @@ export function ActivityShareDialog({ activity, name, onClose }) {
                     </div>
                   </fieldset>
 
-                  <fieldset className="gpx-share-group">
-                    <legend>Fond</legend>
-                    <div className="gpx-share-swatches" role="radiogroup" aria-label="Fond de l'image">
-                      {SHARE_BACKGROUNDS.map((o) => {
-                        const th = SHARE_THEMES[o.key];
-                        const bg = th.bg0 ? `linear-gradient(160deg, ${th.bg0}, ${th.bg1})` : undefined;
-                        return (
-                          <button key={o.key} role="radio" aria-checked={theme === o.key} aria-label={o.label} title={o.label}
-                            className={"gpx-share-swatch" + (theme === o.key ? " active" : "") + (o.key === "transparent" ? " is-checker" : "")} style={bg ? { background: bg } : undefined} onClick={() => setTheme(o.key)}>
-                            <span>{o.label}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                    {theme === "transparent" && (
-                      <p className="gpx-share-hint">PNG avec canal alpha : le damier n'est qu'un repère d'aperçu, il n'est pas dans l'image. Textes et tracé sont clairs avec un fin contour sombre pour rester lisibles sur une photo. Le format « Sticker » est plus compact pour une story.</p>
-                    )}
-                  </fieldset>
+                  <BackgroundPicker theme={theme} onChange={setTheme} />
                 </>
               )}
 
               {tab === "text" && (
                 <>
-                  <fieldset className="gpx-share-group">
-                    <legend>Police</legend>
-                    <div className="gpx-share-fonts" role="radiogroup" aria-label="Police">
-                      {SHARE_FONTS.map((o) => (
-                        <button key={o.key} role="radio" aria-checked={prefs.font === o.key} className={"gpx-share-font" + (prefs.font === o.key ? " active" : "")} style={{ fontFamily: o.stack }} onClick={() => set("font", o.key)}>
-                          <span>Aa</span><small>{o.label}</small>
-                        </button>
-                      ))}
-                    </div>
-                  </fieldset>
+                  <FontPicker font={prefs.font} onChange={(v) => set("font", v)} />
                   <Slider id="gpx-share-textscale" label="Taille du texte" spec={SHARE_ADJUST.textScale} value={prefs.textScale} onChange={(v) => set("textScale", v)} format={(v) => `${Math.round(v * 100)} %`} />
                   <fieldset className="gpx-share-group">
                     <legend>Chiffres affichés</legend>
@@ -201,17 +157,7 @@ export function ActivityShareDialog({ activity, name, onClose }) {
 
               {tab === "route" && (
                 <>
-                  <fieldset className="gpx-share-group">
-                    <legend>Couleur du tracé</legend>
-                    <div className="gpx-share-accents" role="radiogroup" aria-label="Couleur du tracé">
-                      {SHARE_ACCENTS.map((c) => (
-                        <button key={c} role="radio" aria-checked={accentValue.toLowerCase() === c.toLowerCase()} aria-label={c} className={"gpx-share-accent" + (accentValue.toLowerCase() === c.toLowerCase() ? " active" : "")} style={{ background: c }} onClick={() => set("accent", c === "#D6116B" ? null : c)} />
-                      ))}
-                      <label className="gpx-share-accent gpx-share-accent--custom" title="Couleur personnalisée">
-                        <input type="color" value={accentValue} onChange={(e) => set("accent", e.target.value)} aria-label="Couleur personnalisée" />
-                      </label>
-                    </div>
-                  </fieldset>
+                  <AccentPicker accent={prefs.accent} onChange={(v) => set("accent", v)} legend="Couleur du tracé" />
                   <Slider id="gpx-share-routewidth" label="Épaisseur" spec={SHARE_ADJUST.routeWidth} value={prefs.routeWidth} onChange={(v) => set("routeWidth", v)} format={(v) => `${v} px`} />
                   <Slider id="gpx-share-routescale" label="Taille du tracé" spec={SHARE_ADJUST.routeScale} value={prefs.routeScale} onChange={(v) => set("routeScale", v)} format={(v) => `${Math.round(v * 100)} %`} />
                   <Slider id="gpx-share-routex" label="Position horizontale" spec={SHARE_ADJUST.routeX} value={prefs.routeX} onChange={(v) => set("routeX", v)} />

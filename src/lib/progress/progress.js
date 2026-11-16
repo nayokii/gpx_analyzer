@@ -92,6 +92,20 @@ export function activitiesBetween(activities, start, end) {
   return out;
 }
 
+/** Durée en heures lisibles : « 4 h 23 » (jamais « 4 h 60 »). */
+export function formatHours(sec) {
+  const total = Math.round((Number(sec) || 0) / 60);
+  return `${Math.floor(total / 60)} h ${String(total % 60).padStart(2, "0")}`;
+}
+
+/** Jours de la période `start` : { start, end } pour chacun, dans l'ordre. */
+export function daysOf(kind, start) {
+  return Array.from({ length: daysInPeriod(kind, start) }, (_, i) => ({
+    start: new Date(start.getFullYear(), start.getMonth(), start.getDate() + i),
+    end: new Date(start.getFullYear(), start.getMonth(), start.getDate() + i + 1),
+  }));
+}
+
 const n = (v) => (typeof v === "number" && Number.isFinite(v) ? v : 0);
 
 /** Totaux d'un lot de sorties. La vitesse moyenne est pondérée par le temps en mouvement (jamais une moyenne de moyennes). */

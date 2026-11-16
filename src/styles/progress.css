@@ -45,3 +45,7 @@
 .gpx-progress-table th:first-child { text-align: left; font-weight: 600; text-transform: capitalize; }
 .gpx-progress-table thead th { font-size: 12px; color: var(--faint); text-transform: uppercase; letter-spacing: 0.05em; }
 .gpx-progress-table td { font-weight: 600; }
+
+.gpx-progress-share { margin: 0 0 12px; }
+.gpx-share-panel--scroll { max-height: min(62dvh, 560px); overflow-y: auto; padding-right: 4px; }
+@media (max-width: 760px) { .gpx-share-panel--scroll { max-height: none; overflow: visible; } }
