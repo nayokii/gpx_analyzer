@@ -41,3 +41,26 @@ describe("noms de montées dans le dossier", () => {
     expect(findClimbName(merged, pos)).toBe("Nouveau");
   });
 });
+
+describe("segments Strava liés aux montées", () => {
+  const group = { startLat: 45, startLon: 6, endLat: 45.01, endLon: 6 };
+  const segment = { id: 7, name: "Col du Test", category: 3 };
+
+  it("une montée non nommée prend le nom du segment, un nom saisi le remplace sans casser le lien", async () => {
+    const { saveStravaLinks, saveClimbName, findClimbName, findClimbStrava } = await import("./climbNames.js");
+    let names = saveStravaLinks([], [{ group, segment }]);
+    expect(findClimbName(names, group)).toBe("Col du Test");
+    names = saveClimbName(names, group, "Ma bosse");
+    expect(findClimbName(names, group)).toBe("Ma bosse");
+    expect(findClimbStrava(names, group).id).toBe(7);
+    names = saveClimbName(names, group, ""); // effacer le nom : retour au nom Strava
+    expect(findClimbName(names, group)).toBe("Col du Test");
+  });
+
+  it("un lien Strava ne remplace pas un nom déjà saisi", async () => {
+    const { saveStravaLinks, saveClimbName, findClimbName } = await import("./climbNames.js");
+    let names = saveClimbName([], group, "Ma bosse");
+    names = saveStravaLinks(names, [{ group, segment }]);
+    expect(findClimbName(names, group)).toBe("Ma bosse");
+  });
+});

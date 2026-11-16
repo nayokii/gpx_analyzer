@@ -19,10 +19,9 @@
   .gpx-span-8, .gpx-span-7, .gpx-span-5, .gpx-span-4 { grid-column: span 12; }
   .gpx-home-grid { gap: 14px; }
 }
-/* Tablette : Alter Ego et Archétype côte à côte sous le focus */
+/* Tablette : Archétype sous le focus */
 @media (min-width: 681px) and (max-width: 960px) {
   .gpx-home-grid > .gpx-span-8 { order: 1; }
-  .gpx-home-grid > .gpx-home-ae { order: 2; grid-column: span 6; }
   .gpx-home-grid > .gpx-home-ar { order: 3; grid-column: span 6; }
   .gpx-home-grid > .gpx-home-last { order: 4; }
   .gpx-home-grid > .gpx-home-profile { order: 5; }

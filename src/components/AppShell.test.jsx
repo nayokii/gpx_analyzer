@@ -46,7 +46,7 @@ describe("AppShell : fil d'Ariane et page active", () => {
     ["home", ["Pilotage", "Dashboard"]],
     ["rides", ["Pilotage", "Mes sorties"]],
     ["coach", ["Analyses", "Coach"]],
-    ["alterego", ["Progression", "Alter Ego"]],
+    ["progress", ["Pilotage", "Progrès"]],
     ["sources", ["Système", "Sources de données"]],
   ])("page %s", (active, labels) => {
     shell({ active });
@@ -100,7 +100,7 @@ describe("AppShell : actions, import et thème", () => {
   it("changer de page ne réinitialise pas le thème", () => {
     const { rerender } = shell({ active: "home" });
     setThemePreference("dark");
-    for (const active of ["rides", "profil", "alterego", "sources", "home"]) {
+    for (const active of ["rides", "profil", "progress", "sources", "home"]) {
       rerender(<AppShell active={active} onNavigate={() => {}} onImport={() => {}}><h1>{active}</h1></AppShell>);
       expect(document.documentElement.getAttribute("data-theme")).toBe("dark");
       expect(screen.getByRole("radio", { name: "Sombre" }).getAttribute("aria-checked")).toBe("true");

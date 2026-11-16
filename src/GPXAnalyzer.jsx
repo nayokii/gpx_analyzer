@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef, useCallback, useEffect } from "react";
+import React, { useState, useMemo, useRef, useCallback, useEffect, startTransition } from "react";
 import {
   Upload, MapPin, TrendingUp, Activity, Heart, Zap, Mountain, Clock, Gauge,
   RefreshCw, ChevronUp, ChevronDown, X, Download, Info, Flame, Timer,
@@ -42,9 +42,7 @@ import { ProfileChart } from "./components/ProfileChart.jsx";
 import { StorageSettings } from "./components/StorageSettings.jsx";
 import { HistoryDashboard } from "./components/HistoryDashboard.jsx";
 import { ProfileView } from "./components/ProfileView.jsx";
-import { AlterEgoView } from "./components/AlterEgoView.jsx";
 import { ArchetypeView } from "./components/ArchetypeView.jsx";
-import { TourView } from "./components/TourView.jsx";
 import { ClimbsView } from "./components/ClimbsView.jsx";
 import { ProgressView } from "./components/ProgressView.jsx";
 import { CoachView } from "./components/CoachView.jsx";
@@ -139,7 +137,7 @@ export default function GPXAnalyzer() {
   // Lien de récupération de mot de passe (e-mail Supabase) : l'URL d'arrivée porte les jetons dans son fragment.
   // On l'analyse AVANT le premier rendu pour ouvrir directement l'écran « Nouveau mot de passe » (pas de flash d'accueil).
   const [initialRecovery] = useState(() => (typeof window !== "undefined" ? parseRecoveryHash(window.location.hash) : { status: "none" }));
-  const [mode, setMode] = useState(initialRecovery.status === "none" ? "home" : "recovery"); // home | dashboard | historique | profil | alterego | archetype | tour | sources | recovery
+  const [mode, setMode] = useState(initialRecovery.status === "none" ? "home" : "recovery"); // home | dashboard | historique | profil | archetype | sources | recovery
   const [recovery, setRecovery] = useState(() => {
     if (initialRecovery.status === "error") return { phase: "error", message: initialRecovery.message };
     if (initialRecovery.status === "recovery") return { phase: "checking" };
@@ -755,8 +753,8 @@ export default function GPXAnalyzer() {
   // ouverte" reste distinct, affiché par la bande contextuelle en mode
   // "dashboard" (voir plus bas), jamais confondu avec cette navigation.
   function navigateToSection(key) {
-    if (key === "rides") setMode("historique");
-    else setMode(key);
+    // startTransition : le clic répond tout de suite, la vue lourde (graphes, carte) se prépare sans geler l'interface.
+    startTransition(() => setMode(key === "rides" ? "historique" : key));
   }
 
   const activeNavSection = mode === "dashboard" || mode === "historique" ? "rides" : mode;
@@ -1744,35 +1742,11 @@ export default function GPXAnalyzer() {
         />
       )}
 
-      {mode === "alterego" && (
-        <AlterEgoView
-          storage={storage}
-          onConnect={connectStorage}
-          onReconnect={reconnectStorage}
-          onOpen={openActivityFromHistory}
-          onViewArchetype={() => setMode("archetype")}
-          onViewProfile={() => setMode("profil")}
-          onBack={() => setMode(points ? "dashboard" : "home")}
-          userSettings={userSettings}
-        />
-      )}
-
       {mode === "archetype" && (
         <ArchetypeView
           storage={storage}
           onConnect={connectStorage}
           onReconnect={reconnectStorage}
-          onBack={() => setMode(points ? "dashboard" : "home")}
-          userSettings={userSettings}
-        />
-      )}
-
-      {mode === "tour" && (
-        <TourView
-          storage={storage}
-          onConnect={connectStorage}
-          onReconnect={reconnectStorage}
-          onViewProfile={() => setMode("profil")}
           onBack={() => setMode(points ? "dashboard" : "home")}
           userSettings={userSettings}
         />

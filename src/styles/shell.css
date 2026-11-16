@@ -151,3 +151,21 @@
   .gpx-sidebar, .gpx-shell-header, .gpx-bottomnav-wrap, .gpx-skip-link { display: none !important; }
   .gpx-shell { display: block; }
 }
+
+/* ---------- Fluidité : transitions de page et retours tactiles ---------- */
+html { scroll-behavior: smooth; }
+.gpx-app button, .gpx-app a, .gpx-app [role="button"], .gpx-app select, .gpx-app summary {
+  touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+}
+.gpx-page { animation: gpx-page-in var(--dur-base) var(--ease) backwards; }
+@keyframes gpx-page-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+.gpx-sidebar-item, .gpx-bottomnav-item, .gpx-more-item, .gpx-btn-primary, .gpx-btn-ghost, .gpx-home-card {
+  transition: color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
+}
+.gpx-sidebar-item:active, .gpx-bottomnav-item:active, .gpx-more-item:active, .gpx-btn-primary:active, .gpx-btn-ghost:active, .gpx-home-card:active {
+  transform: scale(0.98);
+}
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .gpx-page { animation: none; }
+}

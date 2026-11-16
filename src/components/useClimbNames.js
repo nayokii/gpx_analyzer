@@ -6,7 +6,7 @@
  */
 import { useCallback, useEffect, useState } from "react";
 import {
-  STORAGE_KEY, loadClimbNames, saveClimbName, mergeClimbNames, readClimbNamesFile, writeClimbNamesFile,
+  STORAGE_KEY, loadClimbNames, saveClimbName, saveStravaLinks, mergeClimbNames, readClimbNamesFile, writeClimbNamesFile,
 } from "../lib/climbs/climbNames.js";
 
 /** @param {FileSystemDirectoryHandle|null} rootHandle */
@@ -33,5 +33,12 @@ export function useClimbNames(rootHandle) {
     writeClimbNamesFile(rootHandle, next); // meilleur effort : le nom reste valable dans le navigateur
   }, [names, rootHandle]);
 
-  return { names, rename };
+  const linkStrava = useCallback((links) => {
+    if (links.length === 0) return;
+    const next = saveStravaLinks(names, links);
+    setNames(next);
+    writeClimbNamesFile(rootHandle, next);
+  }, [names, rootHandle]);
+
+  return { names, rename, linkStrava };
 }

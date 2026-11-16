@@ -9,6 +9,7 @@
  *
  * Les titres h1 restent ceux des pages (le fil d'Ariane est un repère de contexte, pas un second titre).
  */
+import { useEffect, useRef } from "react";
 import { ChevronRight, Upload } from "lucide-react";
 
 import { SidebarNav, BottomNav, findNavItem, findNavGroup } from "./AppNav.jsx";
@@ -41,6 +42,15 @@ export function buildCrumbs(active, rideContext, onNavigate) {
  */
 export function AppShell({ active, onNavigate, onImport, rideContext = null, actions = null, children }) {
   const crumbs = buildCrumbs(active, rideContext, onNavigate);
+  const pageKey = rideContext ? `${active}:ride` : active;
+
+  // Changement de page : on repart en haut, sans saut brutal (le focus reste où l'utilisateur vient de cliquer).
+  const firstPage = useRef(true);
+  useEffect(() => {
+    if (firstPage.current) { firstPage.current = false; return; }
+    try { if (typeof window.scrollTo === "function") window.scrollTo({ top: 0, left: 0, behavior: "instant" }); } catch { /* jsdom */ }
+  }, [pageKey]);
+
   return (
     <div className="gpx-app gpx-shell">
       <a className="gpx-skip-link" href="#gpx-main">Aller au contenu</a>
@@ -76,7 +86,7 @@ export function AppShell({ active, onNavigate, onImport, rideContext = null, act
           </div>
         </header>
         <main id="gpx-main" className="gpx-shell-content" tabIndex={-1}>
-          {children}
+          <div className="gpx-page" key={pageKey}>{children}</div>
         </main>
       </div>
       <BottomNav active={active} onNavigate={onNavigate} />
