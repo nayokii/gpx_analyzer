@@ -11,6 +11,9 @@ import {
 
 import { StorageSettings } from "./StorageSettings.jsx";
 import { RecapShareDialog } from "./RecapShareDialog.jsx";
+import { FitnessPanel } from "./FitnessPanel.jsx";
+import { ZonesPanel } from "./ZonesPanel.jsx";
+import { HeatmapPanel } from "./HeatmapPanel.jsx";
 import { PageHead, SectionTitle } from "./UIPrimitives.jsx";
 import { useActivityRepository, useUnifiedActivities } from "./useActivityRepository.js";
 import {
@@ -192,10 +195,24 @@ function MonthlyComparison({ activities, metric, setMetric }) {
   );
 }
 
-export function ProgressView({ storage, onConnect, onReconnect, onBack, userSettings }) {
+const SECTIONS = [
+  { key: "bilan", label: "Bilan" },
+  { key: "forme", label: "Forme" },
+  { key: "zones", label: "Zones" },
+  { key: "carte", label: "Carte" },
+];
+/** Nombre de sorties complètes (échantillons, tracés) chargées pour les zones et la carte — les plus récentes. */
+const MAX_FULL_ACTIVITIES = 150;
+
+export function ProgressView({ storage, onConnect, onReconnect, onOpen, onBack, userSettings, maxHR = 190 }) {
   const { repository } = useActivityRepository(storage, userSettings);
-  const { summaries, summariesError } = useUnifiedActivities(repository, { max: 0 });
+  const [section, setSection] = useState("bilan");
+  const [fullWanted, setFullWanted] = useState(false); // les sorties complètes ne sont chargées qu'à la première visite de Zones ou Carte
+  const { summaries, summariesError, fullActivities, failedCount } = useUnifiedActivities(repository, { max: fullWanted ? MAX_FULL_ACTIVITIES : 0 });
   const ready = storage.status === "connected" || repository.hasCloud;
+  const fullLoading = fullActivities == null || (fullActivities.length === 0 && failedCount === 0 && summaries != null && summaries.length > 0);
+  const fullLimit = summaries && summaries.length > MAX_FULL_ACTIVITIES ? MAX_FULL_ACTIVITIES : null;
+  const goSection = (key) => { if (key === "zones" || key === "carte") setFullWanted(true); setSection(key); };
 
   const [sport, setSport] = useState("all");
   const [kind, setKind] = useState("week");
@@ -235,6 +252,24 @@ export function ProgressView({ storage, onConnect, onReconnect, onBack, userSett
       )}
 
       {ready && summaries && summaries.length > 0 && (
+        <div className="gpx-progress-sections" role="tablist" aria-label="Sections">
+          {SECTIONS.map((x) => (
+            <button key={x.key} role="tab" aria-selected={section === x.key} className={"gpx-progress-tab" + (section === x.key ? " active" : "")} onClick={() => goSection(x.key)}>{x.label}</button>
+          ))}
+        </div>
+      )}
+
+      {ready && summaries && summaries.length > 0 && section === "forme" && (
+        <FitnessPanel activities={summaries} userSettings={userSettings} maxHR={maxHR} onOpen={onOpen ? (a) => onOpen(a.id) : undefined} />
+      )}
+      {ready && summaries && summaries.length > 0 && section === "zones" && (
+        <ZonesPanel activities={fullActivities} loading={fullLoading} limit={fullLimit} userSettings={userSettings} maxHR={maxHR} />
+      )}
+      {ready && summaries && summaries.length > 0 && section === "carte" && (
+        <HeatmapPanel activities={fullActivities} loading={fullLoading} limit={fullLimit} />
+      )}
+
+      {ready && summaries && summaries.length > 0 && section === "bilan" && (
         <>
           <div className="gpx-panel">
             <div className="gpx-progress-toolbar">

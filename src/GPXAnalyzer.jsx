@@ -1783,6 +1783,8 @@ export default function GPXAnalyzer() {
           storage={storage}
           onConnect={connectStorage}
           onReconnect={reconnectStorage}
+          onOpen={openActivityFromHistory}
+          maxHR={maxHR}
           onBack={() => setMode(points ? "dashboard" : "home")}
           userSettings={userSettings}
         />
