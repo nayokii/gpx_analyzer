@@ -1,0 +1,47 @@
+/* Page « Progrès » : totaux par période, graphique, série, comparatif mensuel. */
+.gpx-progress-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 14px; margin-bottom: 12px; }
+.gpx-progress-periods { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; padding: 4px; margin: 6px 0 14px; border-radius: 12px; background: var(--surface2); }
+.gpx-progress-tab { border: 0; background: transparent; color: var(--muted); font: inherit; font-weight: 600; padding: 9px 0; border-radius: 9px; cursor: pointer; }
+.gpx-progress-tab.active { background: var(--surface); color: var(--text); box-shadow: var(--shadow-card); }
+.gpx-progress-nav { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
+.gpx-progress-label { margin: 0; font-size: 19px; letter-spacing: -0.02em; text-align: center; flex: 1; }
+.gpx-progress-nav .gpx-icon-btn:disabled { opacity: 0.3; cursor: default; }
+
+.gpx-progress-headline { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px 16px; margin: 4px 0 12px; }
+.gpx-progress-headline > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.gpx-progress-headline span { font-size: 13px; color: var(--muted); }
+.gpx-progress-headline strong { font-size: clamp(20px, 5.2vw, 30px); letter-spacing: -0.03em; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.gpx-progress-headline small { font-size: 0.55em; font-weight: 600; color: var(--muted); letter-spacing: 0; }
+.gpx-progress-delta { display: inline-flex; align-items: center; gap: 3px; font-size: 12px; font-weight: 600; color: var(--muted); }
+.gpx-progress-delta.is-up, .gpx-progress-table .is-up { color: var(--speed-ink, var(--speed)); }
+.gpx-progress-delta.is-down, .gpx-progress-table .is-down { color: var(--effort-ink, var(--effort)); }
+.gpx-progress-minor { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px 16px; margin: 0 0 14px; padding: 10px 12px; border-radius: 10px; background: var(--surface2); }
+.gpx-progress-minor dt { font-size: 12px; color: var(--muted); }
+.gpx-progress-minor dd { margin: 2px 0 0; font-weight: 700; font-variant-numeric: tabular-nums; }
+.gpx-progress-metrics { margin: 4px 0 2px; }
+.gpx-progress-sub { margin: 6px 0 2px; font-size: 12.5px; color: var(--muted); }
+.gpx-progress-chart { width: 100%; }
+
+.gpx-progress-streak { display: flex; flex-wrap: wrap; align-items: center; gap: 18px 36px; }
+.gpx-progress-flame { position: relative; display: flex; flex-direction: column; align-items: center; color: #ff5a00; font-weight: 800; }
+.gpx-progress-flame svg { fill: currentColor; }
+.gpx-progress-flame b { position: absolute; top: 20px; color: #fff; font-size: 17px; }
+.gpx-progress-flame span { font-size: 15px; }
+.gpx-progress-cal-title { margin: 0 0 6px; font-size: 13px; color: var(--muted); }
+.gpx-progress-cal { display: grid; grid-template-columns: repeat(7, 18px); gap: 7px; }
+.gpx-progress-cal-h { font-style: normal; font-size: 10px; text-align: center; color: var(--faint); }
+.gpx-progress-dot { width: 18px; height: 18px; border-radius: 50%; background: var(--surface2); }
+.gpx-progress-dot.is-on { background: var(--text); }
+.gpx-progress-dot.is-future { background: transparent; border: 1.5px solid var(--separator); }
+.gpx-progress-dot.is-blank { background: transparent; }
+
+.gpx-progress-year { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
+.gpx-progress-year select { padding: 6px 10px; border-radius: 8px; border: 1px solid var(--separator); background: var(--surface2); color: var(--text); font: inherit; }
+.gpx-progress-legend { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 0 0 6px; font-size: 13px; color: var(--muted); }
+.gpx-progress-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; }
+.gpx-progress-table-wrap { margin-top: 12px; overflow-x: auto; }
+.gpx-progress-table { width: 100%; border-collapse: collapse; font-size: 14px; font-variant-numeric: tabular-nums; }
+.gpx-progress-table th, .gpx-progress-table td { padding: 7px 8px; text-align: right; border-bottom: 1px solid var(--separator); }
+.gpx-progress-table th:first-child { text-align: left; font-weight: 600; text-transform: capitalize; }
+.gpx-progress-table thead th { font-size: 12px; color: var(--faint); text-transform: uppercase; letter-spacing: 0.05em; }
+.gpx-progress-table td { font-weight: 600; }

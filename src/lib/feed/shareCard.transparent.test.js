@@ -187,12 +187,12 @@ describe("fond transparent — instructions de dessin", () => {
 });
 
 describe("clair et sombre : rendus inchangés par l'ajout du fond transparent", () => {
-  // Empreintes (journal complet des instructions de dessin, propriétés et dégradés compris). Mises à jour pour le tracé rose de marque : seul le nom de couleur change (même nombre d'instructions).
+  // Empreintes (journal complet des instructions de dessin, propriétés et dégradés compris). Mises à jour pour le tracé rose de marque, puis pour les réglages de partage (échelle/décalage du tracé, polices) : le journal compte quelques instructions de plus, mais les PNG clair et sombre par défaut restent identiques au pixel près (vérifié contre l'ancien rendu).
   const BASELINE = {
-    "gps-story-dark": "61cdd857e4c18f45:578", "gps-story-light": "3e72a125656eb9e8:578",
-    "gps-square-dark": "e7d9320e7c570c96:377", "gps-square-light": "2f2e4a78f435754b:377",
-    "nogps-story-dark": "12fcb1c6cee71554:124", "nogps-story-light": "376226a1757c1a6a:124",
-    "nogps-square-dark": "b3ef1710ade66a9a:114", "nogps-square-light": "9e3bc60ccf365d57:114",
+    "gps-story-dark": "3f0d7655eedf9bd9:605", "gps-story-light": "0c4f14e135b5e6bc:605",
+    "gps-square-dark": "0bd10c6c10ef5189:403", "gps-square-light": "0c5d01297bf7501e:403",
+    "nogps-story-dark": "3050746245cbd678:145", "nogps-story-light": "540dc17656f6c26c:145",
+    "nogps-square-dark": "a66fa47de584056b:135", "nogps-square-light": "b31b98f0a519209f:135",
   };
   for (const [key, expected] of Object.entries(BASELINE)) {
     it(`${key} : même suite d'instructions de dessin qu'avant`, () => {
@@ -219,7 +219,8 @@ describe("clair et sombre : rendus inchangés par l'ajout du fond transparent", 
   it("les palettes clair et sombre sont inchangées et le fond transparent est un troisième choix", () => {
     expect(SHARE_THEMES.dark.bg0).toBe("#0b100e");
     expect(SHARE_THEMES.light.bg0).toBe("#f4f7f5");
-    expect(SHARE_BACKGROUNDS.map((b) => b.key)).toEqual(["dark", "light", "transparent"]);
+    expect(SHARE_BACKGROUNDS.map((b) => b.key).slice(0, 2)).toEqual(["dark", "light"]);
+    expect(SHARE_BACKGROUNDS.map((b) => b.key)).toContain("transparent");
     expect([SHARE_FORMATS.story.width, SHARE_FORMATS.story.height]).toEqual([1080, 1920]);
     expect([SHARE_FORMATS.square.width, SHARE_FORMATS.square.height]).toEqual([1080, 1080]);
   });

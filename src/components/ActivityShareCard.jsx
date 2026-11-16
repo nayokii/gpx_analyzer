@@ -18,14 +18,17 @@ import { buildShareModel, renderShareCard } from "../lib/feed/shareCard.js";
  * @param {string[]} [props.hidden] - statistiques masquées
  * @param {boolean} [props.hidePlaces]
  * @param {boolean} [props.simplify]
+ * @param {Object} [props.custom] - style, font, accent, hiddenParts, extra, textScale, routeScale, routeX, routeY, routeWidth (voir buildShareModel)
  */
-export function ActivityShareCard({ activity, name, format = "story", theme = "dark", hidden = [], hidePlaces = true, simplify = true, className = "" }) {
+export function ActivityShareCard({ activity, name, format = "story", theme = "dark", hidden = [], hidePlaces = true, simplify = true, className = "", ...custom }) {
   const canvasRef = useRef(null);
-  const hiddenKey = hidden.join(",");
+  // Les listes sont recréées à chaque rendu parent : leur clé texte suffit comme dépendance.
+  const listKey = [hidden, custom.hiddenParts || [], custom.extra || []].map((l) => l.join(",")).join("|");
+  const { style, font, accent, textScale, routeScale, routeX, routeY, routeWidth } = custom;
   const model = useMemo(
-    () => buildShareModel(activity, { name, format, theme, hidden, hidePlaces, simplify }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- `hidden` est recréé à chaque rendu parent ; sa clé texte suffit
-    [activity, name, format, theme, hiddenKey, hidePlaces, simplify]
+    () => buildShareModel(activity, { name, format, theme, hidden, hidePlaces, simplify, ...custom }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `custom` est recréé à chaque rendu ; ses champs sont listés un à un
+    [activity, name, format, theme, listKey, hidePlaces, simplify, style, font, accent, textScale, routeScale, routeX, routeY, routeWidth]
   );
 
   useEffect(() => {

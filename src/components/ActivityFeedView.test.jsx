@@ -211,6 +211,7 @@ describe("ActivityFeedView — tri, filtres, pagination", () => {
 });
 
 describe("ActivityFeedView — partage", () => {
+  beforeEach(() => { try { window.localStorage.clear(); } catch { /* ignoré */ } }); // réglages de partage mémorisés : repartir des valeurs par défaut
   it("ouvre l'aperçu avec les deux formats, les thèmes et les options de confidentialité", async () => {
     vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(recordingCtx());
     const root = new MemoryDirectoryHandle();
@@ -228,7 +229,9 @@ describe("ActivityFeedView — partage", () => {
     expect(within(dialog).getByText(/Télécharger PNG \(1080×1080\)/)).toBeTruthy();
 
     expect(within(dialog).getByRole("radio", { name: "Clair" })).toBeTruthy();
+    fireEvent.click(within(dialog).getByRole("tab", { name: "Éléments" }));
     expect(within(dialog).getByLabelText(/Masquer départ et arrivée/).checked).toBe(true);
+    fireEvent.click(within(dialog).getByRole("tab", { name: "Texte" }));
     fireEvent.click(within(dialog).getByLabelText("Durée"));
     fireEvent.keyDown(window, { key: "Escape" });
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
@@ -244,7 +247,7 @@ describe("ActivityFeedView — partage", () => {
     const dialog = await screen.findByRole("dialog");
 
     const bg = within(dialog).getByRole("radiogroup", { name: "Fond de l'image" });
-    expect(within(bg).getAllByRole("radio").map((r) => r.textContent)).toEqual(["Sombre", "Clair", "Transparent"]);
+    expect(within(bg).getAllByRole("radio").map((r) => r.getAttribute("aria-label"))).toEqual(["Sombre", "Clair", "Noir", "Coucher de soleil", "Océan", "Forêt", "Transparent"]);
     expect(dialog.querySelector(".gpx-share-preview--transparent")).toBeNull();
     fireEvent.click(within(bg).getByRole("radio", { name: "Transparent" }));
     expect(dialog.querySelector(".gpx-share-preview--transparent")).toBeTruthy();

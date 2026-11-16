@@ -11,7 +11,7 @@
  */
 import { useEffect, useRef, useState } from "react";
 import {
-  History as HistoryIcon, UserRound, Trophy, Fingerprint, Flag, Mountain, NotebookText, Newspaper, LayoutDashboard, Database, Ellipsis,
+  History as HistoryIcon, UserRound, Trophy, Fingerprint, Flag, Mountain, NotebookText, Newspaper, BarChart3, LayoutDashboard, Database, Ellipsis,
 } from "lucide-react";
 
 export const NAV_GROUPS = [
@@ -21,6 +21,7 @@ export const NAV_GROUPS = [
       { key: "home", label: "Dashboard", short: "Dashboard", icon: LayoutDashboard },
       { key: "rides", label: "Mes sorties", short: "Sorties", icon: HistoryIcon },
       { key: "feed", label: "Activités", short: "Activités", icon: Newspaper },
+      { key: "progress", label: "Progrès", short: "Progrès", icon: BarChart3 },
     ],
   },
   {
@@ -37,7 +38,7 @@ export const NAV_GROUPS = [
   { key: "systeme", label: "Système", items: [{ key: "sources", label: "Sources de données", short: "Sources", icon: Database }] },
 ];
 
-/** Les 9 destinations de contenu (hors « Sources de données », qui relève du système). */
+/** Les 10 destinations de contenu (hors « Sources de données », qui relève du système). */
 export const NAV_ITEMS = NAV_GROUPS.flatMap((g) => g.items).filter((i) => i.key !== "sources");
 
 const ALL_ITEMS = NAV_GROUPS.flatMap((g) => g.items);
