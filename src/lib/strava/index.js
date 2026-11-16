@@ -18,6 +18,8 @@ export {
 
 export { syncStrava, isProbableDuplicate } from "./sync.js";
 
+export { findStravaSegmentsForClimbs, pickSegmentForClimb, boundsAround } from "./segments.js";
+
 export { loadStravaState, saveStravaState, clearStravaState } from "./storage.js";
 
 export { createEmptyStravaState } from "./types.js";

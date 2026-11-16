@@ -34,7 +34,7 @@ describe("isolation de lib/terrain", () => {
     for (const dir of ["lib/profile/", "lib/archetypes/", "lib/simulator/", "lib/coach/", "lib/progression/", "lib/history/", "lib/storage/", "lib/cloud/"]) {
       expect(all.some((f) => f.file.startsWith(dir)), dir).toBe(true);
     }
-    for (const f of ["components/ProfileView.jsx", "components/AlterEgoView.jsx", "components/ArchetypeView.jsx", "components/TourView.jsx", "components/HistoryDashboard.jsx", "components/ActivityFeedView.jsx", "components/CloudAccountPanel.jsx"]) {
+    for (const f of ["components/ProfileView.jsx", "components/ArchetypeView.jsx", "components/HistoryDashboard.jsx", "components/ActivityFeedView.jsx", "components/CloudAccountPanel.jsx"]) {
       expect(all.some((x) => x.file === f), f).toBe(true);
     }
   });

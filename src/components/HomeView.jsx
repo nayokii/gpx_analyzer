@@ -48,7 +48,6 @@ import { ProgressionHistoryPanel, ProvenanceLegend } from "./cockpit/CockpitPane
 import { COLORS } from "../lib/colors.js";
 import { useActivityRepository, useUnifiedActivities } from "./useActivityRepository.js";
 import { confidenceLabel } from "../lib/profile/confidence.js";
-import { getXpProgress } from "../lib/progression/levels.js";
 import { getCachedProfile, getCachedProgression, getCachedArchetypeMatch, getCachedClimbGroups } from "../lib/derivedCache.js";
 import { useClimbNames } from "./useClimbNames.js";
 import { recordsForActivity } from "../lib/climbs/climbRegistry.js";
@@ -114,7 +113,7 @@ function xpInLastDays(events, days, now) {
 /* Ton focus — bloc dominant                                           */
 /* ------------------------------------------------------------------ */
 
-function FocusSection({ profile, progression, onViewChallenges }) {
+function FocusSection({ profile, progression }) {
   const coldStart = profile.activityCount < 2;
   const confLabel = confidenceLabel(profile.overallConfidence);
   const focus = coldStart ? null : pickFocusChallenge(progression.challenges);
@@ -155,14 +154,13 @@ function FocusSection({ profile, progression, onViewChallenges }) {
         <span className="gpx-profile-card-meta">
           Confiance du profil : <b className={`gpx-confidence-${confLabel}`}>{CONFIDENCE_LABELS[confLabel] || "insuffisante"}</b>
         </span>
-        {!coldStart && <button className="gpx-link-btn" onClick={onViewChallenges}>Voir tous mes challenges</button>}
       </div>
     </div>
   );
 }
 
 /* ------------------------------------------------------------------ */
-/* Carte de synthèse générique (Alter Ego / Archétype)                  */
+/* Carte de synthèse générique (Archétype)                  */
 /* ------------------------------------------------------------------ */
 
 function HomeCard({ icon: Icon, title, onOpen, children }) {
@@ -174,22 +172,6 @@ function HomeCard({ icon: Icon, title, onOpen, children }) {
       </div>
       <div className="gpx-home-card-body">{children}</div>
     </button>
-  );
-}
-
-function AlterEgoPreview({ progression, onOpen }) {
-  const xp = getXpProgress(progression.xp);
-  const pct = Math.round(xp.progress * 100);
-  return (
-    <HomeCard icon={Trophy} title="Alter Ego" onOpen={onOpen}>
-      <div className="gpx-home-card-headline">Niveau {progression.level}</div>
-      <div className="gpx-home-card-sub">{progression.title} · {progression.xp} XP</div>
-      <div className="gpx-xp-bar" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct} aria-label={`Progression vers le niveau ${progression.level + 1}`}>
-        <div style={{ width: `${pct}%` }} />
-      </div>
-      <div className="gpx-profile-card-meta">{pct}% vers le niveau {progression.level + 1}</div>
-      <span className="gpx-home-card-link">Voir Alter Ego</span>
-    </HomeCard>
   );
 }
 
@@ -336,7 +318,7 @@ function EmptyStateImport({ storage, onConnect, onReconnect, upload, onLoadDemo,
  * @param {Object} props.storage
  * @param {Function} props.onConnect
  * @param {Function} props.onReconnect
- * @param {Function} props.onNavigate - (section: "rides"|"profil"|"alterego"|"archetype") => void
+ * @param {Function} props.onNavigate - (section: "rides"|"profil"|"archetype"|"climbs") => void
  * @param {Function} props.onOpenActivity - (id) => void, ouvre une sortie dans l'analyse
  * @param {Function} props.onLoadDemo
  * @param {Object} [props.userSettings] - paramètres de puissance de l'app (poids, FTP, estimation) pour l'analyse du cockpit
@@ -421,8 +403,7 @@ export function HomeView({ storage, onConnect, onReconnect, onNavigate, onOpenAc
           <ClimbRecordsPanel records={climbRecords} names={climbNames} onOpen={() => onNavigate("climbs")} />
 
           <div className="gpx-home-grid ck-progress-grid">
-            <Reveal className="gpx-span-8"><FocusSection profile={profile} progression={progression} onViewChallenges={() => onNavigate("alterego")} /></Reveal>
-            <Reveal className="gpx-span-4 gpx-home-ae" delay={40}><AlterEgoPreview progression={progression} onOpen={() => onNavigate("alterego")} /></Reveal>
+            <Reveal className="gpx-span-12"><FocusSection profile={profile} progression={progression} /></Reveal>
             <Reveal className="gpx-span-7 gpx-home-profile" delay={80}><ProfilePreviewSection profile={profile} onOpen={() => onNavigate("profil")} /></Reveal>
             <Reveal className="gpx-span-5 gpx-home-ar" delay={120}><ArchetypePreview archetypeMatch={archetypeMatch} onOpen={() => onNavigate("archetype")} /></Reveal>
             <Reveal className="gpx-span-12" delay={160}><ProgressionHistoryPanel progression={progression} /></Reveal>

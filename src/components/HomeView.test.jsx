@@ -228,7 +228,7 @@ describe("HomeView — cold start (1 vraie sortie, profil insuffisant)", () => {
     expect(screen.getByText(/Continue à enregistrer des sorties/)).toBeTruthy();
   });
 
-  it("les aperçus Alter Ego/Archétype/Profil/Dernière sortie reflètent exactement les moteurs appelés directement", async () => {
+  it("les aperçus Archétype/Profil/Dernière sortie reflètent exactement les moteurs appelés directement", async () => {
     const root = new MemoryDirectoryHandle();
     const { activity, arrayBuffer } = await loadRealFitActivity();
     await saveActivity(root, activity, arrayBuffer, "fit");
@@ -240,7 +240,6 @@ describe("HomeView — cold start (1 vraie sortie, profil insuffisant)", () => {
     render(<HomeView storage={connectedStorage(root)} onConnect={noop} onReconnect={noop} onNavigate={noop} onOpenActivity={noop} onLoadDemo={noop} upload={noopUpload} />);
     await waitFor(() => expect(screen.getByText("Bonjour.")).toBeTruthy());
 
-    expect(screen.getByText(`Niveau ${progression.level}`)).toBeTruthy();
     expect(screen.getByText(archetypeMatch.combinedLabel)).toBeTruthy();
     expect(screen.getByText(String(profile.dimensions.endurance.value))).toBeTruthy();
     expect(screen.getAllByText("Données insuffisantes").length).toBeGreaterThan(0); // sprint est null sur cette vraie sortie
@@ -297,16 +296,6 @@ describe("HomeView — profil plus complet (davantage de dimensions exploitables
 describe("HomeView — navigation (raccourcis, pas un remplacement de AppNav)", () => {
   const activities = [makeActivity({ id: "a1" })];
 
-  it("ouvre Alter Ego au clic sur son aperçu", async () => {
-    const root = new MemoryDirectoryHandle();
-    await seed(root, activities);
-    const onNavigate = vi.fn();
-    render(<HomeView storage={connectedStorage(root)} onConnect={noop} onReconnect={noop} onNavigate={onNavigate} onOpenActivity={noop} onLoadDemo={noop} upload={noopUpload} />);
-    await waitFor(() => expect(screen.getByText("Bonjour.")).toBeTruthy());
-    fireEvent.click(screen.getByText("Alter Ego").closest(".gpx-home-card"));
-    expect(onNavigate).toHaveBeenCalledWith("alterego");
-  });
-
   it("ouvre Archétype au clic sur son aperçu", async () => {
     const root = new MemoryDirectoryHandle();
     await seed(root, activities);
@@ -335,16 +324,6 @@ describe("HomeView — navigation (raccourcis, pas un remplacement de AppNav)", 
     await waitFor(() => expect(screen.getByText("Bonjour.")).toBeTruthy());
     fireEvent.click(screen.getByText("Voir l'analyse"));
     expect(onOpenActivity).toHaveBeenCalledWith("a1");
-  });
-
-  it("le lien 'Voir tous mes challenges' du focus mène à Alter Ego, uniquement quand un focus est affiché", async () => {
-    const root = new MemoryDirectoryHandle();
-    await seed(root, [makeActivity({ id: "a1", date: "2026-06-01T08:00:00Z" }), makeActivity({ id: "a2", date: "2026-06-08T08:00:00Z" })]);
-    const onNavigate = vi.fn();
-    render(<HomeView storage={connectedStorage(root)} onConnect={noop} onReconnect={noop} onNavigate={onNavigate} onOpenActivity={noop} onLoadDemo={noop} upload={noopUpload} />);
-    await waitFor(() => expect(screen.getByText("Bonjour.")).toBeTruthy());
-    fireEvent.click(screen.getByText("Voir tous mes challenges"));
-    expect(onNavigate).toHaveBeenCalledWith("alterego");
   });
 });
 

@@ -7,11 +7,11 @@
  * « rides » actif — c'est le fil d'Ariane du shell qui porte le contexte « sortie ouverte ».
  *
  * Aucune destination sans route réelle : « Sources de données » ouvre le mode `sources` existant ; Carte, Objectifs et
- * Records n'ont pas de page propre (ils vivent dans le détail d'une sortie, Alter Ego et le Dashboard).
+ * Records n'ont pas de page propre (ils vivent dans le détail d'une sortie et le Dashboard).
  */
 import { useEffect, useRef, useState } from "react";
 import {
-  History as HistoryIcon, UserRound, Trophy, Fingerprint, Flag, Mountain, NotebookText, Newspaper, BarChart3, LayoutDashboard, Database, Ellipsis,
+  History as HistoryIcon, UserRound, Fingerprint, Mountain, NotebookText, Newspaper, BarChart3, LayoutDashboard, Database, Ellipsis,
 } from "lucide-react";
 
 export const NAV_GROUPS = [
@@ -31,19 +31,17 @@ export const NAV_GROUPS = [
       { key: "climbs", label: "Montées", short: "Montées", icon: Mountain },
       { key: "profil", label: "Profil", short: "Profil", icon: UserRound },
       { key: "archetype", label: "Archétype", short: "Archétype", icon: Fingerprint },
-      { key: "tour", label: "Tour", short: "Tour", icon: Flag },
     ],
   },
-  { key: "progression", label: "Progression", items: [{ key: "alterego", label: "Alter Ego", short: "Alter Ego", icon: Trophy }] },
   { key: "systeme", label: "Système", items: [{ key: "sources", label: "Sources de données", short: "Sources", icon: Database }] },
 ];
 
-/** Les 10 destinations de contenu (hors « Sources de données », qui relève du système). */
+/** Les 8 destinations de contenu (hors « Sources de données », qui relève du système). */
 export const NAV_ITEMS = NAV_GROUPS.flatMap((g) => g.items).filter((i) => i.key !== "sources");
 
 const ALL_ITEMS = NAV_GROUPS.flatMap((g) => g.items);
 /** Destinations prioritaires de la barre basse mobile ; les autres sont dans le menu « Plus ». */
-export const MOBILE_PRIMARY_KEYS = ["home", "rides", "feed", "alterego"];
+export const MOBILE_PRIMARY_KEYS = ["home", "rides", "feed", "progress"];
 
 export function findNavItem(key) {
   return ALL_ITEMS.find((i) => i.key === key) || null;

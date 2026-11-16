@@ -8,12 +8,12 @@ const ALL_KEYS = NAV_GROUPS.flatMap((g) => g.items.map((i) => i.key));
 
 describe("destinations de navigation", () => {
   it("expose les 10 destinations de contenu existantes (Historique « rides » conservé) + les sources de données", () => {
-    expect([...NAV_ITEMS.map((i) => i.key)].sort()).toEqual(["alterego", "archetype", "climbs", "coach", "feed", "home", "profil", "progress", "rides", "tour"]);
-    expect([...ALL_KEYS].sort()).toEqual(["alterego", "archetype", "climbs", "coach", "feed", "home", "profil", "progress", "rides", "sources", "tour"]);
+    expect([...NAV_ITEMS.map((i) => i.key)].sort()).toEqual(["archetype", "climbs", "coach", "feed", "home", "profil", "progress", "rides"]);
+    expect([...ALL_KEYS].sort()).toEqual(["archetype", "climbs", "coach", "feed", "home", "profil", "progress", "rides", "sources"]);
   });
 
-  it("regroupe en Pilotage / Analyses / Progression / Système, sans doublon de clé", () => {
-    expect(NAV_GROUPS.map((g) => g.label)).toEqual(["Pilotage", "Analyses", "Progression", "Système"]);
+  it("regroupe en Pilotage / Analyses / Système, sans doublon de clé", () => {
+    expect(NAV_GROUPS.map((g) => g.label)).toEqual(["Pilotage", "Analyses", "Système"]);
     expect(new Set(ALL_KEYS).size).toBe(ALL_KEYS.length);
     expect(findNavGroup("sources").label).toBe("Système");
     expect(findNavItem("rides").label).toBe("Mes sorties");

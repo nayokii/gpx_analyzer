@@ -8,8 +8,8 @@
  * (`useActivityRepository` + `useUnifiedActivities`) et ne fait que lecture :
  * jamais d'écriture d'activité.
  */
-import { useMemo, useState } from "react";
-import { ArrowLeft, Mountain, TrendingUp, Timer, Pencil } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { ArrowLeft, Mountain, TrendingUp, Timer, Pencil, ExternalLink, RefreshCw } from "lucide-react";
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip } from "recharts";
 
 import { ClimbMap } from "./ClimbMap.jsx";
@@ -19,11 +19,20 @@ import { useActivityRepository, useUnifiedActivities } from "./useActivityReposi
 import { useClimbNames } from "./useClimbNames.js";
 import { getCachedClimbGroups } from "../lib/derivedCache.js";
 import { summarizeAttempts, compareLatestToBest } from "../lib/climbs/climbRegistry.js";
-import { findClimbName, MAX_NAME_LENGTH } from "../lib/climbs/climbNames.js";
+import { findClimbName, findClimbStrava, MAX_NAME_LENGTH } from "../lib/climbs/climbNames.js";
+import { loadStravaState, findStravaSegmentsForClimbs, StravaApiUnavailableError } from "../lib/strava/index.js";
 import { COLORS, CHART_TOOLTIP_STYLE, CHART_AXIS } from "../lib/colors.js";
 import { fmt1, fmtInt, fmtDuration } from "../lib/utils.js";
 
 const MAX_CLIMB_ACTIVITIES = 200;
+const STRAVA_CATEGORIES = { 1: "Cat. 4", 2: "Cat. 3", 3: "Cat. 2", 4: "Cat. 1", 5: "Hors catégorie" };
+
+function stravaErrorMessage(err) {
+  if (err instanceof StravaApiUnavailableError && (err.status === 401 || err.status === 403)) {
+    return "Strava a refusé l'accès aux segments. Reconnecte Strava dans Sources de données (l'autorisation de lecture des segments est nécessaire).";
+  }
+  return err && err.message ? err.message : "Impossible de récupérer les segments Strava.";
+}
 
 function shortDate(iso) {
   if (!iso) return "—";
@@ -76,13 +85,21 @@ function ProgressionChart({ attempts }) {
   );
 }
 
-function ClimbDetail({ group, name, summary, onSaveName, onOpen }) {
+function ClimbDetail({ group, name, strava, summary, onSaveName, onOpen }) {
   const rows = group.attempts.slice().reverse();
   const comparison = compareLatestToBest(group.attempts);
   return (
     <div className="gpx-panel">
       <SectionTitle icon={Mountain}>{name || "Montée sans nom"}</SectionTitle>
       <ClimbNameField key={group.id} name={name} onSave={onSaveName} />
+      {strava && (
+        <p className="gpx-climb-strava">
+          Segment Strava : <b>{strava.name}</b>{STRAVA_CATEGORIES[strava.category] ? ` · ${STRAVA_CATEGORIES[strava.category]}` : ""}{" "}
+          <a href={`https://www.strava.com/segments/${strava.id}`} target="_blank" rel="noopener noreferrer">
+            Voir sur Strava <ExternalLink size={12} aria-hidden="true" />
+          </a>
+        </p>
+      )}
       <ClimbMap key={group.id} path={group.path} />
       <div className="gpx-stats-grid">
         <StatCard icon={Mountain} label="Longueur" value={fmt1(group.distanceM / 1000)} unit="km" accent={COLORS.climb} />
@@ -154,12 +171,46 @@ function ClimbDetail({ group, name, summary, onSaveName, onOpen }) {
 export function ClimbsView({ storage, onConnect, onReconnect, onOpen, onBack, userSettings }) {
   const { repository } = useActivityRepository(storage, userSettings);
   const { summaries, summariesError, fullActivities } = useUnifiedActivities(repository, { max: MAX_CLIMB_ACTIVITIES });
-  const { names, rename } = useClimbNames(storage.status === "connected" ? storage.rootHandle : null);
+  const rootHandle = storage.status === "connected" ? storage.rootHandle : null;
+  const { names, rename, linkStrava } = useClimbNames(rootHandle);
+  const [stravaState, setStravaState] = useState(null);
+  const [stravaBusy, setStravaBusy] = useState(false);
+  const [stravaNote, setStravaNote] = useState(null);
+
+  useEffect(() => {
+    if (!rootHandle) { setStravaState(null); return undefined; }
+    let cancelled = false;
+    loadStravaState(rootHandle).then((st) => { if (!cancelled) setStravaState(st); });
+    return () => { cancelled = true; };
+  }, [rootHandle]);
   const [selectedId, setSelectedId] = useState(null);
 
   const ready = storage.status === "connected" || repository.hasCloud;
 
   const groups = useMemo(() => (fullActivities ? getCachedClimbGroups(fullActivities) : null), [fullActivities]);
+  const unlinked = groups ? groups.filter((g) => !findClimbStrava(names, g)) : [];
+
+  async function fetchStravaSegments() {
+    if (!rootHandle || !stravaState || unlinked.length === 0) return;
+    setStravaBusy(true);
+    setStravaNote(null);
+    try {
+      const { matches, searched, rateLimited } = await findStravaSegmentsForClimbs({
+        rootHandle, state: stravaState, groups: unlinked,
+        onProgress: (done, total) => setStravaNote(`Recherche des segments Strava… ${done}/${total}`),
+      });
+      linkStrava(matches);
+      setStravaNote(
+        `${matches.length} montée${matches.length > 1 ? "s" : ""} rapprochée${matches.length > 1 ? "s" : ""} d'un segment Strava sur ${searched} cherchée${searched > 1 ? "s" : ""}.` +
+        (rateLimited ? " Limite de requêtes Strava atteinte : relance dans quelques minutes pour les autres." : "")
+      );
+    } catch (err) {
+      setStravaNote(stravaErrorMessage(err));
+    } finally {
+      setStravaBusy(false);
+    }
+  }
+
   const selected = groups ? groups.find((g) => g.id === selectedId) || groups[0] || null : null;
 
   return (
@@ -188,6 +239,16 @@ export function ClimbsView({ storage, onConnect, onReconnect, onOpen, onBack, us
             <>
               <div className="gpx-panel">
                 <SectionTitle icon={Mountain}>Tes montées</SectionTitle>
+                {stravaState && stravaState.connected ? (
+                  <div className="gpx-climb-strava-bar">
+                    <button className="gpx-btn-ghost" onClick={fetchStravaSegments} disabled={stravaBusy || unlinked.length === 0}>
+                      <RefreshCw size={14} aria-hidden="true" /> <span>{unlinked.length === 0 ? "Segments Strava à jour" : `Récupérer les segments Strava (${unlinked.length})`}</span>
+                    </button>
+                    {stravaNote && <span className="gpx-empty-note" role="status">{stravaNote}</span>}
+                  </div>
+                ) : (
+                  <p className="gpx-empty-note">Connecte Strava dans Sources de données pour retrouver le nom officiel de tes montées.</p>
+                )}
                 <ul className="gpx-climb-list">
                   {groups.map((g) => {
                     const name = findClimbName(names, g);
@@ -216,6 +277,7 @@ export function ClimbsView({ storage, onConnect, onReconnect, onOpen, onBack, us
                 <ClimbDetail
                   group={selected}
                   name={findClimbName(names, selected)}
+                  strava={findClimbStrava(names, selected)}
                   summary={summarizeAttempts(selected.attempts)}
                   onSaveName={(raw) => rename(selected, raw)}
                   onOpen={onOpen}

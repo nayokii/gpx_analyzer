@@ -9,9 +9,7 @@ import { ActivityFeedView } from "./ActivityFeedView.jsx";
 import { HomeView } from "./HomeView.jsx";
 import { ProfileView } from "./ProfileView.jsx";
 import { ArchetypeView } from "./ArchetypeView.jsx";
-import { AlterEgoView } from "./AlterEgoView.jsx";
 import { CoachView } from "./CoachView.jsx";
-import { TourView } from "./TourView.jsx";
 import { DataSourcesView } from "./DataSourcesView.jsx";
 import { stubResizeObserver } from "./testResizeObserverMock.js";
 
@@ -32,9 +30,9 @@ describe("design system : migration progressive par classe .gpx-ds", () => {
     expect(activites.container.querySelector(".gpx-dashboard.gpx-feed.gpx-ds")).toBeTruthy();
   });
 
-  it("Profil, Archétype et Alter Ego portent la classe .gpx-ds, et chacun conserve son unique titre h1", () => {
+  it("Profil et Archétype portent la classe .gpx-ds, et chacun conserve son unique titre h1", () => {
     const props = { storage: disconnected, onConnect: noop, onReconnect: noop, onBack: noop, onOpen: noop, onViewArchetype: noop, onViewProfile: noop };
-    for (const [View, title] of [[ProfileView, "Mon profil cycliste"], [ArchetypeView, "Archétype"], [AlterEgoView, "Alter Ego"]]) {
+    for (const [View, title] of [[ProfileView, "Mon profil cycliste"], [ArchetypeView, "Archétype"]]) {
       const { container, unmount } = render(<View {...props} />);
       expect(container.querySelector(".gpx-dashboard.gpx-ds"), title).toBeTruthy();
       const h1 = container.querySelectorAll("h1");
@@ -44,9 +42,9 @@ describe("design system : migration progressive par classe .gpx-ds", () => {
     }
   });
 
-  it("Coach, Tour et Sources de données portent la classe .gpx-ds et gardent un seul h1", () => {
+  it("Coach et Sources de données portent la classe .gpx-ds et gardent un seul h1", () => {
     const props = { storage: disconnected, onConnect: noop, onReconnect: noop, onBack: noop, onViewProfile: noop, onDisconnectStorage: noop, isDemo: false, refreshSignal: 0 };
-    for (const [View, title] of [[CoachView, "Coach"], [TourView, "Tour Simulator"], [DataSourcesView, "Sources de données"]]) {
+    for (const [View, title] of [[CoachView, "Coach"], [DataSourcesView, "Sources de données"]]) {
       const { container, unmount } = render(<View {...props} />);
       expect(container.querySelector(".gpx-dashboard.gpx-ds"), title).toBeTruthy();
       const h1 = container.querySelectorAll("h1");

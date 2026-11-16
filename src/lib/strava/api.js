@@ -123,3 +123,21 @@ export async function getActivityStreams({ accessToken, activityId, fetchImpl = 
   });
   return data && typeof data === "object" ? data : {};
 }
+
+/**
+ * Segments « montée » dans une zone (explorer les segments de Strava, 10
+ * résultats au maximum). `bounds` : [sudLat, ouestLon, nordLat, estLon].
+ * @param {Object} params
+ * @param {string} params.accessToken
+ * @param {[number, number, number, number]} params.bounds
+ * @param {typeof fetch} [params.fetchImpl]
+ * @returns {Promise<Array>} segments (id, name, climb_category, start_latlng, end_latlng, avg_grade, distance…)
+ */
+export async function exploreSegments({ accessToken, bounds, fetchImpl = fetch }) {
+  const data = await stravaFetch("/segments/explore", {
+    accessToken,
+    fetchImpl,
+    params: { bounds: bounds.join(","), activity_type: "riding" },
+  });
+  return data && Array.isArray(data.segments) ? data.segments : [];
+}
